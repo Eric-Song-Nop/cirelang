@@ -257,7 +257,7 @@ pub fn SyntaxTree::to_sexpr(Self) -> String
 
 pub struct Token {
   // private fields
-} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+} derive(Eq, ToJson, @debug.Debug)
 pub fn Token::id(Self) -> TokenId
 pub fn Token::is_eof(Self) -> Bool
 pub fn Token::is_trivia(Self) -> Bool
@@ -265,6 +265,7 @@ pub fn Token::kind(Self) -> SyntaxKind
 pub fn Token::new(TokenId, SyntaxKind, @source.TextRange, String) -> Self
 pub fn Token::range(Self) -> @source.TextRange
 pub fn Token::text(Self) -> String
+pub impl @json.FromJson for Token
 
 pub struct TokenId(Int) derive(Eq, @debug.Debug)
 pub fn TokenId::new(Int) -> Self
@@ -272,9 +273,11 @@ pub fn TokenId::value(Self) -> Int
 pub impl ToJson for TokenId
 pub impl @json.FromJson for TokenId
 
+type TokenRaw derive(@json.FromJson)
+
 pub struct TokenSnapshot {
   // private fields
-} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+} derive(Eq, ToJson, @debug.Debug)
 pub fn TokenSnapshot::length(Self) -> Int
 pub fn TokenSnapshot::new(@source.SourceId, @source.SourceRevision, Array[Token]) -> Self
 pub fn TokenSnapshot::revision(Self) -> @source.SourceRevision
@@ -283,6 +286,9 @@ pub fn TokenSnapshot::source_text(Self) -> String
 pub fn TokenSnapshot::token(Self, TokenId) -> Token?
 pub fn TokenSnapshot::token_at(Self, Int) -> Token?
 pub fn TokenSnapshot::tokens(Self) -> Array[Token]
+pub impl @json.FromJson for TokenSnapshot
+
+type TokenSnapshotRaw derive(@json.FromJson)
 
 pub(all) enum TreeEvent {
   Start(SyntaxKind)

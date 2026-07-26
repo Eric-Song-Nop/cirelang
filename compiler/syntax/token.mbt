@@ -53,7 +53,30 @@ pub struct Token {
   priv kind : SyntaxKind
   priv range : @source.TextRange
   priv text : String
-} derive(Debug, Eq, ToJson, FromJson)
+} derive(Debug, Eq, ToJson)
+
+///|
+struct TokenRaw {
+  id : TokenId
+  kind : SyntaxKind
+  range : @source.TextRange
+  text : String
+} derive(FromJson)
+
+///|
+pub impl @json.FromJson for Token with fn from_json(
+  json : Json,
+  path : @json.JsonPath,
+) -> Token raise @json.JsonDecodeError {
+  let raw : TokenRaw = @json.from_json(json, path~)
+  if !token_shape_is_valid(raw.kind, raw.range, raw.text) {
+    syntax_json_decode_error(
+      path, "Token: kind, range, and text do not form a valid lexical token",
+    )
+  } else {
+    { id: raw.id, kind: raw.kind, range: raw.range, text: raw.text }
+  }
+}
 
 ///|
 pub fn Token::new(
@@ -62,8 +85,23 @@ pub fn Token::new(
   range : @source.TextRange,
   text : String,
 ) -> Token {
-  guard kind.is_token() && range.length() == text.length()
+  guard token_shape_is_valid(kind, range, text)
   { id, kind, range, text }
+}
+
+///|
+fn token_shape_is_valid(
+  kind : SyntaxKind,
+  range : @source.TextRange,
+  text : String,
+) -> Bool {
+  kind.is_token() &&
+  range.length() == text.length() &&
+  (if kind == Eof {
+    text.is_empty() && range.is_empty()
+  } else {
+    !text.is_empty()
+  })
 }
 
 ///|
@@ -102,7 +140,30 @@ pub struct TokenSnapshot {
   priv source : @source.SourceId
   priv revision : @source.SourceRevision
   priv tokens : Array[Token]
-} derive(Debug, Eq, ToJson, FromJson)
+} derive(Debug, Eq, ToJson)
+
+///|
+struct TokenSnapshotRaw {
+  source : @source.SourceId
+  revision : @source.SourceRevision
+  tokens : Array[Token]
+} derive(FromJson)
+
+///|
+pub impl @json.FromJson for TokenSnapshot with fn from_json(
+  json : Json,
+  path : @json.JsonPath,
+) -> TokenSnapshot raise @json.JsonDecodeError {
+  let raw : TokenSnapshotRaw = @json.from_json(json, path~)
+  if !token_stream_is_canonical(raw.tokens) {
+    syntax_json_decode_error(
+      path.add_key("tokens"),
+      "TokenSnapshot: expected one contiguous token stream ending in EOF",
+    )
+  } else {
+    { source: raw.source, revision: raw.revision, tokens: raw.tokens.copy() }
+  }
+}
 
 ///|
 pub fn TokenSnapshot::new(
@@ -110,7 +171,28 @@ pub fn TokenSnapshot::new(
   revision : @source.SourceRevision,
   tokens : Array[Token],
 ) -> TokenSnapshot {
+  guard token_stream_is_canonical(tokens)
   { source, revision, tokens: tokens.copy() }
+}
+
+///|
+fn token_stream_is_canonical(tokens : Array[Token]) -> Bool {
+  if tokens.is_empty() {
+    return false
+  }
+  let mut cursor = @source.TextOffset::zero()
+  for index, token in tokens {
+    if token.id().value() != index ||
+      token.range().start() != cursor ||
+      !token_shape_is_valid(token.kind(), token.range(), token.text()) {
+      return false
+    }
+    if token.kind() == Eof {
+      return index == tokens.length() - 1
+    }
+    cursor = token.range().end()
+  }
+  false
 }
 
 ///|

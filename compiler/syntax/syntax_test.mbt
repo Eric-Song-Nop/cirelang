@@ -50,6 +50,16 @@ test "lossless token snapshot and JSON round-trip" {
   let encoded = snapshot.to_json().stringify()
   let decoded : @syntax.TokenSnapshot = @json.from_json(@json.parse(encoded))
   assert_eq(decoded, snapshot)
+  try
+    (
+      @json.from_json(
+        @json.parse(encoded.replace(old="\"KwEffect\"", new="\"SourceFile\"")),
+      ) : @syntax.TokenSnapshot)
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected a node-kind token to be rejected")
+  }
 }
 
 ///|
