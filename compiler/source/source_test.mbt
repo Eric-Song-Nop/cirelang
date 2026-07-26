@@ -140,4 +140,9 @@ test "source protocol rejects values that violate invariants" {
   } noraise {
     _ => fail("expected an invalid source id to be rejected")
   }
+  let workspace = @source.WorkspaceRevision::new(3)
+  let decoded_workspace : @source.WorkspaceRevision = @json.from_json(
+    workspace.to_json(),
+  )
+  assert_eq(decoded_workspace, workspace)
 }

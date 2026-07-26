@@ -51,8 +51,8 @@ Formatter 使用 CST，不格式化反糖后的 HIR。LSP 的 syntax feature 可
 
 ```text
 WorkspaceSnapshot
-  revision
-  files : Map[FileId, SourceSnapshot]
+  revision : WorkspaceRevision
+  files : Map[SourceId, SourceSnapshot]
   package_graph
   compiler_options
 ```
@@ -60,13 +60,19 @@ WorkspaceSnapshot
 `SourceSnapshot` 至少保存：
 
 ```text
-FileId
+SourceId
 normalized logical path
-revision
+revision : SourceRevision
 validated Unicode source text
 content hash
 LineIndex
 ```
+
+`SourceId` 只在一个 workspace session 内有效。`SourceRevision` 只描述单个
+文件的不可变版本；`WorkspaceRevision` 固定一次跨文件查询看到的整体状态。
+三者不能复用同一个裸 `Revision` 类型。持久 artifact 不序列化
+session-local `SourceId`，而使用 normalized path、`SourceRevision` 与
+versioned content hash 标识内容。
 
 MoonBit 的 `String` 与 LSP 的默认 position encoding 都以 UTF-16 code unit
 计数。编译器内部因此统一使用 UTF-16 code-unit offset 的半开区间
@@ -74,7 +80,8 @@ MoonBit 的 `String` 与 LSP 的默认 position encoding 都以 UTF-16 code unit
 
 - `String::length()`、lexer cursor、token range、CST range 与 `TextEdit`
   使用同一单位；
-- `LineIndex` 保存每一行的 UTF-16 起始 offset；
+- `LineIndex` 保存每一行的 UTF-16 起始与内容结束 offset，统一处理
+  LF、CRLF 与 lone CR；
 - LSP UTF-16 position 可以直接映射；
 - CLI renderer、采用其他 position encoding 的 LSP client，以及需要
   UTF-8 byte offset 的宿主接口通过 `LineIndex`/source adapter 转换。
@@ -635,7 +642,7 @@ same CompilerSnapshot
 
 交付：
 
-- `FileId`、`Revision`、`Span`、`TextEdit`；
+- `SourceId`、`SourceRevision`、`WorkspaceRevision`、`Span`、`TextEdit`；
 - deterministic JSON envelope；
 - common `Diagnostic`、`Label`、`Fix`；
 - `TraceSink`/`CompilerEvent`；

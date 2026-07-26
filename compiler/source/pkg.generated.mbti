@@ -122,6 +122,14 @@ pub impl @json.FromJson for TextRange
 
 type TextRangeJson derive(@json.FromJson)
 
+pub struct WorkspaceRevision(Int) derive(Eq, @debug.Debug)
+pub fn WorkspaceRevision::initial() -> Self
+pub fn WorkspaceRevision::new(Int) -> Self
+pub fn WorkspaceRevision::next(Self) -> Self
+pub fn WorkspaceRevision::value(Self) -> Int
+pub impl ToJson for WorkspaceRevision
+pub impl @json.FromJson for WorkspaceRevision
+
 // Type aliases
 
 // Traits
