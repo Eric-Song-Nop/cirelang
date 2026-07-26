@@ -538,50 +538,6 @@ fn Parser::parse_effect_declaration(self : Parser) -> Bool {
 }
 
 ///|
-fn Parser::parse_block_expression(self : Parser) -> Unit {
-  self.start_node(BlockExpression)
-  if !self.eat(LBrace) {
-    ignore(self.fail_expected("a function body"))
-    self.missing(LBrace)
-    self.report(
-      "CIRE-P0001",
-      "expected a function body",
-      self.point_range(),
-      "insert `{ ... }` here",
-    )
-    self.missing(RBrace)
-    self.finish_node()
-    return
-  }
-  let mut depth = 1
-  while depth > 0 && !self.at(Eof) {
-    match self.current_kind() {
-      Some(LBrace) => {
-        ignore(self.bump())
-        depth = depth + 1
-      }
-      Some(RBrace) => {
-        ignore(self.bump())
-        depth = depth - 1
-      }
-      Some(_) => ignore(self.bump())
-      None => break
-    }
-  }
-  if depth > 0 {
-    ignore(self.fail_expected("`}`"))
-    self.missing(RBrace)
-    self.report(
-      "CIRE-P0001",
-      "expected `}`",
-      self.point_range(),
-      "close this function body",
-    )
-  }
-  self.finish_node()
-}
-
-///|
 fn Parser::parse_function_declaration(self : Parser) -> Bool {
   let entered = self.enter_rule(
     RuleId::new("function_declaration"),
@@ -599,7 +555,7 @@ fn Parser::parse_function_declaration(self : Parser) -> Bool {
   ignore(self.expect_or_missing(Arrow, "`->`"))
   ignore(self.parse_type_reference())
   self.parse_effect_annotation()
-  self.parse_block_expression()
+  ignore(self.parse_required_block_expression("a function body"))
   self.finish_node()
   self.leave_rule(true)
   true
