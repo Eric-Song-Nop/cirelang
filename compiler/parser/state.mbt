@@ -75,11 +75,6 @@ fn Parser::token_snapshot(self : Parser) -> @syntax.TokenSnapshot {
 }
 
 ///|
-fn Parser::raw_index(self : Parser) -> Int {
-  self.raw_index
-}
-
-///|
 /// Index of the next non-trivia token, or `TokenSnapshot::length()` when the
 /// cursor is exhausted.
 fn Parser::significant_index(self : Parser) -> Int {

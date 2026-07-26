@@ -11,6 +11,8 @@ fn is_expression_start(kind : @syntax.SyntaxKind) -> Bool {
     | CharLiteral
     | KwTrue
     | KwFalse
+    | KwHandler
+    | KwWith
     | LParen
     | LBrace => true
     _ => false
@@ -91,6 +93,8 @@ fn Parser::parse_postfix_expression(
 ///|
 fn Parser::parse_primary_expression(self : Parser) -> CompletedMarker? {
   match self.current_kind() {
+    Some(KwWith) => self.parse_with_expression()
+    Some(KwHandler) => self.parse_handler_expression()
     Some(kind) if kind.is_literal() => {
       let marker = self.start_marker()
       ignore(self.bump())

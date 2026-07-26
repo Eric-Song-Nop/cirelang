@@ -129,7 +129,7 @@ test "silent probe cannot pollute parser state or public failure" {
       parser.fail_expected("probe-only expectation")
     }),
   )
-  assert_eq(parser.raw_index(), before.raw_index)
+  assert_eq(parser.raw_index, before.raw_index)
   assert_eq(parser.events().length(), before.event_count)
   assert_eq(parser.diagnostics().length(), before.diagnostic_count)
   guard parser.failure() is Some(failure)
@@ -147,11 +147,11 @@ test "rollback truncates token, missing, and diagnostic output" {
   parser.missing(RParen)
   parser.finish_node()
   parser.emit_diagnostic(test_diagnostic())
-  assert_eq(parser.raw_index(), 2)
+  assert_eq(parser.raw_index, 2)
   assert_eq(parser.events().length(), 5)
   assert_eq(parser.diagnostics().length(), 1)
   parser.rollback(checkpoint)
-  assert_eq(parser.raw_index(), 0)
+  assert_eq(parser.raw_index, 0)
   assert_eq(parser.events().length(), 0)
   assert_eq(parser.diagnostics().length(), 0)
 }
@@ -166,9 +166,9 @@ test "recovery advances and retains trivia in a lossless error node" {
   ])
   let parser = Parser::new(snapshot)
   parser.start_node(SourceFile)
-  let start = parser.raw_index()
+  let start = parser.raw_index
   assert_true(parser.recover_until([Plus]))
-  assert_true(parser.raw_index() > start)
+  assert_true(parser.raw_index > start)
   assert_true(parser.at(Plus))
   ignore(parser.bump())
   ignore(parser.bump())
@@ -232,10 +232,10 @@ test "recovery stops before delimiters and force recovery guarantees progress" {
   let parser = Parser::new(snapshot)
   parser.start_node(SourceFile)
   assert_false(parser.recover_until([Comma]))
-  assert_eq(parser.raw_index(), 0)
+  assert_eq(parser.raw_index, 0)
   assert_true(parser.at(Comma))
   assert_true(parser.recover_with_progress_until([LowerIdentifier]))
-  assert_eq(parser.raw_index(), 1)
+  assert_eq(parser.raw_index, 1)
   assert_eq(parser.current_token().map(token => token.text()), Some("next"))
   ignore(parser.bump())
   ignore(parser.bump())
@@ -254,11 +254,11 @@ test "recovery can synchronize on raw newline trivia" {
   let parser = Parser::new(snapshot)
   parser.start_node(SourceFile)
   assert_true(parser.recover_until([Newline]))
-  assert_eq(parser.raw_index(), 1)
+  assert_eq(parser.raw_index, 1)
   assert_eq(
     parser
     .token_snapshot()
-    .token_at(parser.raw_index())
+    .token_at(parser.raw_index)
     .map(token => token.kind()),
     Some(Newline),
   )
@@ -282,7 +282,7 @@ test "an earlier rule cut does not disable a later local choice" {
     ]),
   )
   parser.leave_rule(true)
-  assert_eq(parser.raw_index(), 1)
+  assert_eq(parser.raw_index, 1)
   guard parser.failure() is Some(failure)
   assert_eq(failure.expected(), ["the first alternative"])
   assert_false(failure.is_committed())
@@ -312,7 +312,7 @@ test "a successful child cut never leaks into its caller" {
     ]),
   )
   parser.leave_rule(true)
-  assert_eq(parser.raw_index(), 1)
+  assert_eq(parser.raw_index, 1)
 }
 
 ///|
@@ -347,7 +347,7 @@ test "handled committed failure cannot poison a later local choice" {
     ]),
   )
   parser.leave_rule(true)
-  assert_eq(parser.raw_index(), 2)
+  assert_eq(parser.raw_index, 2)
 }
 
 ///|
@@ -382,7 +382,7 @@ test "missing tokens follow pending trivia at the significant offset" {
   let parser = Parser::new(snapshot)
   parser.start_node(SourceFile)
   parser.missing(Arrow)
-  assert_eq(parser.raw_index(), 1)
+  assert_eq(parser.raw_index, 1)
   ignore(parser.bump())
   ignore(parser.bump())
   parser.finish_node()
@@ -421,7 +421,7 @@ test "committed failures roll back partial event and cursor state" {
     parser => parser.eat(LowerIdentifier),
   ])
   assert_false(matched)
-  assert_eq(parser.raw_index(), 0)
+  assert_eq(parser.raw_index, 0)
   assert_eq(parser.events(), [])
   assert_eq(parser.node_depth, 0)
   guard parser.failure() is Some(failure)
@@ -443,7 +443,7 @@ test "successful choice keeps farthest failure but only successful events" {
       parser => parser.eat(LowerIdentifier),
     ]),
   )
-  assert_eq(parser.raw_index(), 1)
+  assert_eq(parser.raw_index, 1)
   assert_eq(parser.events().length(), 1)
   guard parser.failure() is Some(failure)
   assert_eq(failure.token_index(), 1)
@@ -549,7 +549,7 @@ test "marker rewrites roll back across failed alternatives" {
   parser.rollback(checkpoint)
   assert_eq(parser.events(), before)
   assert_eq(parser.marker_depth, 0)
-  assert_eq(parser.raw_index(), 1)
+  assert_eq(parser.raw_index, 1)
 }
 
 ///|
@@ -569,5 +569,5 @@ test "probe cannot leak forward-parent links or markers" {
   )
   assert_eq(parser.events(), before)
   assert_eq(parser.marker_depth, 0)
-  assert_eq(parser.raw_index(), 1)
+  assert_eq(parser.raw_index, 1)
 }
