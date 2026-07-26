@@ -386,8 +386,26 @@ users.for_each(fn(user) {
 - 一个 trailing lambda 只能作为调用的最后一个实参；
 - `callee(args) { ... }` 与 `callee { ... }` 都允许；
 - `{ params => body }` 提供参数，`{ body }` 表示零参数 thunk；
+- call 与 trailing block 之间的 whitespace、newline 或 comment 不打断附着，
+  因而 formatter 可以安全换行；若要把 call 与后续独立 block 分开，必须写
+  显式 `;`；
 - 它不获得 AST、调用点源码或卫生名称访问权；
 - 需要 lexical site 的第一方 API 必须使用编译器定义的稳定 site 机制，而不是偷偷实现宏展开。
+
+`with` 的 handler operand 是这一规则的有意例外。Parser 使用
+`StopBeforeTrailingBlock` flavor 解析 operand，因此：
+
+```moonbit
+with make_handler(1) { run() }
+```
+
+唯一解释为 `with` action，不会先把 `{ run() }` 附着成
+`make_handler(1)` 的 trailing lambda。需要把 trailing lambda 放进 operand
+时必须显式加括号：
+
+```moonbit
+with (make_handler(1) { configure() }) { run() }
+```
 
 ### 7.3 不属于语法糖的构造
 

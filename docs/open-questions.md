@@ -36,6 +36,10 @@
 - `with h { body }` 降为 `h(fn() { body })`；
 - `with h as app { body }` 降为 `h(fn(app) { body })`，其中 `app` 是生成式身份；
 - `callee(args) { body }` 与 `callee { value => body }` 是最后一个 lambda argument 的糖；
+- newline/comment 不打断 trailing lambda 附着；显式 `;` 才把 call 与后续
+  block 分开；
+- `with` operand 使用 stop-before-trailing-block 解析，operand 自身需要
+  trailing lambda 时写括号；
 - effect visibility 镜像 trait visibility；
 - 不设计宏系统；
 - grammar 采用 PEG，并由项目手写 parser。
