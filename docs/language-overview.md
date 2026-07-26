@@ -189,11 +189,12 @@ park / adopt 到 Owner
 - block/effectful thunk 作为一等 computation；
 - scoped/higher-order effect，或能安全替代它的 rank-2 computation 参数；
 - lexical deep handler 作为默认、shallow handler 作为高级能力；
-- typed hygienic macro；
-- 宏可获得稳定但不泄漏源码路径的 lexical site token；
+- compiler-defined、稳定但不泄漏源码路径的 lexical site identity；
 - generative name、存在类型和 typed namespace。
 
 它们应由增量与 UI 原型的真实表达缺口来决定，不能只因为理论上漂亮就加入。
+这里的 lexical site 是受限的编译器 intrinsic，不开放 token、AST 或 typed
+macro 扩展；Cire 不设计宏系统。
 
 ## 4. 第一方而非核心语法
 

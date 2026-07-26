@@ -132,7 +132,9 @@ key/name      决定“新旧两轮是不是同一个对象”
 
 不能按执行序号交换两人的 state。keyed container 应移动 Bob 和 Alice 对应的现有 logical Owner，而不是重建或交换其状态。
 
-Stable key 和 reconciliation 属于 UI/container 层。语言可以提供 typed key、generative name、存在类型和卫生宏的稳定 call-site token，但不需要理解“组件”。
+Stable key 和 reconciliation 属于 UI/container 层。语言可以提供 typed
+key、generative name、存在类型和受限的 compiler-defined stable
+call-site identity，但不需要理解“组件”，也不因此引入宏系统。
 
 ## 6. Logical Owner 与 DOM identity
 
