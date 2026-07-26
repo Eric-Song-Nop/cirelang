@@ -642,6 +642,25 @@ same CompilerSnapshot
 
 ## 11. Parser-first implementation plan
 
+### 11.1 当前实现状态
+
+截至首个 parser implementation slice：
+
+| 阶段 | 状态 | 已落地 | 仍缺 |
+|---|---|---|---|
+| P0 | baseline 完成 | revisioned source、UTF-16 span/edit、content fingerprint、validated JSON、diagnostic/fix、trace DTO | stable parse artifact adapter 与长期 schema migration test |
+| P1 | baseline 完成 | lossless lexer、invalid token、nested comment、UTF-16 range、revision-checked `relex` | token-window relex 与 Unicode identifier policy |
+| P2 | 部分完成 | handwritten PEG cursor、ordered choice/probe、rule-local cut、farthest failure、context stack、transactional recovery、forward-parent marker | selective memo cache、cancellation polling、parser trace emission |
+| P3 | 部分完成 | `effect`/operation、`fn` signature、type parameter/argument、function type、effect row、`{app}`、`..Eff`、`Read[app]` 定向修复 | `struct`/`enum`/`trait`/`impl`、module/import 与完整 constraint grammar |
+| P4 | 部分完成 | name/literal/block、call/method、labelled argument、trailing lambda、handler、`with`、`as k` mode diagnostics | fixed precedence、`let`、`if`/`match`、完整 pattern、index/tuple/record/array expression |
+| P5 | 未开始 | CST 已保留 sugar boundary | typed CST、Surface/Kernel HIR 与 origin-preserving elaboration |
+| P6 | baseline 开始 | immutable `ParseSnapshot`、single-edit `reparse`、full-parse equivalence test | workspace/source DB、batch edit、reparse island、subtree reuse、LSP adapter |
+
+这里的 “baseline 完成” 只表示接口和 correctness baseline 可继续扩展，不表示
+已经实现增量性能。当前 `relex`/`reparse` 在校验 revision 与 edit 后仍允许
+full fallback；任何 reuse 优化都必须继续满足 incremental result 与
+from-scratch result 等价。
+
 ### P0：Serialization shell
 
 交付：
