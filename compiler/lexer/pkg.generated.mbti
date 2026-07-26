@@ -1,0 +1,44 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Eric-Song-Nop/cirelang/compiler/lexer"
+
+import {
+  "Eric-Song-Nop/cirelang/compiler/diagnostic",
+  "Eric-Song-Nop/cirelang/compiler/source",
+  "Eric-Song-Nop/cirelang/compiler/syntax",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+}
+
+// Values
+pub fn lex(@source.SourceSnapshot) -> LexSnapshot
+
+pub fn relex(LexSnapshot, @source.SourceSnapshot, @source.TextEdit) -> LexSnapshot raise RelexError
+
+// Errors
+pub(all) suberror RelexError {
+  EditWrongSource(expected~ : @source.SourceId, actual~ : @source.SourceId)
+  EditStaleRevision(expected~ : @source.SourceRevision, actual~ : @source.SourceRevision)
+  EditInvalidRange(@source.TextRange)
+  EditInvalidUnicodeBoundary(@source.TextRange)
+  UpdatedSourceMismatch(expected~ : @source.SourceId, actual~ : @source.SourceId)
+  UpdatedRevisionMismatch(expected~ : @source.SourceRevision, actual~ : @source.SourceRevision)
+  UpdatedTextMismatch
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+// Types and methods
+pub struct LexSnapshot {
+  // private fields
+} derive(Eq, ToJson, @debug.Debug)
+pub fn LexSnapshot::diagnostics(Self) -> Array[@diagnostic.Diagnostic]
+pub fn LexSnapshot::revision(Self) -> @source.SourceRevision
+pub fn LexSnapshot::source(Self) -> @source.SourceId
+pub fn LexSnapshot::source_text(Self) -> String
+pub fn LexSnapshot::tokens(Self) -> @syntax.TokenSnapshot
+pub impl @json.FromJson for LexSnapshot
+
+type LexSnapshotRaw derive(@json.FromJson)
+
+// Type aliases
+
+// Traits
+
