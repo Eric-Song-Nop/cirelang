@@ -138,7 +138,7 @@ pub struct Diagnostic {
   notes : Array[String]
   fixes : Array[Fix]
   revision : @source.SourceRevision
-} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+} derive(Eq, ToJson, @debug.Debug)
 pub fn Diagnostic::code(Self) -> DiagnosticCode
 pub fn Diagnostic::fixes(Self) -> Array[Fix]
 pub fn Diagnostic::labels(Self) -> Array[Label]
@@ -151,6 +151,7 @@ pub fn Diagnostic::stage(Self) -> Stage
 pub fn Diagnostic::with_fix(Self, Fix) -> Self
 pub fn Diagnostic::with_label(Self, Label) -> Self
 pub fn Diagnostic::with_note(Self, String) -> Self
+pub impl @json.FromJson for Diagnostic
 
 pub struct DiagnosticCode(String) derive(Eq, @debug.Debug)
 pub fn DiagnosticCode::new(String) -> Self
@@ -158,26 +159,34 @@ pub fn DiagnosticCode::value(Self) -> String
 pub impl ToJson for DiagnosticCode
 pub impl @json.FromJson for DiagnosticCode
 
+type DiagnosticRaw derive(@json.FromJson)
+
 pub struct Fix {
   title : String
   applicability : Applicability
   edits : Array[@source.TextEdit]
-} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+} derive(Eq, ToJson, @debug.Debug)
 pub fn Fix::applicability(Self) -> Applicability
 pub fn Fix::edits(Self) -> Array[@source.TextEdit]
 pub fn Fix::new(String, Applicability, Array[@source.TextEdit]) -> Self
 pub fn Fix::title(Self) -> String
+pub impl @json.FromJson for Fix
+
+type FixRaw derive(@json.FromJson)
 
 pub struct Label {
   span : @source.Span
   style : LabelStyle
   message : String
-} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+} derive(Eq, ToJson, @debug.Debug)
 pub fn Label::message(Self) -> String
 pub fn Label::primary(@source.Span, String) -> Self
 pub fn Label::secondary(@source.Span, String) -> Self
 pub fn Label::span(Self) -> @source.Span
 pub fn Label::style(Self) -> LabelStyle
+pub impl @json.FromJson for Label
+
+type LabelRaw derive(@json.FromJson)
 
 pub(all) enum LabelStyle {
   Primary

@@ -48,7 +48,7 @@ pub fn GreenElement::text_length(Self) -> Int
 
 pub struct GreenNode {
   // private fields
-} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+} derive(Eq, ToJson, @debug.Debug)
 pub fn GreenNode::child(Self, Int) -> GreenElement?
 pub fn GreenNode::child_count(Self) -> Int
 pub fn GreenNode::children(Self) -> Array[GreenElement]
@@ -57,10 +57,13 @@ pub fn GreenNode::new(SyntaxKind, Array[GreenElement]) -> Self
 pub fn GreenNode::source_text(Self) -> String
 pub fn GreenNode::text_length(Self) -> Int
 pub fn GreenNode::to_sexpr(Self) -> String
+pub impl @json.FromJson for GreenNode
+
+type GreenNodeRaw derive(@json.FromJson)
 
 pub struct GreenToken {
   // private fields
-} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+} derive(Eq, ToJson, @debug.Debug)
 pub fn GreenToken::from_token(Token) -> Self
 pub fn GreenToken::is_missing(Self) -> Bool
 pub fn GreenToken::kind(Self) -> SyntaxKind
@@ -68,6 +71,9 @@ pub fn GreenToken::missing(SyntaxKind) -> Self
 pub fn GreenToken::text(Self) -> String
 pub fn GreenToken::text_length(Self) -> Int
 pub fn GreenToken::to_sexpr(Self) -> String
+pub impl @json.FromJson for GreenToken
+
+type GreenTokenRaw derive(@json.FromJson)
 
 pub(all) enum SyntaxElement {
   Token(SyntaxToken)
@@ -246,7 +252,7 @@ pub fn SyntaxToken::text(Self) -> String
 
 pub struct SyntaxTree {
   // private fields
-} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+} derive(Eq, ToJson, @debug.Debug)
 pub fn SyntaxTree::green(Self) -> GreenNode
 pub fn SyntaxTree::new(@source.SourceId, @source.SourceRevision, GreenNode) -> Self
 pub fn SyntaxTree::revision(Self) -> @source.SourceRevision
@@ -254,6 +260,9 @@ pub fn SyntaxTree::root(Self) -> SyntaxNode
 pub fn SyntaxTree::source(Self) -> @source.SourceId
 pub fn SyntaxTree::source_text(Self) -> String
 pub fn SyntaxTree::to_sexpr(Self) -> String
+pub impl @json.FromJson for SyntaxTree
+
+type SyntaxTreeRaw derive(@json.FromJson)
 
 pub struct Token {
   // private fields

@@ -6,17 +6,56 @@ pub struct GreenToken {
   priv kind : SyntaxKind
   priv text : String
   priv missing : Bool
-} derive(Debug, Eq, ToJson, FromJson)
+} derive(Debug, Eq, ToJson)
+
+///|
+struct GreenTokenRaw {
+  kind : SyntaxKind
+  text : String
+  missing : Bool
+} derive(FromJson)
+
+///|
+pub impl @json.FromJson for GreenToken with fn from_json(
+  json : Json,
+  path : @json.JsonPath,
+) -> GreenToken raise @json.JsonDecodeError {
+  let raw : GreenTokenRaw = @json.from_json(json, path~)
+  if !green_token_shape_is_valid(raw.kind, raw.text, raw.missing) {
+    syntax_json_decode_error(
+      path, "GreenToken: kind, text, and missing do not form a valid green token",
+    )
+  } else {
+    { kind: raw.kind, text: raw.text, missing: raw.missing }
+  }
+}
 
 ///|
 pub fn GreenToken::from_token(token : Token) -> GreenToken {
+  guard green_token_shape_is_valid(token.kind(), token.text(), false)
   { kind: token.kind(), text: token.text(), missing: false }
 }
 
 ///|
 pub fn GreenToken::missing(kind : SyntaxKind) -> GreenToken {
-  guard kind.is_token() && kind != Eof
+  guard green_token_shape_is_valid(kind, "", true)
   { kind, text: "", missing: true }
+}
+
+///|
+fn green_token_shape_is_valid(
+  kind : SyntaxKind,
+  text : String,
+  missing : Bool,
+) -> Bool {
+  kind.is_token() &&
+  (if missing {
+    kind != Eof && text.is_empty()
+  } else if kind == Eof {
+    text.is_empty()
+  } else {
+    !text.is_empty()
+  })
 }
 
 ///|
@@ -54,15 +93,61 @@ pub(all) enum GreenElement {
 pub struct GreenNode {
   priv kind : SyntaxKind
   priv children : Array[GreenElement]
-} derive(Debug, Eq, ToJson, FromJson)
+} derive(Debug, Eq, ToJson)
+
+///|
+struct GreenNodeRaw {
+  kind : SyntaxKind
+  children : Array[GreenElement]
+} derive(FromJson)
+
+///|
+pub impl @json.FromJson for GreenNode with fn from_json(
+  json : Json,
+  path : @json.JsonPath,
+) -> GreenNode raise @json.JsonDecodeError {
+  let raw : GreenNodeRaw = @json.from_json(json, path~)
+  if !green_node_shape_is_valid(raw.kind, raw.children) {
+    syntax_json_decode_error(
+      path, "GreenNode: expected a node kind and recursively valid children",
+    )
+  } else {
+    { kind: raw.kind, children: raw.children.copy() }
+  }
+}
 
 ///|
 pub fn GreenNode::new(
   kind : SyntaxKind,
   children : Array[GreenElement],
 ) -> GreenNode {
-  guard kind.is_node()
+  guard green_node_shape_is_valid(kind, children)
   { kind, children: children.copy() }
+}
+
+///|
+fn green_element_shape_is_valid(element : GreenElement) -> Bool {
+  match element {
+    Token(token) =>
+      green_token_shape_is_valid(token.kind(), token.text(), token.is_missing())
+    Node(node) => green_node_shape_is_valid(node.kind, node.children)
+  }
+}
+
+///|
+fn green_node_shape_is_valid(
+  kind : SyntaxKind,
+  children : Array[GreenElement],
+) -> Bool {
+  if !kind.is_node() {
+    return false
+  }
+  for child in children {
+    if !green_element_shape_is_valid(child) {
+      return false
+    }
+  }
+  true
 }
 
 ///|

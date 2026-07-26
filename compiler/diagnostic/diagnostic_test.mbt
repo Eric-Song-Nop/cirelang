@@ -7,6 +7,28 @@ fn range(start : Int, end : Int) -> @source.TextRange {
 }
 
 ///|
+fn fix_decode_is_rejected(encoded : String) -> Bool {
+  try {
+    let _decoded : @diagnostic.Fix = @json.from_json(@json.parse(encoded))
+    false
+  } catch {
+    _ => true
+  }
+}
+
+///|
+fn diagnostic_decode_is_rejected(encoded : String) -> Bool {
+  try {
+    let _decoded : @diagnostic.Diagnostic = @json.from_json(
+      @json.parse(encoded),
+    )
+    false
+  } catch {
+    _ => true
+  }
+}
+
+///|
 test "artifact envelope has an exact versioned JSON shape" {
   inspect(
     @diagnostic.DiagnosticCode::new("P0001").to_json().stringify(),
@@ -211,6 +233,112 @@ test "internal diagnostics retain session spans and edits" {
     .with_fix(@diagnostic.Fix::new("insert `}`", Always, [edit]))
   assert_eq(diagnostic.labels()[0].span().source(), source_id)
   assert_eq(diagnostic.fixes()[0].edits()[0].source(), source_id)
+}
+
+///|
+test "internal diagnostic JSON decoding preserves constructor invariants" {
+  let source_id = @source.SourceId::new(17)
+  let revision = @source.SourceRevision::new(4)
+  let span = @source.Span::new(source_id, range(1, 2))
+  let label = @diagnostic.Label::primary(span, "value starts here")
+  let empty_message_label = @diagnostic.Label::secondary(span, "")
+  let decoded_empty_message_label : @diagnostic.Label = @json.from_json(
+    empty_message_label.to_json(),
+  )
+  assert_eq(decoded_empty_message_label, empty_message_label)
+  let edit = @source.TextEdit::new(source_id, revision, range(2, 2), "()")
+  let edits = [edit]
+  let fix = @diagnostic.Fix::new("insert arguments", Always, edits)
+  edits.push(@source.TextEdit::new(source_id, revision, range(0, 0), "ignored"))
+  assert_eq(fix.edits().length(), 1)
+  let fix_json = fix.to_json().stringify()
+  let decoded_fix : @diagnostic.Fix = @json.from_json(@json.parse(fix_json))
+  assert_eq(decoded_fix, fix)
+  assert_true(
+    fix_decode_is_rejected(
+      fix_json.replace(
+        old="\"title\":\"insert arguments\"",
+        new="\"title\":\"\"",
+      ),
+    ),
+  )
+  assert_true(
+    fix_decode_is_rejected(
+      "{\"title\":\"insert arguments\",\"applicability\":\"Always\",\"edits\":[]}",
+    ),
+  )
+  let diagnostic = @diagnostic.Diagnostic::new(
+      @diagnostic.DiagnosticCode::new("P0017"),
+      Parse,
+      Error,
+      "expected arguments",
+      label,
+      revision,
+    )
+    .with_note("calls require an argument list")
+    .with_fix(fix)
+  let encoded = diagnostic.to_json().stringify()
+  let decoded : @diagnostic.Diagnostic = @json.from_json(@json.parse(encoded))
+  assert_eq(decoded, diagnostic)
+  let returned_labels = decoded.labels()
+  returned_labels.push(empty_message_label)
+  let returned_notes = decoded.notes()
+  returned_notes.push("caller mutation")
+  let returned_fixes = decoded.fixes()
+  returned_fixes.push(fix)
+  let returned_edits = decoded.fixes()[0].edits()
+  returned_edits.push(edit)
+  assert_eq(decoded.labels().length(), 1)
+  assert_eq(decoded.notes().length(), 1)
+  assert_eq(decoded.fixes().length(), 1)
+  assert_eq(decoded.fixes()[0].edits().length(), 1)
+  assert_true(
+    diagnostic_decode_is_rejected(
+      encoded.replace(
+        old="\"message\":\"expected arguments\"",
+        new="\"message\":\"\"",
+      ),
+    ),
+  )
+  assert_true(
+    diagnostic_decode_is_rejected(
+      encoded.replace(old="\"Primary\"", new="\"Secondary\""),
+    ),
+  )
+  let no_labels = encoded.replace(old=label.to_json().stringify(), new="")
+  assert_true(no_labels.contains("\"labels\":[]"))
+  assert_true(diagnostic_decode_is_rejected(no_labels))
+  assert_true(
+    diagnostic_decode_is_rejected(
+      encoded.replace(
+        old="\"notes\":[\"calls require an argument list\"]",
+        new="\"notes\":[\"\"]",
+      ),
+    ),
+  )
+  assert_true(
+    diagnostic_decode_is_rejected(
+      encoded.replace(
+        old="\"title\":\"insert arguments\"",
+        new="\"title\":\"\"",
+      ),
+    ),
+  )
+  assert_true(
+    diagnostic_decode_is_rejected(
+      encoded.replace(
+        old="\"labels\":[\{label.to_json().stringify()}]",
+        new="\"labels\":[\{label.to_json().stringify()}," +
+          "\{label.to_json().stringify()}]",
+      ),
+    ),
+  )
+  let secondary = @diagnostic.Label::secondary(span, "related location")
+  let with_secondary = diagnostic.with_label(secondary)
+  let decoded_with_secondary : @diagnostic.Diagnostic = @json.from_json(
+    with_secondary.to_json(),
+  )
+  assert_eq(decoded_with_secondary, with_secondary)
 }
 
 ///|

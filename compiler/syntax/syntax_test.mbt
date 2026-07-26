@@ -7,6 +7,36 @@ fn test_range(start : Int, end : Int) -> @source.TextRange {
 }
 
 ///|
+fn green_token_decode_is_rejected(encoded : String) -> Bool {
+  try {
+    let _decoded : @syntax.GreenToken = @json.from_json(@json.parse(encoded))
+    false
+  } catch {
+    _ => true
+  }
+}
+
+///|
+fn green_node_decode_is_rejected(encoded : String) -> Bool {
+  try {
+    let _decoded : @syntax.GreenNode = @json.from_json(@json.parse(encoded))
+    false
+  } catch {
+    _ => true
+  }
+}
+
+///|
+fn syntax_tree_decode_is_rejected(encoded : String) -> Bool {
+  try {
+    let _decoded : @syntax.SyntaxTree = @json.from_json(@json.parse(encoded))
+    false
+  } catch {
+    _ => true
+  }
+}
+
+///|
 test "syntax kinds expose stable lexical metadata" {
   assert_true(@syntax.KwEffect.is_keyword())
   assert_true(@syntax.LBrace.is_punctuation())
@@ -63,6 +93,56 @@ test "lossless token snapshot and JSON round-trip" {
 }
 
 ///|
+test "green token decoding enforces the constructor shapes" {
+  let identifier = @syntax.GreenToken::from_token(
+    @syntax.Token::new(
+      @syntax.TokenId::new(0),
+      Identifier,
+      test_range(0, 1),
+      "x",
+    ),
+  )
+  let missing = @syntax.GreenToken::missing(LBrace)
+  let eof = @syntax.GreenToken::from_token(
+    @syntax.Token::new(@syntax.TokenId::new(1), Eof, test_range(1, 1), ""),
+  )
+  for token in [identifier, missing, eof] {
+    let encoded = token.to_json().stringify()
+    let decoded : @syntax.GreenToken = @json.from_json(@json.parse(encoded))
+    assert_eq(decoded, token)
+  }
+  let identifier_json = identifier.to_json().stringify()
+  assert_true(
+    green_token_decode_is_rejected(
+      identifier_json.replace(old="\"Identifier\"", new="\"SourceFile\""),
+    ),
+  )
+  assert_true(
+    green_token_decode_is_rejected(
+      identifier_json.replace(old="\"text\":\"x\"", new="\"text\":\"\""),
+    ),
+  )
+  assert_true(
+    green_token_decode_is_rejected(
+      identifier_json.replace(old="\"missing\":false", new="\"missing\":true"),
+    ),
+  )
+  assert_true(
+    green_token_decode_is_rejected(
+      missing.to_json().stringify().replace(old="\"LBrace\"", new="\"Eof\""),
+    ),
+  )
+  assert_true(
+    green_token_decode_is_rejected(
+      eof
+      .to_json()
+      .stringify()
+      .replace(old="\"text\":\"\"", new="\"text\":\"x\""),
+    ),
+  )
+}
+
+///|
 test "green builder preserves UTF-16 text and missing tokens" {
   let events : Array[@syntax.TreeEvent] = [
     Start(SourceFile),
@@ -110,6 +190,48 @@ test "green builder preserves UTF-16 text and missing tokens" {
   let encoded = root.to_json().stringify()
   let decoded : @syntax.GreenNode = @json.from_json(@json.parse(encoded))
   assert_eq(decoded, root)
+}
+
+///|
+test "green node and syntax tree decoding validate recursive roots" {
+  let root = @syntax.GreenNode::new(SourceFile, [
+    Token(
+      @syntax.GreenToken::from_token(
+        @syntax.Token::new(@syntax.TokenId::new(0), Eof, test_range(0, 0), ""),
+      ),
+    ),
+  ])
+  let root_json = root.to_json().stringify()
+  let decoded_root : @syntax.GreenNode = @json.from_json(@json.parse(root_json))
+  assert_eq(decoded_root, root)
+  let returned_children = decoded_root.children()
+  returned_children.push(Node(@syntax.GreenNode::new(ErrorNode, [])))
+  assert_eq(decoded_root.child_count(), 1)
+  assert_true(
+    green_node_decode_is_rejected(
+      root_json.replace(old="\"SourceFile\"", new="\"Identifier\""),
+    ),
+  )
+  assert_true(
+    green_node_decode_is_rejected(
+      root_json.replace(old="\"Eof\"", new="\"SourceFile\""),
+    ),
+  )
+  let tree = @syntax.SyntaxTree::new(
+    @source.SourceId::new(9),
+    @source.SourceRevision::new(2),
+    root,
+  )
+  let tree_json = tree.to_json().stringify()
+  let decoded_tree : @syntax.SyntaxTree = @json.from_json(
+    @json.parse(tree_json),
+  )
+  assert_eq(decoded_tree, tree)
+  assert_true(
+    syntax_tree_decode_is_rejected(
+      tree_json.replace(old="\"SourceFile\"", new="\"ErrorNode\""),
+    ),
+  )
 }
 
 ///|

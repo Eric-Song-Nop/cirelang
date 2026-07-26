@@ -160,7 +160,30 @@ pub struct SyntaxTree {
   priv source : @source.SourceId
   priv revision : @source.SourceRevision
   priv root : GreenNode
-} derive(Debug, Eq, ToJson, FromJson)
+} derive(Debug, Eq, ToJson)
+
+///|
+struct SyntaxTreeRaw {
+  source : @source.SourceId
+  revision : @source.SourceRevision
+  root : GreenNode
+} derive(FromJson)
+
+///|
+pub impl @json.FromJson for SyntaxTree with fn from_json(
+  json : Json,
+  path : @json.JsonPath,
+) -> SyntaxTree raise @json.JsonDecodeError {
+  let raw : SyntaxTreeRaw = @json.from_json(json, path~)
+  if raw.root.kind() != SourceFile {
+    syntax_json_decode_error(
+      path.add_key("root"),
+      "SyntaxTree: root must be a source_file node",
+    )
+  } else {
+    { source: raw.source, revision: raw.revision, root: raw.root }
+  }
+}
 
 ///|
 pub fn SyntaxTree::new(
@@ -168,6 +191,7 @@ pub fn SyntaxTree::new(
   revision : @source.SourceRevision,
   root : GreenNode,
 ) -> SyntaxTree {
+  guard root.kind() == SourceFile
   { source, revision, root }
 }
 

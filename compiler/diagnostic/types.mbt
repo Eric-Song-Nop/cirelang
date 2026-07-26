@@ -60,7 +60,23 @@ pub struct Label {
   span : @source.Span
   style : LabelStyle
   message : String
-} derive(Debug, Eq, ToJson, FromJson)
+} derive(Debug, Eq, ToJson)
+
+///|
+struct LabelRaw {
+  span : @source.Span
+  style : LabelStyle
+  message : String
+} derive(FromJson)
+
+///|
+pub impl @json.FromJson for Label with fn from_json(
+  json : Json,
+  path : @json.JsonPath,
+) -> Label raise @json.JsonDecodeError {
+  let raw : LabelRaw = @json.from_json(json, path~)
+  { span: raw.span, style: raw.style, message: raw.message }
+}
 
 ///|
 pub fn Label::primary(span : @source.Span, message : String) -> Label {
@@ -99,7 +115,35 @@ pub struct Fix {
   title : String
   applicability : Applicability
   edits : Array[@source.TextEdit]
-} derive(Debug, Eq, ToJson, FromJson)
+} derive(Debug, Eq, ToJson)
+
+///|
+struct FixRaw {
+  title : String
+  applicability : Applicability
+  edits : Array[@source.TextEdit]
+} derive(FromJson)
+
+///|
+pub impl @json.FromJson for Fix with fn from_json(
+  json : Json,
+  path : @json.JsonPath,
+) -> Fix raise @json.JsonDecodeError {
+  let raw : FixRaw = @json.from_json(json, path~)
+  if raw.title.is_empty() {
+    diagnostic_json_decode_error(
+      path.add_key("title"),
+      "Fix: title must not be empty",
+    )
+  }
+  if raw.edits.is_empty() {
+    diagnostic_json_decode_error(
+      path.add_key("edits"),
+      "Fix: edits must not be empty",
+    )
+  }
+  { title: raw.title, applicability: raw.applicability, edits: [..raw.edits] }
+}
 
 ///|
 pub fn Fix::new(
@@ -136,7 +180,73 @@ pub struct Diagnostic {
   notes : Array[String]
   fixes : Array[Fix]
   revision : @source.SourceRevision
-} derive(Debug, Eq, ToJson, FromJson)
+} derive(Debug, Eq, ToJson)
+
+///|
+struct DiagnosticRaw {
+  code : DiagnosticCode
+  stage : Stage
+  severity : Severity
+  message : String
+  labels : Array[Label]
+  notes : Array[String]
+  fixes : Array[Fix]
+  revision : @source.SourceRevision
+} derive(FromJson)
+
+///|
+pub impl @json.FromJson for Diagnostic with fn from_json(
+  json : Json,
+  path : @json.JsonPath,
+) -> Diagnostic raise @json.JsonDecodeError {
+  let raw : DiagnosticRaw = @json.from_json(json, path~)
+  if raw.message.is_empty() {
+    diagnostic_json_decode_error(
+      path.add_key("message"),
+      "Diagnostic: message must not be empty",
+    )
+  }
+  if raw.labels.is_empty() || raw.labels[0].style() != Primary {
+    diagnostic_json_decode_error(
+      path.add_key("labels"),
+      "Diagnostic: first label must be primary",
+    )
+  }
+  for index = 1; index < raw.labels.length(); index = index + 1 {
+    if raw.labels[index].style() != Secondary {
+      diagnostic_json_decode_error(
+        path.add_key("labels").add_index(index),
+        "Diagnostic: labels after the primary label must be secondary",
+      )
+    }
+  }
+  for index, note in raw.notes {
+    if note.is_empty() {
+      diagnostic_json_decode_error(
+        path.add_key("notes").add_index(index),
+        "Diagnostic: notes must not contain an empty note",
+      )
+    }
+  }
+  {
+    code: raw.code,
+    stage: raw.stage,
+    severity: raw.severity,
+    message: raw.message,
+    labels: [..raw.labels],
+    notes: [..raw.notes],
+    fixes: [..raw.fixes],
+    revision: raw.revision,
+  }
+}
+
+///|
+fn[T] diagnostic_json_decode_error(
+  path : @json.JsonPath,
+  message : String,
+) -> T raise @json.JsonDecodeError {
+  raise JsonDecodeError((path, message))
+}
 
 ///|
 pub fn Diagnostic::new(
@@ -162,6 +272,7 @@ pub fn Diagnostic::new(
 
 ///|
 pub fn Diagnostic::with_label(self : Diagnostic, label : Label) -> Diagnostic {
+  guard label.style() == Secondary
   { ..self, labels: [..self.labels, label] }
 }
 
