@@ -54,6 +54,36 @@
 
 语法糖不能先于核心类型规则获得独立语义。CST 保留糖，Surface HIR 到 Kernel HIR 的 elaboration 必须可检查、可序列化并保留 source origin。
 
+### 2.1 Parser 推进前后还要冻结的普通语法
+
+以下问题不改变 effect 核心，但会直接影响 lexer、错误恢复、formatter 与
+LSP。首个 parser slice 不应偷偷替整个语言作出不可逆决定：
+
+1. **标识符**：第一版 scanner 可以只接受 ASCII lower/upper identifier，
+   但最终要决定 Unicode XID、关键字转义和 package name 的规则。暂时遇到
+   非 ASCII identifier 应产生可恢复 diagnostic，不能静默按 ASCII 截断。
+2. **换行与分隔符**：newline 先作为 lossless trivia 和 recovery boundary，
+   不承担自动插入分号的语义。仍需冻结 block 中 declaration、statement、
+   final expression 以及连续 expression 的分隔规则。
+3. **labelled argument**：需要在 `key=value`、label punning、可选参数和
+   默认值之间给出完整且无歧义的 call/parameter grammar。
+4. **括号与 tuple**：`()`、`(x)`、`(x,)`、多元素 tuple，以及 function type
+   参数 tuple 的关系需要一次性定清。
+5. **operator**：先使用固定 precedence/associativity 表；是否允许
+   user-defined operator、pipe operator 与 assignment expression 仍开放。
+   首版不引入会改变 parser grammar 的 operator declaration。
+6. **literal**：numeric suffix、raw/multiline string、interpolation、byte
+   literal 与 escape validation 需要独立 lexical spec。
+7. **pattern**：constructor、record、array、or-pattern、guard、typed pattern
+   和 rest pattern 的优先级尚未形成完整 PEG。
+8. **item/module syntax**：import、package alias、attribute/doc comment、
+   generic constraint 与 `where` 风格约束仍需和 MoonBit 基线逐项对齐。
+9. **handler body**：`return` clause 是否必须最后、clause 间如何分隔，
+   parser 可以先宽松保留 CST，再由 syntax validation 给定向错误。
+
+这些项目进入实现时应分别有 valid、malformed、lossless、UTF-16 range 和
+recovery fixture；“MoonBit-like”不能替代 Cire 自己的可测试规范。
+
 ## 3. 恢复模式与类型系统
 
 ### 3.1 Operation 最大模式与实际 handler
