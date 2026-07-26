@@ -1,7 +1,7 @@
 ///|
 pub(all) suberror SourceEditError {
   WrongSource(expected~ : SourceId, actual~ : SourceId)
-  StaleRevision(expected~ : Revision, actual~ : Revision)
+  StaleRevision(expected~ : SourceRevision, actual~ : SourceRevision)
   InvalidRange(TextRange)
   InvalidUnicodeBoundary(TextRange)
 } derive(Debug, Eq, ToJson, FromJson)
@@ -10,7 +10,7 @@ pub(all) suberror SourceEditError {
 /// A revision-checked replacement edit.
 pub struct TextEdit {
   source : SourceId
-  expected_revision : Revision
+  expected_revision : SourceRevision
   delete : TextRange
   insert : String
 } derive(Debug, Eq, ToJson, FromJson)
@@ -18,7 +18,7 @@ pub struct TextEdit {
 ///|
 pub fn TextEdit::new(
   source : SourceId,
-  expected_revision : Revision,
+  expected_revision : SourceRevision,
   delete : TextRange,
   insert : String,
 ) -> TextEdit {
@@ -31,7 +31,7 @@ pub fn TextEdit::source(self : TextEdit) -> SourceId {
 }
 
 ///|
-pub fn TextEdit::expected_revision(self : TextEdit) -> Revision {
+pub fn TextEdit::expected_revision(self : TextEdit) -> SourceRevision {
   self.expected_revision
 }
 
@@ -51,7 +51,7 @@ pub fn TextEdit::insert(self : TextEdit) -> String {
 /// The loader must validate UTF-8 before constructing this value.
 pub struct SourceSnapshot {
   id : SourceId
-  revision : Revision
+  revision : SourceRevision
   logical_path : String
   text : String
   line_index : LineIndex
@@ -60,7 +60,7 @@ pub struct SourceSnapshot {
 ///|
 pub fn SourceSnapshot::new(
   id : SourceId,
-  revision : Revision,
+  revision : SourceRevision,
   logical_path : String,
   text : String,
 ) -> SourceSnapshot {
@@ -73,7 +73,7 @@ pub fn SourceSnapshot::id(self : SourceSnapshot) -> SourceId {
 }
 
 ///|
-pub fn SourceSnapshot::revision(self : SourceSnapshot) -> Revision {
+pub fn SourceSnapshot::revision(self : SourceSnapshot) -> SourceRevision {
   self.revision
 }
 
@@ -95,6 +95,29 @@ pub fn SourceSnapshot::length(self : SourceSnapshot) -> TextOffset {
 ///|
 pub fn SourceSnapshot::line_index(self : SourceSnapshot) -> LineIndex {
   self.line_index
+}
+
+///|
+/// Converts a scalar-boundary source offset into an LSP-compatible position.
+pub fn SourceSnapshot::position(
+  self : SourceSnapshot,
+  offset : TextOffset,
+) -> LineColumn? {
+  guard self.is_scalar_boundary(offset) else { return None }
+  self.line_index.position(offset)
+}
+
+///|
+/// Converts an LSP-compatible position into a scalar-boundary source offset.
+pub fn SourceSnapshot::offset(
+  self : SourceSnapshot,
+  position : LineColumn,
+) -> TextOffset? {
+  guard self.line_index.offset(position) is Some(offset) &&
+    self.is_scalar_boundary(offset) else {
+    return None
+  }
+  Some(offset)
 }
 
 ///|

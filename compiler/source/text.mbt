@@ -23,7 +23,7 @@ pub fn TextOffset::value(self : TextOffset) -> Int {
 
 ///|
 pub fn TextOffset::advance(self : TextOffset, code_units : Int) -> TextOffset {
-  guard code_units >= 0
+  guard code_units >= 0 && self.0 <= @int.MAX_VALUE - code_units
   TextOffset(self.0 + code_units)
 }
 
@@ -186,8 +186,7 @@ pub impl @json.FromJson for LineColumn with fn from_json(
   let decoded : LineColumnJson = @json.from_json(json, path~)
   if decoded.line < 0 || decoded.character < 0 {
     source_json_decode_error(
-      path,
-      "LineColumn: line and character must be non-negative",
+      path, "LineColumn: line and character must be non-negative",
     )
   } else {
     { line: decoded.line, character: decoded.character }

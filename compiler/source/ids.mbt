@@ -35,45 +35,51 @@ pub impl @json.FromJson for SourceId with fn from_json(
 }
 
 ///|
-/// Identifies an immutable workspace/source snapshot.
-pub struct Revision(Int) derive(Debug, Eq)
+/// Identifies an immutable revision of one source file.
+///
+/// This is deliberately distinct from the revision of a whole compiler
+/// workspace snapshot.
+pub struct SourceRevision(Int) derive(Debug, Eq)
 
 ///|
-pub fn Revision::new(value : Int) -> Revision {
+pub fn SourceRevision::new(value : Int) -> SourceRevision {
   guard value >= 0
-  Revision(value)
+  SourceRevision(value)
 }
 
 ///|
-pub fn Revision::initial() -> Revision {
-  Revision(0)
+pub fn SourceRevision::initial() -> SourceRevision {
+  SourceRevision(0)
 }
 
 ///|
-pub fn Revision::value(self : Revision) -> Int {
+pub fn SourceRevision::value(self : SourceRevision) -> Int {
   self.0
 }
 
 ///|
-pub fn Revision::next(self : Revision) -> Revision {
-  Revision(self.0 + 1)
+pub fn SourceRevision::next(self : SourceRevision) -> SourceRevision {
+  guard self.0 < @int.MAX_VALUE
+  SourceRevision(self.0 + 1)
 }
 
 ///|
-pub impl ToJson for Revision with fn to_json(self : Revision) -> Json {
+pub impl ToJson for SourceRevision with fn to_json(self : SourceRevision) -> Json {
   self.0.to_json()
 }
 
 ///|
-pub impl @json.FromJson for Revision with fn from_json(
+pub impl @json.FromJson for SourceRevision with fn from_json(
   json : Json,
   path : @json.JsonPath,
-) -> Revision raise @json.JsonDecodeError {
+) -> SourceRevision raise @json.JsonDecodeError {
   let value : Int = @json.from_json(json, path~)
   if value < 0 {
-    source_json_decode_error(path, "Revision: expected a non-negative integer")
+    source_json_decode_error(
+      path, "SourceRevision: expected a non-negative integer",
+    )
   } else {
-    Revision(value)
+    SourceRevision(value)
   }
 }
 

@@ -88,10 +88,9 @@ pub fn LineIndex::offset(
     return None
   }
   let end = self.line_ends[position.line()]
-  let value = start.value() + position.character()
-  if value > end.value() {
+  if position.character() > end.value() - start.value() {
     None
   } else {
-    Some(TextOffset::new(value))
+    Some(start.advance(position.character()))
   }
 }
