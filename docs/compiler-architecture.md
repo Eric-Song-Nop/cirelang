@@ -148,14 +148,18 @@ PEG 的 ordered choice 让 grammar author 明确控制优先级。手写实现�
 
 ```text
 Token {
+  id
   kind
   range
-  leading_trivia
-  trailing_trivia
+  text
 }
 ```
 
-PEG rule 消费 token stream，而不是丢失 comment/whitespace 的字符串片段。Lexer 也必须 deterministic、可恢复，并为非法字符生成 token 与 diagnostic，而不是停止。
+Whitespace、newline 与 comment 都平铺为同一 lossless stream 中的普通
+trivia token，而不是挂在相邻 token 上的可变数组。PEG cursor 默认观察下一
+个 non-trivia token，并在真正消费它时把此前 trivia 一并送入 CST event
+stream。Lexer 也必须 deterministic、可恢复，并为非法字符生成 token 与
+diagnostic，而不是停止。
 
 Token-oriented PEG 的好处：
 
