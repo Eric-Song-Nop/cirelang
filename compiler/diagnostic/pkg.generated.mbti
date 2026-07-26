@@ -1,0 +1,224 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Eric-Song-Nop/cirelang/compiler/diagnostic"
+
+import {
+  "Eric-Song-Nop/cirelang/compiler/source",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+}
+
+// Values
+pub const OFFSET_ENCODING : String = "utf-16"
+
+// Errors
+
+// Types and methods
+pub(all) enum Applicability {
+  Always
+  MaybeIncorrect
+  Unsafe
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct ArtifactDiagnostic {
+  code : DiagnosticCode
+  stage : Stage
+  severity : Severity
+  message : String
+  labels : Array[ArtifactLabel]
+  notes : Array[String]
+  fixes : Array[ArtifactFix]
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn ArtifactDiagnostic::code(Self) -> DiagnosticCode
+pub fn ArtifactDiagnostic::fixes(Self) -> Array[ArtifactFix]
+pub fn ArtifactDiagnostic::labels(Self) -> Array[ArtifactLabel]
+pub fn ArtifactDiagnostic::message(Self) -> String
+pub fn ArtifactDiagnostic::new(DiagnosticCode, Stage, Severity, String, Array[ArtifactLabel], Array[String], Array[ArtifactFix]) -> Self
+pub fn ArtifactDiagnostic::notes(Self) -> Array[String]
+pub fn ArtifactDiagnostic::severity(Self) -> Severity
+pub fn ArtifactDiagnostic::stage(Self) -> Stage
+
+pub struct ArtifactEdit {
+  source : ArtifactSource
+  range : @source.TextRange
+  insert : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn ArtifactEdit::insert(Self) -> String
+pub fn ArtifactEdit::new(ArtifactSource, @source.TextRange, String) -> Self
+pub fn ArtifactEdit::range(Self) -> @source.TextRange
+pub fn ArtifactEdit::source(Self) -> ArtifactSource
+
+pub struct ArtifactEnvelope[A] {
+  schema : String
+  offset_encoding : String
+  compiler : String
+  source : ArtifactSource
+  payload : A
+  diagnostics : Array[ArtifactDiagnostic]
+} derive(Eq, ToJson, @debug.Debug)
+pub fn[A] ArtifactEnvelope::compiler(Self[A]) -> String
+pub fn[A] ArtifactEnvelope::diagnostics(Self[A]) -> Array[ArtifactDiagnostic]
+pub fn[A] ArtifactEnvelope::new(String, String, ArtifactSource, A, Array[ArtifactDiagnostic]) -> Self[A]
+pub fn[A] ArtifactEnvelope::offset_encoding(Self[A]) -> String
+pub fn[A] ArtifactEnvelope::payload(Self[A]) -> A
+pub fn[A] ArtifactEnvelope::schema(Self[A]) -> String
+pub fn[A] ArtifactEnvelope::source(Self[A]) -> ArtifactSource
+pub impl[A : @json.FromJson] @json.FromJson for ArtifactEnvelope[A]
+
+type ArtifactEnvelopeRaw[A] derive(@json.FromJson)
+
+pub struct ArtifactFix {
+  title : String
+  applicability : Applicability
+  edits : Array[ArtifactEdit]
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn ArtifactFix::applicability(Self) -> Applicability
+pub fn ArtifactFix::edits(Self) -> Array[ArtifactEdit]
+pub fn ArtifactFix::new(String, Applicability, Array[ArtifactEdit]) -> Self
+pub fn ArtifactFix::title(Self) -> String
+
+pub struct ArtifactLabel {
+  span : ArtifactSpan
+  style : LabelStyle
+  message : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn ArtifactLabel::message(Self) -> String
+pub fn ArtifactLabel::primary(ArtifactSpan, String) -> Self
+pub fn ArtifactLabel::secondary(ArtifactSpan, String) -> Self
+pub fn ArtifactLabel::span(Self) -> ArtifactSpan
+pub fn ArtifactLabel::style(Self) -> LabelStyle
+
+pub struct ArtifactSource {
+  file : String
+  revision : @source.SourceRevision
+  content_hash : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn ArtifactSource::content_hash(Self) -> String
+pub fn ArtifactSource::file(Self) -> String
+pub fn ArtifactSource::new(String, @source.SourceRevision, String) -> Self
+pub fn ArtifactSource::revision(Self) -> @source.SourceRevision
+
+pub struct ArtifactSpan {
+  source : ArtifactSource
+  range : @source.TextRange
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn ArtifactSpan::new(ArtifactSource, @source.TextRange) -> Self
+pub fn ArtifactSpan::range(Self) -> @source.TextRange
+pub fn ArtifactSpan::source(Self) -> ArtifactSource
+
+pub struct CompilerEvent {
+  sequence : Int
+  workspace_revision : @source.WorkspaceRevision
+  request_id : String
+  stage : Stage
+  event : String
+  query_key : String
+  outcome : String
+  parent : Int?
+  span : ArtifactSpan?
+  payload : Json
+} derive(Eq, ToJson, @debug.Debug)
+pub fn CompilerEvent::event(Self) -> String
+pub fn CompilerEvent::new(Int, @source.WorkspaceRevision, String, Stage, String, String, String, Int?, ArtifactSpan?, Json) -> Self
+pub fn CompilerEvent::outcome(Self) -> String
+pub fn CompilerEvent::parent(Self) -> Int?
+pub fn CompilerEvent::payload(Self) -> Json
+pub fn CompilerEvent::query_key(Self) -> String
+pub fn CompilerEvent::request_id(Self) -> String
+pub fn CompilerEvent::sequence(Self) -> Int
+pub fn CompilerEvent::span(Self) -> ArtifactSpan?
+pub fn CompilerEvent::stage(Self) -> Stage
+pub fn CompilerEvent::workspace_revision(Self) -> @source.WorkspaceRevision
+
+pub struct Diagnostic {
+  code : DiagnosticCode
+  stage : Stage
+  severity : Severity
+  message : String
+  labels : Array[Label]
+  notes : Array[String]
+  fixes : Array[Fix]
+  revision : @source.SourceRevision
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn Diagnostic::code(Self) -> DiagnosticCode
+pub fn Diagnostic::fixes(Self) -> Array[Fix]
+pub fn Diagnostic::labels(Self) -> Array[Label]
+pub fn Diagnostic::message(Self) -> String
+pub fn Diagnostic::new(DiagnosticCode, Stage, Severity, String, Label, @source.SourceRevision) -> Self
+pub fn Diagnostic::notes(Self) -> Array[String]
+pub fn Diagnostic::revision(Self) -> @source.SourceRevision
+pub fn Diagnostic::severity(Self) -> Severity
+pub fn Diagnostic::stage(Self) -> Stage
+pub fn Diagnostic::with_fix(Self, Fix) -> Self
+pub fn Diagnostic::with_label(Self, Label) -> Self
+pub fn Diagnostic::with_note(Self, String) -> Self
+
+pub struct DiagnosticCode(String) derive(Eq, @debug.Debug)
+pub fn DiagnosticCode::new(String) -> Self
+pub fn DiagnosticCode::value(Self) -> String
+pub impl ToJson for DiagnosticCode
+pub impl @json.FromJson for DiagnosticCode
+
+pub struct Fix {
+  title : String
+  applicability : Applicability
+  edits : Array[@source.TextEdit]
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn Fix::applicability(Self) -> Applicability
+pub fn Fix::edits(Self) -> Array[@source.TextEdit]
+pub fn Fix::new(String, Applicability, Array[@source.TextEdit]) -> Self
+pub fn Fix::title(Self) -> String
+
+pub struct Label {
+  span : @source.Span
+  style : LabelStyle
+  message : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn Label::message(Self) -> String
+pub fn Label::primary(@source.Span, String) -> Self
+pub fn Label::secondary(@source.Span, String) -> Self
+pub fn Label::span(Self) -> @source.Span
+pub fn Label::style(Self) -> LabelStyle
+
+pub(all) enum LabelStyle {
+  Primary
+  Secondary
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub struct MemoryTraceSink {
+  lines : Array[String]
+}
+pub fn MemoryTraceSink::is_empty(Self) -> Bool
+pub fn MemoryTraceSink::length(Self) -> Int
+pub fn MemoryTraceSink::lines(Self) -> Array[String]
+pub fn MemoryTraceSink::new() -> Self
+pub impl TraceSink for MemoryTraceSink
+
+pub struct NoopTraceSink(Unit)
+pub fn NoopTraceSink::new() -> Self
+pub impl TraceSink for NoopTraceSink
+
+pub(all) enum Severity {
+  Error
+  Warning
+  Information
+  Hint
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+pub(all) enum Stage {
+  Load
+  Lex
+  Parse
+  Lower
+  Resolve
+  TypeCheck
+  CaptureCheck
+  Backend
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+// Type aliases
+
+// Traits
+pub(open) trait TraceSink {
+  fn emit(Self, CompilerEvent) -> Unit
+}
+
