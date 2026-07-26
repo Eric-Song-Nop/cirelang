@@ -1,0 +1,120 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Eric-Song-Nop/cirelang/compiler/source"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/core/json",
+}
+
+// Values
+
+// Errors
+pub(all) suberror SourceEditError {
+  WrongSource(expected~ : SourceId, actual~ : SourceId)
+  StaleRevision(expected~ : Revision, actual~ : Revision)
+  InvalidRange(TextRange)
+  InvalidUnicodeBoundary(TextRange)
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+
+// Types and methods
+pub struct LineColumn {
+  line : Int
+  character : Int
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn LineColumn::character(Self) -> Int
+pub fn LineColumn::line(Self) -> Int
+pub fn LineColumn::new(Int, Int) -> Self
+
+pub struct LineIndex {
+  line_starts : Array[TextOffset]
+  line_ends : Array[TextOffset]
+  text_length : TextOffset
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn LineIndex::line_count(Self) -> Int
+pub fn LineIndex::line_end(Self, Int) -> TextOffset?
+pub fn LineIndex::line_start(Self, Int) -> TextOffset?
+pub fn LineIndex::new(String) -> Self
+pub fn LineIndex::offset(Self, LineColumn) -> TextOffset?
+pub fn LineIndex::position(Self, TextOffset) -> LineColumn?
+pub fn LineIndex::text_length(Self) -> TextOffset
+
+pub struct Revision(Int) derive(Eq, @debug.Debug)
+pub fn Revision::initial() -> Self
+pub fn Revision::new(Int) -> Self
+pub fn Revision::next(Self) -> Self
+pub fn Revision::value(Self) -> Int
+pub impl ToJson for Revision
+pub impl @json.FromJson for Revision
+
+pub struct SourceId(Int) derive(Eq, @debug.Debug)
+pub fn SourceId::new(Int) -> Self
+pub fn SourceId::value(Self) -> Int
+pub impl ToJson for SourceId
+pub impl @json.FromJson for SourceId
+
+pub struct SourceSnapshot {
+  id : SourceId
+  revision : Revision
+  logical_path : String
+  text : String
+  line_index : LineIndex
+} derive(Eq, ToJson, @debug.Debug)
+pub fn SourceSnapshot::apply_edit(Self, TextEdit) -> Self raise SourceEditError
+pub fn SourceSnapshot::id(Self) -> SourceId
+pub fn SourceSnapshot::is_scalar_boundary(Self, TextOffset) -> Bool
+pub fn SourceSnapshot::length(Self) -> TextOffset
+pub fn SourceSnapshot::line_index(Self) -> LineIndex
+pub fn SourceSnapshot::logical_path(Self) -> String
+pub fn SourceSnapshot::new(SourceId, Revision, String, String) -> Self
+pub fn SourceSnapshot::revision(Self) -> Revision
+pub fn SourceSnapshot::slice(Self, TextRange) -> String?
+pub fn SourceSnapshot::text(Self) -> String
+
+pub struct Span {
+  source : SourceId
+  range : TextRange
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn Span::new(SourceId, TextRange) -> Self
+pub fn Span::range(Self) -> TextRange
+pub fn Span::source(Self) -> SourceId
+
+pub struct TextEdit {
+  source : SourceId
+  expected_revision : Revision
+  delete : TextRange
+  insert : String
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn TextEdit::delete(Self) -> TextRange
+pub fn TextEdit::expected_revision(Self) -> Revision
+pub fn TextEdit::insert(Self) -> String
+pub fn TextEdit::new(SourceId, Revision, TextRange, String) -> Self
+pub fn TextEdit::source(Self) -> SourceId
+
+pub struct TextOffset(Int) derive(Compare, Eq, @debug.Debug)
+pub fn TextOffset::advance(Self, Int) -> Self
+pub fn TextOffset::new(Int) -> Self
+pub fn TextOffset::value(Self) -> Int
+pub fn TextOffset::zero() -> Self
+pub impl ToJson for TextOffset
+pub impl @json.FromJson for TextOffset
+
+pub struct TextRange {
+  start : TextOffset
+  end : TextOffset
+} derive(Eq, ToJson, @debug.Debug, @json.FromJson)
+pub fn TextRange::contains(Self, TextOffset) -> Bool
+pub fn TextRange::contains_inclusive(Self, TextOffset) -> Bool
+pub fn TextRange::contains_range(Self, Self) -> Bool
+pub fn TextRange::cover(Self, Self) -> Self
+pub fn TextRange::empty(TextOffset) -> Self
+pub fn TextRange::end(Self) -> TextOffset
+pub fn TextRange::intersects(Self, Self) -> Bool
+pub fn TextRange::is_empty(Self) -> Bool
+pub fn TextRange::length(Self) -> Int
+pub fn TextRange::new(TextOffset, TextOffset) -> Self
+pub fn TextRange::start(Self) -> TextOffset
+
+// Type aliases
+
+// Traits
+
