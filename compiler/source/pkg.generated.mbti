@@ -7,6 +7,9 @@ import {
 }
 
 // Values
+pub const CONTENT_HASH_ALGORITHM : String = "cire-fnv1a64-utf8-v1"
+
+pub fn content_hash(String) -> String
 
 // Errors
 pub(all) suberror SourceEditError {
@@ -60,9 +63,11 @@ pub struct SourceSnapshot {
   revision : SourceRevision
   logical_path : String
   text : String
+  content_hash : String
   line_index : LineIndex
 } derive(Eq, ToJson, @debug.Debug)
 pub fn SourceSnapshot::apply_edit(Self, TextEdit) -> Self raise SourceEditError
+pub fn SourceSnapshot::content_hash(Self) -> String
 pub fn SourceSnapshot::id(Self) -> SourceId
 pub fn SourceSnapshot::is_scalar_boundary(Self, TextOffset) -> Bool
 pub fn SourceSnapshot::length(Self) -> TextOffset

@@ -118,6 +118,26 @@ test "source protocol JSON round-trip" {
 }
 
 ///|
+test "source content hashes are deterministic over UTF-8" {
+  inspect(
+    @source.content_hash(""),
+    content="cire-fnv1a64-utf8-v1:cbf29ce484222325",
+  )
+  inspect(
+    @source.content_hash("hello"),
+    content="cire-fnv1a64-utf8-v1:a430d84680aabd0b",
+  )
+  let source = @source.SourceSnapshot::new(
+    @source.SourceId::new(5),
+    @source.SourceRevision::initial(),
+    "hash.cire",
+    "😀中",
+  )
+  assert_eq(source.content_hash(), @source.content_hash(source.text()))
+  assert_false(source.content_hash() == @source.content_hash("中😀"))
+}
+
+///|
 test "source protocol rejects values that violate invariants" {
   try
     (@json.from_json(@json.parse("{\"start\":5,\"end\":2}")) : @source.TextRange)

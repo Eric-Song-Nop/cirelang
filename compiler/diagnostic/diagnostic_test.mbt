@@ -18,7 +18,7 @@ test "artifact envelope has an exact versioned JSON shape" {
     @diagnostic.ArtifactSource::new(
       "tests/parser/effect.cire",
       @source.SourceRevision::new(3),
-      "cire-fnv1a64-v1:0123456789abcdef",
+      "cire-fnv1a64-utf8-v1:0123456789abcdef",
     ),
     ["SourceFile"],
     [],
@@ -26,7 +26,7 @@ test "artifact envelope has an exact versioned JSON shape" {
   let encoded = envelope.to_json().stringify()
   inspect(
     encoded,
-    content="{\"schema\":\"cire.parse/1\",\"offset_encoding\":\"utf-16\",\"compiler\":\"0.0.0-dev\",\"source\":{\"file\":\"tests/parser/effect.cire\",\"revision\":3,\"content_hash\":\"cire-fnv1a64-v1:0123456789abcdef\"},\"payload\":[\"SourceFile\"],\"diagnostics\":[]}",
+    content="{\"schema\":\"cire.parse/1\",\"offset_encoding\":\"utf-16\",\"compiler\":\"0.0.0-dev\",\"source\":{\"file\":\"tests/parser/effect.cire\",\"revision\":3,\"content_hash\":\"cire-fnv1a64-utf8-v1:0123456789abcdef\"},\"payload\":[\"SourceFile\"],\"diagnostics\":[]}",
   )
   let decoded : @diagnostic.ArtifactEnvelope[Array[String]] = @json.from_json(
     @json.parse(encoded),
@@ -51,7 +51,7 @@ test "stable envelope decoding enforces protocol invariants" {
   let source = @diagnostic.ArtifactSource::new(
     "tests/parser/effect.cire",
     @source.SourceRevision::new(3),
-    "cire-fnv1a64-v1:0123456789abcdef",
+    "cire-fnv1a64-utf8-v1:0123456789abcdef",
   )
   let diagnostic = @diagnostic.ArtifactDiagnostic::new(
     @diagnostic.DiagnosticCode::new("P0001"),
@@ -98,10 +98,10 @@ test "cross-file labels and fixes never serialize session source ids" {
   let main_revision = @source.SourceRevision::new(7)
   let library_revision = @source.SourceRevision::new(2)
   let main_source = @diagnostic.ArtifactSource::new(
-    "src/main.cire", main_revision, "cire-fnv1a64-v1:fedcba9876543210",
+    "src/main.cire", main_revision, "cire-fnv1a64-utf8-v1:fedcba9876543210",
   )
   let library_source = @diagnostic.ArtifactSource::new(
-    "src/library.cire", library_revision, "cire-fnv1a64-v1:1234567890abcdef",
+    "src/library.cire", library_revision, "cire-fnv1a64-utf8-v1:1234567890abcdef",
   )
   let labels = [
     @diagnostic.ArtifactLabel::primary(
@@ -118,11 +118,11 @@ test "cross-file labels and fixes never serialize session source ids" {
   ]
   inspect(
     labels[1].span().to_json().stringify(),
-    content="{\"source\":{\"file\":\"src/library.cire\",\"revision\":2,\"content_hash\":\"cire-fnv1a64-v1:1234567890abcdef\"},\"range\":{\"start\":4,\"end\":11}}",
+    content="{\"source\":{\"file\":\"src/library.cire\",\"revision\":2,\"content_hash\":\"cire-fnv1a64-utf8-v1:1234567890abcdef\"},\"range\":{\"start\":4,\"end\":11}}",
   )
   inspect(
     edits[0].to_json().stringify(),
-    content="{\"source\":{\"file\":\"src/library.cire\",\"revision\":2,\"content_hash\":\"cire-fnv1a64-v1:1234567890abcdef\"},\"range\":{\"start\":11,\"end\":11},\"insert\":\"[app]\"}",
+    content="{\"source\":{\"file\":\"src/library.cire\",\"revision\":2,\"content_hash\":\"cire-fnv1a64-utf8-v1:1234567890abcdef\"},\"range\":{\"start\":11,\"end\":11},\"insert\":\"[app]\"}",
   )
   let fixes = [
     @diagnostic.ArtifactFix::new("name the capability", Always, edits),
@@ -149,7 +149,7 @@ test "cross-file labels and fixes never serialize session source ids" {
         @diagnostic.ArtifactSource::new(
           "ignored.cire",
           @source.SourceRevision::initial(),
-          "cire-fnv1a64-v1:0000000000000000",
+          "cire-fnv1a64-utf8-v1:0000000000000000",
         ),
         range(0, 0),
       ),
@@ -161,7 +161,7 @@ test "cross-file labels and fixes never serialize session source ids" {
       @diagnostic.ArtifactSource::new(
         "ignored.cire",
         @source.SourceRevision::initial(),
-        "cire-fnv1a64-v1:0000000000000000",
+        "cire-fnv1a64-utf8-v1:0000000000000000",
       ),
       range(0, 0),
       "",
@@ -177,7 +177,7 @@ test "cross-file labels and fixes never serialize session source ids" {
   assert_false(encoded.contains("\"source\":7"))
   assert_true(encoded.contains("\"file\":\"src/main.cire\""))
   assert_true(encoded.contains("\"file\":\"src/library.cire\""))
-  assert_true(encoded.contains("cire-fnv1a64-v1:1234567890abcdef"))
+  assert_true(encoded.contains("cire-fnv1a64-utf8-v1:1234567890abcdef"))
   let decoded : @diagnostic.ArtifactEnvelope[Array[String]] = @json.from_json(
     @json.parse(encoded),
   )
@@ -218,7 +218,7 @@ test "trace sinks are injectable, deterministic, and snapshot JSON eagerly" {
   let source = @diagnostic.ArtifactSource::new(
     "src/main.cire",
     @source.SourceRevision::new(5),
-    "cire-fnv1a64-v1:fedcba9876543210",
+    "cire-fnv1a64-utf8-v1:fedcba9876543210",
   )
   let payload = @json.parse("{\"cached\":true}")
   let event = @diagnostic.CompilerEvent::new(

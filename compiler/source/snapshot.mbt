@@ -54,6 +54,7 @@ pub struct SourceSnapshot {
   revision : SourceRevision
   logical_path : String
   text : String
+  content_hash : String
   line_index : LineIndex
 } derive(Debug, Eq, ToJson)
 
@@ -64,7 +65,14 @@ pub fn SourceSnapshot::new(
   logical_path : String,
   text : String,
 ) -> SourceSnapshot {
-  { id, revision, logical_path, text, line_index: LineIndex::new(text) }
+  {
+    id,
+    revision,
+    logical_path,
+    text,
+    content_hash: content_hash(text),
+    line_index: LineIndex::new(text),
+  }
 }
 
 ///|
@@ -85,6 +93,11 @@ pub fn SourceSnapshot::logical_path(self : SourceSnapshot) -> String {
 ///|
 pub fn SourceSnapshot::text(self : SourceSnapshot) -> String {
   self.text
+}
+
+///|
+pub fn SourceSnapshot::content_hash(self : SourceSnapshot) -> String {
+  self.content_hash
 }
 
 ///|
