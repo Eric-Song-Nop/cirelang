@@ -108,6 +108,9 @@ pub(all) enum SyntaxKind {
   ParameterList
   Parameter
   ArgumentList
+  Argument
+  LabelledArgument
+  PatternList
   TypeReference
   FunctionType
   EffectAnnotation
@@ -125,6 +128,7 @@ pub(all) enum SyntaxKind {
   TraitDeclaration
   ImplDeclaration
   BlockExpression
+  ParenthesizedExpression
   LiteralExpression
   NameExpression
   CallExpression
@@ -159,6 +163,9 @@ pub fn SyntaxKind::is_node(self : SyntaxKind) -> Bool {
     | ParameterList
     | Parameter
     | ArgumentList
+    | Argument
+    | LabelledArgument
+    | PatternList
     | TypeReference
     | FunctionType
     | EffectAnnotation
@@ -176,6 +183,7 @@ pub fn SyntaxKind::is_node(self : SyntaxKind) -> Bool {
     | TraitDeclaration
     | ImplDeclaration
     | BlockExpression
+    | ParenthesizedExpression
     | LiteralExpression
     | NameExpression
     | CallExpression
@@ -543,6 +551,9 @@ pub fn SyntaxKind::wire_name(self : SyntaxKind) -> String {
     ParameterList => "parameter_list"
     Parameter => "parameter"
     ArgumentList => "argument_list"
+    Argument => "argument"
+    LabelledArgument => "labelled_argument"
+    PatternList => "pattern_list"
     TypeReference => "type_reference"
     FunctionType => "function_type"
     EffectAnnotation => "effect_annotation"
@@ -560,6 +571,7 @@ pub fn SyntaxKind::wire_name(self : SyntaxKind) -> String {
     TraitDeclaration => "trait_declaration"
     ImplDeclaration => "impl_declaration"
     BlockExpression => "block_expression"
+    ParenthesizedExpression => "parenthesized_expression"
     LiteralExpression => "literal_expression"
     NameExpression => "name_expression"
     CallExpression => "call_expression"

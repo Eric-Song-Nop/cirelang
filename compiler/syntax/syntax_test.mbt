@@ -43,9 +43,15 @@ test "syntax kinds expose stable lexical metadata" {
   assert_true(@syntax.Whitespace.is_trivia())
   assert_true(@syntax.Newline.is_trivia())
   assert_true(@syntax.SourceFile.is_node())
+  assert_true(@syntax.ParenthesizedExpression.is_node())
+  assert_true(@syntax.LabelledArgument.is_node())
   assert_eq(@syntax.keyword_kind("effect"), Some(KwEffect))
   assert_eq(@syntax.keyword_kind("Read"), None)
   inspect(@syntax.EffectDeclaration.wire_name(), content="effect_declaration")
+  inspect(
+    @syntax.TrailingLambdaExpression.wire_name(),
+    content="trailing_lambda_expression",
+  )
 }
 
 ///|

@@ -182,6 +182,9 @@ pub(all) enum SyntaxKind {
   ParameterList
   Parameter
   ArgumentList
+  Argument
+  LabelledArgument
+  PatternList
   TypeReference
   FunctionType
   EffectAnnotation
@@ -199,6 +202,7 @@ pub(all) enum SyntaxKind {
   TraitDeclaration
   ImplDeclaration
   BlockExpression
+  ParenthesizedExpression
   LiteralExpression
   NameExpression
   CallExpression
