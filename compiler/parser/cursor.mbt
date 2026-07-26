@@ -8,7 +8,7 @@ fn Parser::flush_trivia(self : Parser) -> Unit {
   for index in self.raw_index..<significant {
     guard self.tokens.token_at(index) is Some(token) else { continue }
     guard token.is_trivia()
-    self.events.push(Token(token))
+    self.pending_events.push(PendingToken(token))
   }
   self.raw_index = significant
 }
@@ -18,7 +18,7 @@ fn Parser::flush_trivia(self : Parser) -> Unit {
 /// synchronization points such as a newline.
 fn Parser::bump_raw(self : Parser) -> @syntax.Token? {
   guard self.tokens.token_at(self.raw_index) is Some(token) else { return None }
-  self.events.push(Token(token))
+  self.pending_events.push(PendingToken(token))
   self.raw_index = self.raw_index + 1
   Some(token)
 }
@@ -32,7 +32,7 @@ fn Parser::bump(self : Parser) -> @syntax.Token? {
   guard self.tokens.token_at(significant) is Some(result) else { return None }
   for index in self.raw_index..<=significant {
     guard self.tokens.token_at(index) is Some(token) else { continue }
-    self.events.push(Token(token))
+    self.pending_events.push(PendingToken(token))
   }
   self.raw_index = significant + 1
   Some(result)
@@ -49,29 +49,16 @@ fn Parser::eat(self : Parser, kind : @syntax.SyntaxKind) -> Bool {
 }
 
 ///|
-fn Parser::expect(
-  self : Parser,
-  kind : @syntax.SyntaxKind,
-  expected : String,
-) -> Bool {
-  if self.eat(kind) {
-    true
-  } else {
-    self.fail_expected(expected)
-  }
-}
-
-///|
 fn Parser::start_node(self : Parser, kind : @syntax.SyntaxKind) -> Unit {
   guard kind.is_node()
-  self.events.push(Start(kind))
+  self.pending_events.push(PendingStart(kind, None))
   self.node_depth = self.node_depth + 1
 }
 
 ///|
 fn Parser::finish_node(self : Parser) -> Unit {
   guard self.node_depth > 0
-  self.events.push(Finish)
+  self.pending_events.push(PendingFinish)
   self.node_depth = self.node_depth - 1
 }
 
@@ -79,7 +66,7 @@ fn Parser::finish_node(self : Parser) -> Unit {
 fn Parser::missing(self : Parser, kind : @syntax.SyntaxKind) -> Unit {
   guard kind.is_token() && kind != Eof
   self.flush_trivia()
-  self.events.push(Missing(kind))
+  self.pending_events.push(PendingMissing(kind))
   self.clear_failure_commit()
 }
 

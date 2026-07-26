@@ -449,3 +449,125 @@ test "successful choice keeps farthest failure but only successful events" {
   assert_eq(failure.token_index(), 1)
   assert_eq(failure.expected(), ["a type argument"])
 }
+
+///|
+test "forward-parent markers build nested postfix syntax without moving lhs" {
+  let parser = Parser::new(
+    test_snapshot([
+      (LowerIdentifier, "f"),
+      (LParen, "("),
+      (RParen, ")"),
+      (LParen, "("),
+      (LowerIdentifier, "x"),
+      (RParen, ")"),
+      (Dot, "."),
+      (LowerIdentifier, "m"),
+      (LParen, "("),
+      (LowerIdentifier, "y"),
+      (RParen, ")"),
+      (LBrace, "{"),
+      (LowerIdentifier, "z"),
+      (FatArrow, "=>"),
+      (LowerIdentifier, "z"),
+      (RBrace, "}"),
+      (Eof, ""),
+    ]),
+  )
+  parser.start_node(SourceFile)
+  let name = parser.start_marker()
+  ignore(parser.bump())
+  let mut expression = parser.complete_marker(name, NameExpression)
+  let first_call = parser.precede(expression)
+  parser.start_node(ArgumentList)
+  ignore(parser.bump())
+  ignore(parser.bump())
+  parser.finish_node()
+  expression = parser.complete_marker(first_call, CallExpression)
+  let second_call = parser.precede(expression)
+  parser.start_node(ArgumentList)
+  ignore(parser.bump())
+  parser.start_node(Argument)
+  parser.start_node(NameExpression)
+  ignore(parser.bump())
+  parser.finish_node()
+  parser.finish_node()
+  ignore(parser.bump())
+  parser.finish_node()
+  expression = parser.complete_marker(second_call, CallExpression)
+  let method_marker = parser.precede(expression)
+  ignore(parser.bump())
+  ignore(parser.bump())
+  expression = parser.complete_marker(method_marker, MethodExpression)
+  let method_call = parser.precede(expression)
+  parser.start_node(ArgumentList)
+  ignore(parser.bump())
+  parser.start_node(Argument)
+  parser.start_node(NameExpression)
+  ignore(parser.bump())
+  parser.finish_node()
+  parser.finish_node()
+  ignore(parser.bump())
+  parser.finish_node()
+  parser.start_node(TrailingLambdaExpression)
+  ignore(parser.bump())
+  parser.start_node(PatternList)
+  parser.start_node(Pattern)
+  ignore(parser.bump())
+  parser.finish_node()
+  parser.finish_node()
+  ignore(parser.bump())
+  parser.start_node(NameExpression)
+  ignore(parser.bump())
+  parser.finish_node()
+  ignore(parser.bump())
+  parser.finish_node()
+  ignore(parser.complete_marker(method_call, CallExpression))
+  ignore(parser.bump())
+  parser.finish_node()
+  let green = @syntax.build_green(parser.events())
+  assert_eq(green.source_text(), "f()(x).m(y){z=>z}")
+  let sexpr = green.to_sexpr()
+  assert_true(
+    sexpr.contains(
+      "(call_expression (method_expression (call_expression (call_expression (name_expression",
+    ),
+  )
+  assert_true(sexpr.contains("(trailing_lambda_expression "))
+}
+
+///|
+test "marker rewrites roll back across failed alternatives" {
+  let parser = Parser::new(simple_snapshot())
+  let marker = parser.start_marker()
+  ignore(parser.bump())
+  let completed = parser.complete_marker(marker, NameExpression)
+  let before = parser.events()
+  let checkpoint = parser.checkpoint()
+  let outer = parser.precede(completed)
+  ignore(parser.bump())
+  ignore(parser.complete_marker(outer, CallExpression))
+  parser.rollback(checkpoint)
+  assert_eq(parser.events(), before)
+  assert_eq(parser.marker_depth, 0)
+  assert_eq(parser.raw_index(), 1)
+}
+
+///|
+test "probe cannot leak forward-parent links or markers" {
+  let parser = Parser::new(simple_snapshot())
+  let marker = parser.start_marker()
+  ignore(parser.bump())
+  let completed = parser.complete_marker(marker, NameExpression)
+  let before = parser.events()
+  assert_false(
+    parser.probe(parser => {
+      let outer = parser.precede(completed)
+      ignore(parser.bump())
+      ignore(parser.complete_marker(outer, CallExpression))
+      false
+    }),
+  )
+  assert_eq(parser.events(), before)
+  assert_eq(parser.marker_depth, 0)
+  assert_eq(parser.raw_index(), 1)
+}

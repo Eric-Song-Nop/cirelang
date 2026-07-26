@@ -125,7 +125,8 @@ fn Parser::ordered_choice(
     let branch_failure = self.failure
     aggregate = merge_optional_failure(aggregate, branch_failure)
     if matched {
-      guard self.node_depth == baseline.node_depth
+      guard self.node_depth == baseline.node_depth &&
+        self.marker_depth == baseline.marker_depth
       self.failure_committed = baseline.failure_committed
       self.failure = aggregate
       return true

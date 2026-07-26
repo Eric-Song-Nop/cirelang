@@ -11,11 +11,13 @@ priv struct RuleFrame {
 priv struct ParserCheckpoint {
   raw_index : Int
   event_count : Int
+  rewrite_count : Int
   diagnostic_count : Int
   failure : FailureSummary?
   failure_committed : Bool
   cut_epoch : Int
   node_depth : Int
+  marker_depth : Int
   rule_frames : Array[RuleFrame]
   active_rules : Array[MemoKey]
   contexts : Array[String]
@@ -35,12 +37,14 @@ priv struct ProgressMark {
 priv struct Parser {
   tokens : @syntax.TokenSnapshot
   mut raw_index : Int
-  events : Array[@syntax.TreeEvent]
+  pending_events : Array[PendingEvent]
+  event_rewrites : Array[EventRewrite]
   diagnostics : Array[@diagnostic.Diagnostic]
   mut failure : FailureSummary?
   mut failure_committed : Bool
   mut cut_epoch : Int
   mut node_depth : Int
+  mut marker_depth : Int
   mut rule_frames : Array[RuleFrame]
   mut active_rules : Array[MemoKey]
   mut contexts : Array[String]
@@ -51,12 +55,14 @@ fn Parser::new(tokens : @syntax.TokenSnapshot) -> Parser {
   {
     tokens,
     raw_index: 0,
-    events: [],
+    pending_events: [],
+    event_rewrites: [],
     diagnostics: [],
     failure: None,
     failure_committed: false,
     cut_epoch: 0,
     node_depth: 0,
+    marker_depth: 0,
     rule_frames: [],
     active_rules: [],
     contexts: [],
@@ -118,7 +124,8 @@ fn Parser::current_offset(self : Parser) -> @source.TextOffset {
 /// Returns defensive copies suitable for building a green tree or a parse
 /// artifact after the grammar entry point completes.
 fn Parser::events(self : Parser) -> Array[@syntax.TreeEvent] {
-  self.events.copy()
+  guard self.node_depth == 0 && self.marker_depth == 0
+  lower_pending_events(self.pending_events)
 }
 
 ///|
@@ -135,12 +142,14 @@ fn Parser::failure(self : Parser) -> FailureSummary? {
 fn Parser::checkpoint(self : Parser) -> ParserCheckpoint {
   {
     raw_index: self.raw_index,
-    event_count: self.events.length(),
+    event_count: self.pending_events.length(),
+    rewrite_count: self.event_rewrites.length(),
     diagnostic_count: self.diagnostics.length(),
     failure: self.failure,
     failure_committed: self.failure_committed,
     cut_epoch: self.cut_epoch,
     node_depth: self.node_depth,
+    marker_depth: self.marker_depth,
     rule_frames: self.rule_frames.copy(),
     active_rules: self.active_rules.copy(),
     contexts: self.contexts.copy(),
@@ -152,12 +161,20 @@ fn Parser::checkpoint(self : Parser) -> ParserCheckpoint {
 /// are truncated in place so speculative output can never escape.
 fn Parser::rollback(self : Parser, checkpoint : ParserCheckpoint) -> Unit {
   self.raw_index = checkpoint.raw_index
-  self.events.truncate(checkpoint.event_count)
+  for index = self.event_rewrites.length() - 1
+      index >= checkpoint.rewrite_count
+      index = index - 1 {
+    let rewrite = self.event_rewrites[index]
+    self.pending_events[rewrite.index] = rewrite.previous
+  }
+  self.event_rewrites.truncate(checkpoint.rewrite_count)
+  self.pending_events.truncate(checkpoint.event_count)
   self.diagnostics.truncate(checkpoint.diagnostic_count)
   self.failure = checkpoint.failure
   self.failure_committed = checkpoint.failure_committed
   self.cut_epoch = checkpoint.cut_epoch
   self.node_depth = checkpoint.node_depth
+  self.marker_depth = checkpoint.marker_depth
   self.rule_frames = checkpoint.rule_frames.copy()
   self.active_rules = checkpoint.active_rules.copy()
   self.contexts = checkpoint.contexts.copy()

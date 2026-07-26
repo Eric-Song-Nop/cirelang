@@ -9,7 +9,7 @@ priv enum ParseFlavor {
 
 ///|
 /// A stable rule name used by parser traces, memo keys, and recursion guards.
-priv struct RuleId(String) derive(Debug, Eq)
+priv struct RuleId(String) derive(Eq)
 
 ///|
 fn RuleId::new(name : String) -> RuleId {
