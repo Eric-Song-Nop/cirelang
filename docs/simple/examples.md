@@ -18,7 +18,57 @@ fn[A] apply(
 
 状态：parser 已支持函数、类型参数、函数类型、调用和 block。
 
-## 2. Effect 声明
+## 2. 四种多态不要混在一起
+
+Cire 的方括号外观和 MoonBit 一致，但泛型参数有不同种类：
+
+| 写法 | 表示什么 | 可以替换成 |
+|---|---|---|
+| `A` | 一个普通类型 | `Int`、`String` |
+| `Fx : Effect` | 一个完整的 effect | `Network`、`Read[Int]` |
+| `Eff : EffectRow` | 一整行 effect | `{}`、`{Network, app}` |
+| `app : Fx` | 一个具体 capability 身份 | 调用者传入的任意 `Fx` 实例 |
+
+前三个写在泛型方括号中。`app` 是一等值，所以写在普通参数括号中：
+
+```moonbit
+fn[A, Fx : Effect, Eff : EffectRow] relay(
+  app : Fx,
+  body : () -> A ! {app, ..Eff},
+) -> A ! {app, ..Eff} {
+  body()
+}
+```
+
+这里同时有四种抽象：
+
+- `A` 对普通值类型多态；
+- `Fx` 对 capability 所属的 effect 多态；
+- `Eff` 对剩余的整行 effect 多态；
+- `app` 对一个具体但任意的 capability 身份多态。
+
+`Eff` 可以实例化成包含匿名 effect 和具名 capability 的 row。例如高阶函数
+收到一个使用 `{Network, app}` 的回调时，可以推导出对应的 `Eff`。
+
+如果只需要匿名 effect polymorphism，不传具体 capability：
+
+```moonbit
+fn[A, Fx : Effect, Eff : EffectRow] relay_anonymous(
+  body : () -> A ! {Fx, ..Eff},
+) -> A ! {Fx, ..Eff} {
+  body()
+}
+```
+
+`effect Read[A]` 里的 `A` 仍然只是普通类型参数；它让
+`Read : Type -> Effect`。同样，`abort[A] raise(...) -> A` 里的 `A`
+是 operation 的普通返回类型多态，不是 effect row 多态。
+
+状态：当前 parser 已能保留 kinded generic binder、`! Eff`、
+`{Fx, app, ..Eff}` 和 capability term binder。它还没有 kind checker，
+所以暂时不会验证 `Fx`、`Eff` 和 `app` 是否被放在了正确位置。
+
+## 3. Effect 声明
 
 ```moonbit
 pub(open) effect Choice {
@@ -37,7 +87,7 @@ pub(open) effect Choice {
 
 状态：四种 mode 的声明和 handler clause 都已进入 parser。
 
-## 3. Effect row
+## 4. Effect row
 
 匿名 effect family 直接写类型：
 
@@ -68,7 +118,16 @@ Parser 会给出定向诊断，并建议把 `Read[app]` 改成 `app`。`Read[app
 
 状态：closed row、`..Eff` open tail、family item 和 `{app}` 都已支持。
 
-## 4. Handler 和 `with`
+四种常见 effect annotation 要分清：
+
+```moonbit
+! Eff                   // 恰好是 row 变量 Eff
+! {Fx}                  // 一个多态的匿名 effect
+! {app}                 // 一个具体的具名 capability
+! {Fx, app, ..Eff}      // 在 Eff 上增加 Fx 和 app
+```
+
+## 5. Handler 和 `with`
 
 ```moonbit
 fn run() -> Int {
@@ -107,7 +166,7 @@ capability 和 source origin，不能把它们当成完全普通的库调用。
 状态：handler、`with`、named capability binder、`return` clause 和
 continuation binder 的定向错误已经进入 parser。
 
-## 5. Trailing lambda 和 UI DSL
+## 6. Trailing lambda 和 UI DSL
 
 ```moonbit
 fn view() -> View {
@@ -141,7 +200,7 @@ Button("Save", fn() {
 lambda，以及跨换行和注释的附着都已进入 parser。这里的 `Column`、`Button`
 只是未来 UI 库的示意，还没有可运行的 UI 框架。
 
-## 6. Owner、Region 和 capture
+## 7. Owner、Region 和 capture
 
 计划中的库式外观是：
 

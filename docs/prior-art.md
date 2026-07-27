@@ -76,9 +76,33 @@ once   静态 at-most-once，可保存
 
 Koka 还提供 `raw ctl`、`rcontext`、resume/finalize 等面向长寿 continuation 的低层机制。Cire 更倾向于让保存的 one-shot continuation 被某个 Owner 明确收养，而不是裸逃逸。
 
+### 3.4 Effect kind 与 named handler
+
+Koka 的内部 kind system 区分原子 effect 与 effect row；它的 named handler
+设计进一步把 handler name 作为由普通 lambda 绑定的一等值，并使用 rank-2
+polymorphism 防止 fresh name 逃逸。
+
+Cire 采用相同的分层动机，但使用 MoonBit 风格的表面写法：
+
+```moonbit
+fn[A, Fx : Effect, Eff : EffectRow] relay(
+  app : Fx,
+  body : () -> A ! {app, ..Eff},
+) -> A ! {app, ..Eff}
+```
+
+- `A` 是普通类型参数；
+- `Fx` 是原子 effect 参数；
+- `Eff` 是 row 参数；
+- `app` 是普通 term binder，同时携带具体 handler identity。
+
+这样 named capability polymorphism 不需要伪装成普通 type argument，也不需要
+把 capability name 降成字符串 label。
+
 参考：
 
 - [Koka language guide](https://koka-lang.github.io/koka/doc/book.html)
+- [First-class Named Effect Handlers](https://www.microsoft.com/en-us/research/publication/first-class-named-effect-handlers/)
 - [Tail-resumptive operations](https://koka-lang.github.io/koka/doc/book.html#sec-tail-resumptive)
 - [Resuming more than once](https://koka-lang.github.io/koka/doc/book.html#sec-resume-multiple)
 
@@ -320,4 +344,3 @@ Cire 的研究命题是：
 > 能否在不产生全局所有权噪声的前提下，把 operation 的恢复权、continuation capture、动态 Owner/generation 与确定性 finalization 统一起来，并让普通库安全实现增量计算、结构化异步和 Wasm 宿主 callback？
 
 这比“又一门 Koka 风格语言”更具体，也比宣称所有零件全新更准确。
-

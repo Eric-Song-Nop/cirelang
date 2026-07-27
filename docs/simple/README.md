@@ -7,12 +7,15 @@
 Cire 是一门语法接近 MoonBit、面向 WebAssembly 的严格求值函数式语言。
 它把代数效应和受控续体放进语言核心，同时希望让 UI DSL 仍然像普通函数调用。
 
-## 先记住四件事
+## 先记住五件事
 
 1. 普通声明、泛型、类型和调用尽量沿用 MoonBit 的外观。
-2. Effect 有 `abort`、`fun`、`once`、`ctl` 四种恢复模式。
-3. Named capability 在 effect row 中写成 `{app}`；`Read[app]` 只会出现在诊断展开中。
-4. Cire 不做宏系统。UI DSL 使用 labelled argument 和 trailing lambda。
+2. `[A]` 是普通类型多态，`[Fx : Effect]` 是单个 effect 多态，
+   `[Eff : EffectRow]` 是整行 effect 多态。
+3. 具名 capability 用普通参数 `app : Read[A]` 绑定，在 effect row 中写成
+   `{app}`；`Read[app]` 只会出现在诊断展开中。
+4. Effect 有 `abort`、`fun`、`once`、`ctl` 四种恢复模式。
+5. Cire 不做宏系统。UI DSL 使用 labelled argument 和 trailing lambda。
 
 ## 30 秒例子
 

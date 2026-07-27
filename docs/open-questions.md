@@ -16,8 +16,11 @@
 10. 增量计算是第一方库，最小核心为 `Source + Trace + Queue + Epoch`。
 11. 响应式 UI 是第一方框架；stable key、reconciliation 与 DOM renderer 不属于语言核心。
 12. Wasm 是编译目标，不会替代增量调度算法。
-13. 表面语法以 MoonBit 为基线；泛型统一使用方括号，例如 `Array[A]` 与 `fn[A] map`。
-14. Named capability 在源 row 中写成 `{app}`；`Read[app]` 只允许作为诊断展开。
+13. 表面语法以 MoonBit 为基线；泛型统一使用方括号。未标注参数默认为
+    `Type`，原子 effect 写 `Fx : Effect`，整行 effect 写
+    `Eff : EffectRow`。
+14. Named capability identity 由普通 term binder `app : Read[A]` 或
+    `as app` 绑定，在源 row 中写 `{app}`；`Read[app]` 只允许作为诊断展开。
 15. `once`/`ctl` clause 使用 `as k`，处置写成 `k.resume(value)`、`k.discontinue(error)`、`k.finalize()`。
 16. Handler 是接收 computation thunk 的值；Koka 风格 `with` 是 handler application 的语法糖。
 17. Effect visibility 镜像 trait：`effect`、`pub effect`、`pub(open) effect`。
@@ -54,7 +57,13 @@
 - same-effect operation 的显式 forwarding 拼写；
 - stable lexical site 由编译器 intrinsic 还是模块级声明身份产生；
 - `Error[E]` 的 `raise`、`try/catch` 专用糖；
-- shallow handler 是否提供。
+- shallow handler 是否提供；
+- local let-polymorphism 在 `ctl`、mutation、capture 和 Region 下的
+  generalization/value-restriction 规则；
+- 用户是否需要显式 higher-rank type，以及是否开放
+  `F : Type -> Effect` 形式的 higher-kinded effect parameter；
+- 显式 generic call 中 row argument 的最终写法；当前工作形式为
+  `f[Int, {Network, app}](...)`。
 
 语法糖不能先于核心类型规则获得独立语义。CST 保留糖，Surface HIR 到 Kernel HIR 的 elaboration 必须可检查、可序列化并保留 source origin。
 

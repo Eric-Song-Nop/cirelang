@@ -651,7 +651,7 @@ same CompilerSnapshot
 | P0 | baseline 完成 | revisioned source、UTF-16 span/edit、content fingerprint、validated JSON、diagnostic/fix、trace DTO | stable parse artifact adapter 与长期 schema migration test |
 | P1 | baseline 完成 | lossless lexer、invalid token、nested comment、UTF-16 range、revision-checked `relex` | token-window relex 与 Unicode identifier policy |
 | P2 | 部分完成 | handwritten PEG cursor、ordered choice/probe、rule-local cut、farthest failure、context stack、transactional recovery、forward-parent marker | selective memo cache、cancellation polling、parser trace emission |
-| P3 | 部分完成 | `effect`/operation、`fn` signature、type parameter/argument、function type、effect row、`{app}`、`..Eff`、`Read[app]` 定向修复 | `struct`/`enum`/`trait`/`impl`、module/import 与完整 constraint grammar |
+| P3 | 部分完成 | `effect`/operation、`fn` signature、type parameter/argument、function type、effect row、`{app}`、`..Eff`、`Read[app]` 定向修复；`A`/`Fx : Effect`/`Eff : EffectRow` 可保留为 CST | generic kind validation、显式 row generic argument/call、`struct`/`enum`/`trait`/`impl`、module/import 与完整 constraint grammar |
 | P4 | 部分完成 | name/literal/block、call/method、labelled argument、trailing lambda、handler、`with`、`as k` mode diagnostics | fixed precedence、`let`、`if`/`match`、完整 pattern、index/tuple/record/array expression |
 | P5 | 未开始 | CST 已保留 sugar boundary | typed CST、Surface/Kernel HIR 与 origin-preserving elaboration |
 | P6 | baseline 开始 | immutable `ParseSnapshot`、single-edit `reparse`、full-parse equivalence test | workspace/source DB、batch edit、reparse island、subtree reuse、LSP adapter |
@@ -660,6 +660,88 @@ same CompilerSnapshot
 已经实现增量性能。当前 `relex`/`reparse` 在校验 revision 与 edit 后仍允许
 full fallback；任何 reuse 优化都必须继续满足 incremental result 与
 from-scratch result 等价。
+
+### 11.2 多态与 named capability 的前端表示
+
+Parser 只负责无损保留统一的方括号 generic syntax；kind resolution 不能靠
+变量名大小写或 `Eff` 这样的命名习惯猜测。Typed CST/Surface HIR 应把
+binder 降成互不混用的 ID：
+
+```text
+GenericParam =
+  TypeParam(TypeParamId)
+  EffectParam(EffectParamId)
+  RowParam(RowParamId)
+
+CapabilityBinder {
+  id : CapabilityId
+  family : EffectAtom
+  region
+  origin
+}
+```
+
+其中：
+
+- 未标注 generic binder 默认为 `TypeParam`；
+- `Fx : Effect` 产生 `EffectParamId`；
+- `Eff : EffectRow` 产生 `RowParamId`；
+- `app : Fx` 或 `as app` 是 term binder，产生 `CapabilityId`，不能复用
+  generic parameter ID；
+- polymorphic operation 的普通 type parameter 在 handler clause 中以
+  fresh skolem 打开，不能按名称与外层 binder 合并。
+
+Effect row 的 typed representation 至少区分：
+
+```text
+EffectAtom =
+  ConcreteEffect(definition, type_arguments)
+  EffectParameter(EffectParamId)
+
+EffectRowEntry =
+  Anonymous(EffectAtom)
+  Named(CapabilityId, EffectAtom)
+
+EffectRow {
+  entries
+  tail : RowParamId?
+}
+```
+
+因此 `{Fx}`、`{app}` 和 `..Eff` 在序列化、unification、diagnostic 与 LSP
+hover 中始终有不同 tag。`Read[app]` 可以由
+`Named(app, ConcreteEffect(Read, ...))` 生成用于诊断，但 parser 不接受它
+作为源 row item。
+
+Kind checking 必须早于 effect-row unification：
+
+1. 解析 generic binder 与 scope；
+2. 检查 `Type`、`Effect`、`EffectRow` 的使用位置；
+3. 为 capability term 建立稳定 identity 与 family；
+4. 再做 row normalization/unification 和 handler elimination；
+5. 最后把 fixed capability capture 交给统一的 capture/Region checker。
+
+Generalization 也按类别分开：
+
+- `TypeParamId`、`EffectParamId`、`RowParamId` 可以按正式的
+  let/top-level generalization 规则量化；
+- `CapabilityId` 是 term-indexed identity，普通 let-generalization 不能
+  把它提升成任意 capability；
+- `with ... as app` 的 fresh identity 在 Kernel HIR 中使用 rank-2 action
+  boundary，逃逸只能由未来明确设计的 existential/Owner 规则允许。
+
+稳定 artifact 不序列化裸整数冒充所有 ID。每种 ID 使用不同 tag，并记录
+scope/origin；LSP hover 可以显示：
+
+```text
+A   : Type
+Fx  : Effect
+Eff : EffectRow
+app : Fx capability
+```
+
+当前 parser 已能无损保留这些 binder 和 row shape，但 generic kind
+validation、typed row、generalization 与显式 row generic argument 尚未实现。
 
 ### P0：Serialization shell
 
