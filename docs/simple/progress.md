@@ -50,9 +50,9 @@ JavaScript 和 native target 上各有 74 项测试，全部通过。
 
 - 还不能完成名字解析、类型检查或 effect row 推导；
 - 还不能解析最新设计的双泛型列表 `[...]![...]`、`ability`、`cap`、
-  associated effect/row、row formula 或 `fresh`；
+  associated effect/row 或 row formula；
 - 还不能验证 generic parameter 的 `Type`/`Effect`/`EffectRow` kind；
-- 还不能检查 capture、Region、Owner 和 continuation safety；
+- 还不能检查 capability capture、Owner 和 continuation safety；
 - 还没有 Surface HIR、Kernel HIR 和正式的语法糖展开；
 - 还没有完整的 `let`、`if`、`match`、pattern、ADT 和运算符优先级语法；
 - `reparse` 还允许 full fallback，没有真正复用 subtree；
@@ -73,7 +73,7 @@ Parser 不只是给命令行编译器使用。以后编辑器会不断发送不�
 2. 建立 typed CST view、Surface HIR 和 Kernel HIR；
 3. 在语法继续细化后实现双列表、ability constraint，再进入 generic kind
    checking、名字解析、类型推导和 effect row；
-4. 一次性建立一致的 capture、Region、Owner 和 continuation safety 规则；
+4. 一次性建立一致的 capability capture、Owner 和 continuation safety 规则；
 5. 加入 query cache、reparse island、subtree reuse 和 cancellation；
 6. 让 CLI、测试和 LSP 复用同一个 compiler workspace API；
 7. 再进入运行时与 Wasm 后端。

@@ -9,7 +9,7 @@ typed algebraic effects
 + abort / once / fun / ctl
 + named capabilities
 + inferred capture checking
-+ revocable dynamic Owner/Region
++ revocable dynamic Owner
 + continuation-aware finalization
 + stable Wasm host callbacks
 + first-party incremental computation
@@ -21,12 +21,12 @@ typed algebraic effects
 
 | Cire 关注的机制 | 可参考的语言/系统 | 已有贡献 | Cire 仍需解决 |
 |---|---|---|---|
-| Effect row 与 effect polymorphism | Koka | 实用的 row-polymorphic effect typing | 与具名 capability、capture lifetime 连接 |
+| Effect row 与 effect polymorphism | Koka | 实用的 row-polymorphic effect typing | 与具名 capability capture 连接 |
 | `fun` / `ctl` | Koka | tail-resumptive 与 general control | 加入静态 `abort`、`once` |
 | Named effect instance | Eff、Effekt | 具体 effect/capability identity | 统一生成式 instance、Owner 与 capture |
 | One-shot continuation | OCaml 5 | 高效 one-shot runtime 与 `discontinue` | 把 at-most-once 放进静态类型，并自动 finalization |
 | Multi-shot handler | Effekt、Scheme/Racket、Koka `ctl` | 多次恢复与一般控制 | 捕获不可重放 capability 的静态规则 |
-| Capture set 与 region | Effekt、Scala 3、Haskell `ST` | 防止局部 capability/reference 逃逸 | 动态可撤销 Owner、generation 与 host race |
+| Capability capture | Effekt、Scala 3、Haskell `ST` | 防止局部 capability/reference 逃逸 | 动态可撤销 Owner、generation 与 host race |
 | QTT/multiplicity | Idris 2、Linear Haskell、Granule | 0/1/ω 或 graded usage | 专门用于 resumption，并额外检查 tail position |
 | Continuation-aware dynamic extent | Scheme/Racket | `dynamic-wind` 的进入/离开语义 | 与 Owner 收养、one-shot disposition、cleanup failure 结合 |
 | Affine resource ownership | Rust 等 | move-only ownership 与 deterministic drop | 不是 Cire 默认变量模型；只作为可选通用资源能力 |
@@ -121,7 +121,7 @@ right#lookup()
 Cire 还要进一步追踪：
 
 - closure/continuation 固定捕获了哪个 instance；
-- instance 属于哪个 Region/Owner；
+- instance 由哪个 binder 或 Owner 提供；
 - 保存到未来时该 capability 是否仍有效；
 - generation 被撤销后宿主 callback 是否能再次使用它。
 
@@ -134,8 +134,7 @@ Effekt 是当前最接近 Cire 研究方向的语言之一，因为它同时提�
 - capability 风格的 effect；
 - effect handler；
 - multi-shot resume；
-- capture set；
-- region。
+- capture checking。
 
 Capture checking 区分：
 
@@ -146,8 +145,6 @@ effect
 capture
   closure 已经固定携带的具体能力
 ```
-
-Region 示例能阻止闭包把局部 cell 带出作用域。
 
 Cire 与 Effekt 的主要差异目标是把该静态模型继续连接到：
 
@@ -162,7 +159,6 @@ Cire 与 Effekt 的主要差异目标是把该静态模型继续连接到：
 参考：
 
 - [Effekt captures](https://effekt-lang.org/tour/captures)
-- [Effekt regions](https://effekt-lang.org/tour/regions)
 - [Effekt effect handlers](https://effekt-lang.org/docs/concepts/effect-handlers)
 
 ## 6. OCaml 5
@@ -197,7 +193,7 @@ Cire 希望加强为：
 
 ## 7. Haskell `ST`
 
-`ST` 使用 rank-2 polymorphism 创建外部无法命名的生成式 region：
+`ST` 使用 rank-2 polymorphism 创建外部无法命名的新鲜 state token：
 
 ```haskell
 runST :: (forall s. ST s a) -> a
@@ -226,7 +222,8 @@ T^{x, y}
 
 表示一个值捕获 capability `x`、`y`，并依靠 capability 的词法嵌套限制值可以逃逸到哪里。
 
-它证明 capture set 可以主要由编译器推导，并只在高级签名与诊断中显式出现。
+它证明 capture set 可以主要由编译器推导。Cire 将结果保存在编译器 artifact
+并用于诊断，不增加对应的源签名标注。
 
 Cire 不能只依靠 capture set，因为浏览器已排队 callback、动态 key、candidate 抢占与 FFI 竞态仍需要 generation/revocation。
 
@@ -332,8 +329,8 @@ affine = 可以不用，但不能复制后使用两次
 Koka        effects + fun/ctl
 OCaml       one-shot continuation + discontinue
 Eff/Effekt  named capability + handlers
-Effekt      capture set + region + multi-shot
-ST          generative region
+Effekt      capture checking + multi-shot
+ST          fresh state token
 Scala 3     inferred capture checking
 Idris/GHC/
 Granule     quantitative/modal typing

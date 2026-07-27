@@ -50,7 +50,7 @@ ABI 至少需要处理：
 - Cire function 与宿主 callback 的相互转换；
 - JS object、Promise、Error 与 DOM node 的 handle；
 - 宿主 callback 调用一次或多次；
-- Wasm 内存与宿主对象表的生命周期；
+- Wasm 内存回收与宿主对象表关闭；
 - 异常、取消与 trap 的映射；
 - handler context 的受控保存和恢复；
 - Owner/generation 失效后的 callback revocation；
@@ -62,8 +62,8 @@ ABI 至少需要处理：
 DOM node 和普通 JS object 不应被伪装成 Wasm 线性内存中的裸地址。运行时需要不透明 handle：
 
 ```text
-HostRef<ρ, T>
-DomRef<ρ, host_generation, Element>
+HostRef<T>
+DomRef<Element>
 ```
 
 概念上，handle table 记录：
@@ -76,7 +76,7 @@ capabilities
 alive/revoked state
 ```
 
-Region/capture checking 阻止明显的静态逃逸；运行时 generation 防止：
+Capability capture checking 阻止明显的静态逃逸；运行时 generation 防止：
 
 - handle 已被 release 后继续使用；
 - 同一业务 key 重建后旧 handle 指向新对象；
@@ -111,10 +111,10 @@ owner revoked     → Revoked
 
 ### 5.2 Many callback
 
-DOM listener 可以被调用多次并同步重入，但仍受 Owner 生命周期约束：
+DOM listener 可以被调用多次并同步重入，但 Owner 关闭后必须失效：
 
 ```text
-HostCallback<many, ρ, Event>
+HostCallback<many, Event>
 ```
 
 Owner 关闭时：
@@ -132,11 +132,8 @@ Owner 关闭时：
 
 宿主稍后回调时，原来的 Wasm 动态栈已经不存在。语言不能默认把整个 handler stack 暗中序列化。
 
-只有被标记为 portable/reentrant 的 handler capability，且 capture set 在目标 Owner 下有效时，才可以进入：
-
-```text
-Context<effects, captures, owner>
-```
+只有被标记为 portable/reentrant，且 capture checking 接受其全部依赖的
+handler capability 才可以进入 `PortableContext`。
 
 ABI adapter 恢复 callback 时需要：
 
@@ -220,13 +217,13 @@ DOM 不在 Wasm 内部，并且具备同步重入与不可逆 mutation：
 标准库应按 capability 分层，而不是把 JavaScript 全局对象无约束暴露给所有代码：
 
 ```text
-HostClock<instance>
-HostRandom<instance>
-Network<instance>
-DomRead<root>
-DomWrite<root>
-Storage<instance>
-WasiFs<preopen>
+clock     : cap HostClock
+random    : cap HostRandom
+network   : cap Network
+dom_read  : cap DomRead
+dom_write : cap DomWrite
+storage   : cap Storage
+wasi_fs   : cap WasiFs
 ```
 
 这使：
@@ -248,6 +245,5 @@ WasiFs<preopen>
 - Wasm exception handling 与语言 Error/取消如何映射？
 - trap 后哪些 finalizer 仍有执行保证？
 - 多线程 Wasm 下 Owner、one-shot slot 与 generation check 如何同步？
-- C callback 不遵守生命周期时，adapter 的失败策略是什么？
+- C callback 违反有效性约定时，adapter 的失败策略是什么？
 - Cire package/module identity 如何映射到 component imports/exports？
-

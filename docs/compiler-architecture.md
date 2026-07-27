@@ -39,7 +39,8 @@ Workspace / SourceDb
 - Surface HIR 表达用户想写的构造；
 - Kernel HIR 消除 `with`、trailing lambda 等糖；
 - Resolved HIR 绑定 package、type、value、effect 与 capability identity；
-- Typed HIR/Core 保存 effect row、resumption mode、capture、Region 与 elaboration evidence。
+- Typed HIR/Core 保存 effect row、resumption mode、capture dependency、
+  capability binding scope 与 elaboration evidence。
 
 Formatter 使用 CST，不格式化反糖后的 HIR。LSP 的 syntax feature 可以只依赖 CST；hover、definition、rename 等 semantic feature 复用 resolver/typechecker query。
 
@@ -404,7 +405,7 @@ Handler
 HandlerApply
 OperationCall
 Resume / Discontinue / Finalize
-RegionScope
+HandlerAction
 ```
 
 典型展开：
@@ -423,7 +424,8 @@ xs.each { x => body }
   → xs.each(fn(x) { body })
 ```
 
-`handler` application、fresh capability binder 和 `RegionScope` 即使具有普通调用外观，也必须在 Kernel HIR 中保留语义节点。
+`handler` application 与 fresh capability binder 即使具有普通调用外观，
+也必须在 Kernel HIR 中保留语义节点。
 
 ### 7.2 Evaluation order
 
@@ -678,7 +680,7 @@ GenericParam =
 CapabilityBinder {
   id : CapabilityId
   family : EffectAtom
-  region
+  binding_scope : ScopeId
   origin
 }
 
@@ -731,10 +733,10 @@ Kind checking 必须早于 effect-row unification：
 1. 解析 generic binder 与 scope；
 2. 根据普通/effect generic list 与 binder shape 建立初始 kind；
 3. resolve 普通 trait、ability、associated argument 和 row predicate；
-4. 为 capability term 建立稳定 identity、family 与 Region；
+4. 为 capability term 建立稳定 identity、family 与 binding scope；
 5. 做 row normalization/unification、operation resolution 和 handler
    elimination；
-6. 最后把 fixed capability capture 交给统一的 capture/Region checker。
+6. 最后把 fixed capability dependency 交给统一的 capture/escape checker。
 
 Generalization 也按类别分开：
 
@@ -743,7 +745,7 @@ Generalization 也按类别分开：
 - `CapabilityId` 是 term-indexed identity，普通 let-generalization 不能
   把它提升成任意 capability；
 - `with ... as app` 的 fresh identity 在 Kernel HIR 中使用 rank-2 action
-  boundary，逃逸只能由未来明确设计的 existential/Owner 规则允许。
+  boundary；任何保留 `app` 的值都必须在该 boundary 内消费。
 
 稳定 artifact 不序列化裸整数冒充所有 ID。每种 ID 使用不同 tag，并记录
 scope/origin；LSP hover 可以显示：
@@ -891,7 +893,7 @@ Golden test 应审查结构化 artifact，而不是只比较 pretty-printed AST�
 - diagnostics 只保存最终字符串；
 - sugar 展开后丢失 source origin；
 - cache key 隐式依赖当前工作目录或进程随机状态；
-- 为了先跑起来而静默跳过 capture/Region safety；
+- 为了先跑起来而静默跳过 capability capture safety；
 - 引入宏展开阶段来实现 UI DSL。
 
 前端可以先慢，但接口不能把一次性、不可恢复、不可序列化的实现方式固化下来。

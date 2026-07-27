@@ -6,16 +6,16 @@
 
 调研问题不是“如何移植 Kokaine”，而是：
 
-> Kokaine 为了让裸代数效应与续体可靠驱动增量 UI，在哪些地方手工实现了本可由新语言统一提供的控制流和生命周期保证？
+> Kokaine 为了让裸代数效应与续体可靠驱动增量 UI，在哪些地方手工实现了本可由新语言统一提供的控制流、撤销和结构化关闭保证？
 
 结论是：
 
-> Kokaine 最大的成本不是 Signal，也不是在 `get` 处捕获续体，而是在库中手工补出了一套带生命周期、所有权、撤销和宿主重入的控制能力系统。
+> Kokaine 最大的成本不是 Signal，也不是在 `get` 处捕获续体，而是在库中手工补出了一套带所有权、撤销、结构化关闭和宿主重入的控制能力系统。
 
 Kokaine 同时证明了两点：
 
 1. continuation cut 可以有效驱动细粒度增量 UI；
-2. 裸续体远远不足以承担真实 UI、异步和 DOM 的生命周期。
+2. 裸续体远远不足以承担真实 UI、异步和 DOM 的关闭与撤销协议。
 
 ## 2. 代码投入分布
 
@@ -52,7 +52,8 @@ continuation lifecycle
 - 172 处 `ref<global, ...>`；
 - 65 处显式 `mask<...>`。
 
-它们集中在 `reactive/internal/scheduler.kk`、`reactive/internal/lifetime.kk`、异步 runtime 与 `dom.kk` 等路径。
+它们集中在 reactive scheduler/ownership internals、异步 runtime 与
+`dom.kk` 等模块。
 
 ## 3. 续体不是一种统一对象
 
@@ -85,17 +86,17 @@ Reactive continuation 本来就要跨多次更新恢复，因此不应该被错�
 
 `SerialRetryable` 是建立在 `ctl` 之上的增量 typestate，而不是所有 continuation 的语言固有语义。
 
-## 4. 依赖关系与生命周期不是同一棵树
+## 4. 依赖关系与 Owner 关系不是同一棵树
 
 Kokaine 分别维护：
 
 - continuation gate；
 - frame；
-- lifetime owner；
+- Owner；
 - child registry；
 - finalizer registry。
 
-相关逻辑主要位于 `reactive/internal/model.kk` 与 `reactive/internal/lifetime.kk`。
+相关逻辑主要位于 reactive model 与 ownership internals。
 
 这揭示：
 
@@ -108,8 +109,8 @@ Owner relation           决定任务、资源与 callback 跟谁死亡
 
 ### 语言/标准协议可以内化
 
-- 生成式 Region；
-- 推导式 capture set；
+- 具名 capability identity；
+- 推导式 capture analysis；
 - 动态 Owner tree；
 - generation/revocation token；
 - 两阶段关闭；
@@ -185,14 +186,15 @@ Kokaine 因而需要类似 `pure-plane-depth` 的全局动态检查，防止：
 让 operation 依赖不可伪造的具名 authority：
 
 ```text
-Read<root>
-Write<root>
-Own<root>
-Reenter<root, generation>
-HostWrite<dom>
+read_root  : cap Read
+write_root : cap Write
+own_root   : cap Own
+reenter    : cap Reenter
+host_write : cap HostWrite
 ```
 
-`derive/live` 只获得允许的 `Read<root>`。局部安装一个同名 handler 不会凭空制造 `Write<root>`。
+`derive/live` 的 row 只包含 `{read_root}`。局部安装一个同名 handler 不会凭空
+制造 `{write_root}`。
 
 因此需要同时保留：
 
@@ -240,7 +242,7 @@ Kokaine 的宿主 callback 需要手工保存 root、gate 和 frame，再重装�
 ### 语言可以提供
 
 - stack-only 与 portable handler 的区分；
-- capture/lifetime checking；
+- capability capture checking；
 - Owner-bound `Context`；
 - `once`/`many` host callback modality；
 - generation revocation；
@@ -251,9 +253,9 @@ Kokaine 的宿主 callback 需要手工保存 root、gate 和 frame，再重装�
 事件对象还可能需要 turn-local capability：
 
 ```text
-EventSnapshot       可长期保存的普通数据
-EventRef<turn>      不可跨回调 turn 或 await
-EventControl<turn>  preventDefault / stopPropagation
+EventSnapshot  可长期保存的普通数据
+EventRef       只能在当前宿主回调中使用
+EventControl   preventDefault / stopPropagation
 ```
 
 这比把宿主原始事件暴露成无约束 `any` 更能阻止过期操作。
@@ -269,7 +271,7 @@ Kokaine 大量 `finally` 不是偶然样板，而是在补以下语义：
 - 一个 finalizer 抛错后如何继续清理兄弟；
 - cleanup 同步重入时如何禁止在 dying Owner 下重新注册。
 
-这直接支持 [Owner、Region、capture set 与结构化清理](lifetimes-and-finalization.md) 中的两阶段关闭与 continuation-aware finalization。
+这直接支持 [Named capability、Owner 与结构化清理](capabilities-and-finalization.md) 中的两阶段关闭与 continuation-aware finalization。
 
 ## 10. 不应内化进语言核心
 
@@ -334,7 +336,7 @@ Kokaine 案例支持把以下能力提升到语言或第一方标准协议：
 1. `abort / once / fun / ctl`。
 2. 针对恢复权的数量检查。
 3. 具名 effect capability。
-4. 推导式 capture set 与生成式 Region。
+4. 推导式 capability capture 与 handler-binding escape checking。
 5. 动态 Owner/generation 与 revocation。
 6. 续体感知的结构化 finalization。
 7. portable/reentrant handler context。
@@ -353,4 +355,3 @@ Kokaine 案例支持把以下能力提升到语言或第一方标准协议：
 最简洁的总结是：
 
 > 内化“续体能做几次、携带谁、归谁管、如何结束以及如何跨宿主回来”；不要内化 Signal、DOM 或具体增量调度算法。
-

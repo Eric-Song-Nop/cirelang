@@ -181,7 +181,7 @@ Epoch
 长期 Source 不应强引用并拥有短命续体。更安全的关系是：
 
 ```text
-Trace<ρ>
+Trace
   └── 真正拥有 Cut 与 continuation
 
 Source
@@ -195,7 +195,7 @@ Source 变化时：
 3. 从 Trace 取得续体；
 4. 把 cut 加入 Queue。
 
-这让全局 Source 不会意外延长局部 `Live` 或 UI Owner 的生命周期。
+这让全局 Source 不会意外保持已经关闭的 `Live` 或 UI Owner。
 
 ## 6. 概念执行流程
 
@@ -497,14 +497,14 @@ Update(key, delta)
 | continuation capture | 动态依赖记录 |
 | once/multi-shot 使用检查 | Source 到 cut 的索引 |
 | handler context 保存与恢复 | cut 父子关系 |
-| Owner-bound lifetime | earliest invalidation frontier |
+| Owner-bound cleanup/revocation | earliest invalidation frontier |
 | replacement 的确定清理 | batch 与 Epoch |
 | stale callback revocation 基础 | replacement Trace 建立 |
 | multi-shot capture safety | equality、demand、DAG 等优化 |
 
 这解释了为什么有了语言特性，第一方增量库仍然不是零代码：
 
-> 控制流与生命周期样板可以被语言内化；依赖传播和失效调度仍是增量计算本身。
+> 控制流与结构化关闭样板可以被语言内化；依赖传播和失效调度仍是增量计算本身。
 
 ## 16. 待验证问题
 

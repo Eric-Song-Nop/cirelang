@@ -83,7 +83,7 @@ fn[A]![F : Reader[A], ..E] relay(
 ```
 
 `cap F` 明确表示 named capability value；它在 Core 中携带 family、
-singleton identity、Region 和 origin。`Reader[A]` ability 让泛型代码既能
+singleton identity、binding scope 和 origin。`Reader[A]` ability 让泛型代码既能
 使用匿名 `F::read()`，也能使用具名 `app.read()`。
 
 `effect Read[A]` 中的 `[A]` 只是普通类型参数，它建立
@@ -157,7 +157,7 @@ capability 后才能修改该实例。
 普通 let-polymorphism 不能抹掉这一 identity。闭包若捕获 `app`，其 capture
 信息仍包含 `app`；把匿名 effect 在 handler 中消除，也不会把固定 capability
 伪装成与任意实例都兼容的普通泛型值。具体 generalization rule 仍要和
-`ctl`、mutation、capture 与 Region 一起形式化。
+`ctl`、mutation 与 capture 一起形式化。
 
 ## 3. 四种表面恢复模式
 
@@ -390,7 +390,7 @@ once op(k) =>
 // return fallback
 ```
 
-如果要跨越 clause 生命周期保存 `k`，必须把处置责任交给受管理的 Owner：
+如果要在 clause 退出后保存 `k`，必须把处置责任交给受管理的 Owner：
 
 ```text
 park k under owner
@@ -458,7 +458,7 @@ multi-shot continuation 与普通局部 `var` 的语义必须明确，不能留�
 
 对于 multi-shot，每次恢复造成的动态进入/退出必须与捕获环境的可重放性一致；含一次性 cleanup 的续体不能被无条件复制。
 
-完整生命周期规则见 [Owner、Region、capture set 与结构化清理](lifetimes-and-finalization.md)。
+完整规则见 [Named capability、Owner 与结构化清理](capabilities-and-finalization.md)。
 
 ## 10. 尚未冻结的表面语法
 

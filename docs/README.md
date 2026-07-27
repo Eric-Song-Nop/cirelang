@@ -17,7 +17,7 @@
 2. [表面语法工作规范](surface-syntax.md)
 3. [多态与 effect abstraction 工作设计](polymorphism-design.md)
 4. [代数效应与恢复模式](effects-and-resumptions.md)
-5. [Owner、Region、capture set 与结构化清理](lifetimes-and-finalization.md)
+5. [Named capability、Owner 与结构化清理](capabilities-and-finalization.md)
 6. [编译器前端架构](compiler-architecture.md)
 7. [第一方增量计算库](incremental-computation.md)
 8. [第一方响应式 UI 框架](reactive-ui.md)
@@ -43,9 +43,8 @@
 | Effect row | 运行这段计算时，可能向上下文请求什么操作？ |
 | Named capability | 请求的是哪个具体 handler、状态域或宿主实例？ |
 | Resumption mode | handler 可以让操作之后的程序运行几次、以何种方式运行？ |
-| Capture set | 一个闭包或续体已经随身带着哪些具体能力和 region？ |
+| Capture analysis | 一个闭包或续体已经随身带着哪些具体 capability？ |
 | Owner | 运行时谁负责一组任务、续体、资源与清理动作的生死？ |
-| Region | Owner 或局部能力在类型系统中的生成式身份。 |
 | Generation | 某个运行时身份的哪一次 incarnation 或候选求值仍然有效？ |
 | Continuation cut | 一次读取把直接风格程序切成已完成前缀与可恢复后缀的位置。 |
 | Stable name/key | 新旧两轮执行中的对象是否是同一个逻辑对象？ |

@@ -6,13 +6,13 @@
 
 Cire 是通用编程语言，不是 UI DSL：
 
-> 一门严格求值、面向 WebAssembly 的通用函数式语言，以类型化代数效应、受控续体以及可推导的能力生命周期为核心。增量计算是第一方库，响应式 UI 是旗舰框架；二者都不是语言关键字。
+> 一门严格求值、面向 WebAssembly 的通用函数式语言，以类型化代数效应、受控续体以及具名 capability 为核心。增量计算是第一方库，响应式 UI 是旗舰框架；二者都不是语言关键字。
 
 整体分层为：
 
 ```text
 通用语言核心
-  数据、函数、模块、效应、续体、能力与生命周期
+  数据、函数、模块、效应、续体与具名 capability
                     ↓
 第一方通用协议与库
   Owner、结构化并发、增量计算、宿主互操作
@@ -21,7 +21,7 @@ Cire 是通用编程语言，不是 UI DSL：
   响应式 UI、DOM、Canvas、SSR、测试后端
 ```
 
-响应式 UI 的作用是把语言的控制流、生命周期、增量性和宿主互操作同时推到极限，从而成为设计是否成立的旗舰验证，而不是反过来定义整门语言。
+响应式 UI 的作用是把语言的控制流、结构化关闭、增量性和宿主互操作同时推到极限，从而成为设计是否成立的旗舰验证，而不是反过来定义整门语言。
 
 ## 2. 常规语言基础
 
@@ -69,16 +69,18 @@ fn load(url: Url) -> Data
 仅知道“使用了状态”不够，还应知道使用的是哪一个具体状态域或 handler：
 
 ```text
-Read<app>
-Write<app>
+app  : cap AppState
+test : cap TestState
 
-Read<test>
-Write<test>
+effect rows:
+  {app}
+  {test}
 ```
 
 handler 实例产生不可伪造的生成式身份。闭包与续体捕获了哪些具体实例，应进入 capture checking。
 
-这避免一种 effect row 自身无法阻止的“权限清洗”：代码不能只因为在内部安装并消除了一个 `Write` handler，就凭空获得另一个状态域的 `Write<other>` 权限。
+这避免一种 effect row 自身无法阻止的“权限清洗”：代码不能只因为在内部安装
+并消除了一个 `Write` handler，就凭空获得另一个状态域的 `{other}` 权限。
 
 ### 3.3 四种恢复模式
 
@@ -128,21 +130,23 @@ ctl    → k 的使用量可以为 0..ω
 
 通用 affine 用户类型可在以后用于文件、socket、锁和宿主资源，但不是第一版增量 UI 的前提。
 
-### 3.5 Capture-and-lifetime system
+### 3.5 Named capability capture
 
 **设计方向**
 
-语言最值得研究的中心不是重新实现 Koka，而是把代数效应与生命周期接起来：
+具名 capability 给 effect family 增加具体 handler identity：
 
 ```text
 Effect row  ：计算运行时还会请求什么？
-Capture set ：闭包或续体已经携带了什么具体能力？
-Region      ：这些能力最长能被存放到哪里？
+Named entry ：操作会发往哪个具体 handler？
+Capture     ：闭包或续体已经保留了哪些具体 capability？
 Owner       ：运行时谁负责它们的生死和清理？
 Generation  ：这个动态权限现在还是不是当前有效的一代？
 ```
 
-Capture set 应尽量由编译器推导。普通代码不应到处手写生命周期参数；高级 API 和诊断信息才需要显式展示。
+源码使用 `{app}` 指向具体 capability。编译器从 term binder 推导传递
+capture，并检查保存、返回和抽象包装没有把 capability 带出 handler action。
+推导结果保存在 HIR、接口摘要和诊断中，不增加另一套表面标注。
 
 ### 3.6 续体感知的结构化清理
 
@@ -173,7 +177,7 @@ park / adopt 到 Owner
 结构化并发主要是第一方标准协议，而不是大量特殊语法。它建立在 Owner、`once` 与结构化清理之上，提供：
 
 - task tree / nursery；
-- 父子任务生命周期；
+- 父子任务的结构化结束；
 - 结构化取消；
 - timeout 与 race；
 - one-shot 异步完成；
@@ -232,7 +236,7 @@ CSS
 
 - 组件与本地状态；
 - stable/keyed identity；
-- task/resource 生命周期；
+- task/resource 的关闭与撤销；
 - error boundary、Suspense 与 transition；
 - DOM、Canvas、SSR 与测试后端；
 - reconciliation、DOM range 与宿主事件。
@@ -268,4 +272,4 @@ CSS
 - 不在普通 operation 声明中暴露 `ctl[0..1]` 之类数量区间。
 - 不把 `ctl` 简化成“multi-shot”；它表示一般控制权，multi-shot 只是其中一种用法。
 - 不承诺 DOM mutation 是可回滚或真正原子的事务。
-- 不假设 WebAssembly 会自动解决依赖追踪、失效传播或 UI 生命周期。
+- 不假设 WebAssembly 会自动解决依赖追踪、失效传播或 UI 对象关闭。

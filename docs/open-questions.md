@@ -10,8 +10,8 @@
 4. `fun` 与 `ctl` 保持 Koka 的核心语义。
 5. `once` 表示显式、可保存但至多处置一次的恢复权。
 6. 第一版数量检查聚焦恢复权，不让所有普通变量默认 affine。
-7. 具名 capability、capture set、Region、Owner 与 generation 各有独立职责。
-8. Capture 信息应主要推导并出现在高级类型/诊断中。
+7. 具名 capability、capture analysis、Owner 与 generation 各有独立职责。
+8. Capture 信息由编译器推导，保存在 artifact 并用于诊断。
 9. 被保存或放弃的 continuation 必须有明确 finalization 语义。
 10. 增量计算是第一方库，最小核心为 `Source + Trace + Queue + Epoch`。
 11. 响应式 UI 是第一方框架；stable key、reconciliation 与 DOM renderer 不属于语言核心。
@@ -27,7 +27,8 @@
 16. Handler 是接收 computation thunk 的值；Koka 风格 `with` 是 handler application 的语法糖。
 17. Effect visibility 镜像 trait：`effect`、`pub effect`、`pub(open) effect`。
 18. Cire 不做宏系统；UI DSL 使用普通函数、labelled argument 与 Kotlin/Koka 风格 trailing lambda。
-19. Owner/Region 必须有编译器静态分析；即使采用 `Owner::scope` 的库式外观，也不能退化成未经编译器理解的 rank-2 约定。
+19. Capability capture 与 Owner 责任转移必须有编译器静态分析，不能退化成
+    未经检查的库约定。
 20. Capture safety 要么以一致的核心规则整体实现，要么整体延后，不能只补少数特例后默认其余程序安全。
 21. Parser 使用手写 PEG，不维护 EBNF 或依赖 parser generator。
 22. Compiler interface 从 parser 阶段起以可序列化 diagnostic/artifact、immutable snapshot、增量 query 与 LSP 直接复用为约束。
@@ -58,17 +59,15 @@
 - `park/adopt` 的名称和责任转移语法；
 - `val` 是否正式保留为无参数 `fun`；
 - one-call/many-call closure 是否需要显式 surface marker；
-- Owner/Region 最终采用显式 block，还是 compiler-known `Owner::scope` 外观；
-- capture set 是否允许出现在公开签名，采用何种记法；
+- Owner 的第一方 API 与责任转移操作如何组合；
 - same-effect operation 的显式 forwarding 拼写；
 - stable lexical site 由编译器 intrinsic 还是模块级声明身份产生；
 - `Error[E]` 的 `raise`、`try/catch` 专用糖；
 - shallow handler 是否提供；
-- local let-polymorphism 在 `ctl`、mutation、capture 和 Region 下的
+- local let-polymorphism 在 `ctl`、mutation 和 capture 下的
   generalization/value-restriction 规则；
 - `ability`、`cap`、associated `effect`/`effects` 是否为最终关键词；
-- 用户是否需要普通显式 higher-rank type；named handler 的生成式 action
-  当前设计方向为 `fresh(app : cap F) -> ...`；
+- 用户是否需要普通显式 higher-rank type；
 - higher-kinded effect constructor binder `![F[_] : Reader[_]]` 的精确
   量化与诊断；
 - row union 的 `|`、row predicate `Has`/`Lacks`/`All`/`Only` 是否冻结；
@@ -124,7 +123,9 @@ operation 声明给出最大控制能力，handler 可以采用更弱 clause。�
 
 **实现门槛**
 
-在这一问题与 capture/replay/Region 规则形成一致 Core 前，不启用“部分安全”的 capture checker。编译器可以暂时不支持相关程序，但不能接受程序后只对 `once` 或 UI API 做 ad-hoc 检查。
+在这一问题与 capture/replay 规则形成一致 Core 前，不启用“部分安全”的
+capture checker。编译器可以暂时不支持相关程序，但不能接受程序后只对
+`once` 或 UI API 做 ad-hoc 检查。
 
 ### 3.2 `fun` 的尾位置
 
@@ -178,7 +179,7 @@ OwnershipLease
 扩展：general resource ownership
 ```
 
-## 4. Capture 与生命周期
+## 4. Capability capture 与动态 Owner
 
 ### 4.1 Capture inference
 
@@ -189,35 +190,34 @@ OwnershipLease
 - trait object/existential package 如何隐藏 capture；
 - effect instance 本身的 capture；
 - transitive closure 与 capture polymorphism；
-- module abstraction 如何避免泄漏内部 region；
+- module abstraction 如何保留或隐藏具体 capability identity；
 - 错误诊断如何从抽象集合还原成人能理解的资源来源。
 
-### 4.2 Region 与动态 Owner
+### 4.2 Handler binding 与动态 Owner
 
 需要证明：
 
-- keyed registry 如何保存 `exists ρ. Owner<ρ>`；
 - 下一轮执行如何安全重新打开同一 Owner；
-- static Region 与 runtime generation 如何关联但不混同；
-- parent/child outlives 关系；
+- handler action 的 capability binder 如何约束 closure escape；
+- parent/child Owner 的关闭顺序；
 - Owner promotion、weak reference 与 detach；
 - Owner close 期间禁止新注册的类型/运行时保证。
 
-这里已经排除“纯库即可保证安全”的方案。无论表面是显式 `owner[R] { ... }` 还是 `Owner::scope { owner => ... }`，编译器都必须生成 fresh Region、推导 capture 并检查 escape/outlives；库负责 Owner 的运行时协议。
+编译器必须为 named capability 建立稳定 identity、推导 capture 并检查
+storage boundary；库负责 Owner 的运行时协议。
 
 ### 4.3 Generation subtyping
 
 Old committed 与 candidate 可能并存：
 
 ```text
-Owner ρ
+Owner
 ├── committed γ0
 └── candidate γ1
 ```
 
 需要决定：
 
-- captures `{ρ}` 与 `{ρ, γ}` 的关系；
 - candidate-only authority 如何防止逃到 persistent state；
 - transition 中旧、新 generation 同时可读时的 capability；
 - generation token 是否能被用户观察；
@@ -377,17 +377,18 @@ retained views        → activation states
 
 不能把这些问题隐藏在“原子 commit”一词后面。
 
-### 7.4 Event lifetime
+### 7.4 Event validity
 
 需要评估：
 
 ```text
 EventSnapshot
-EventRef<turn>
-EventControl<turn>
+EventRef
+EventControl
 ```
 
-是否足以阻止在 `await` 之后调用只在同步 event turn 有效的 API。
+需要验证 callback binder、capture checking 与运行时 revocation 是否足以阻止
+在 `await` 之后调用只在同步 event turn 有效的 API。
 
 ## 8. WebAssembly 与 ABI
 
@@ -449,12 +450,11 @@ branch-sensitive resumption usage
 - `ctl` 可实现 search；
 - handler mode weakening 有清晰规则。
 
-### 原型 2：Capture 与 Region
+### 原型 2：Capability capture
 
 用非 UI 例子验证：
 
 ```text
-region-local cell
 closure escape
 handler instance escape
 once continuation parked under Owner
@@ -463,9 +463,9 @@ multi-shot captures non-replayable capability
 
 成功标准：
 
-- 普通代码几乎不写 region；
 - 诊断能指出实际捕获来源；
-- 存在类型可封装动态 Owner。
+- 聚合、闭包和模块边界不会丢失 capability identity；
+- Owner 责任转移可被静态检查。
 
 ### 原型 3：Finalization 与 structured task
 

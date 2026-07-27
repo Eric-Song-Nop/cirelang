@@ -13,7 +13,7 @@ Cire 的基本外观遵循 MoonBit：
 - 泛型参数和泛型实参使用方括号；
 - 函数、方法、ADT、模式匹配、labelled argument、包限定名尽量沿用 MoonBit 的形状；
 - block 是表达式，最后一个表达式是结果；
-- Cire 只为 effect、handler、continuation、capture 与 Region 增加必要语法。
+- Cire 只为 effect、handler、continuation 与 named capability 增加必要语法。
 
 本文不是 EBNF。语法规则采用 PEG，最终以手写 parser 中的可执行规则和 conformance test 为准。
 
@@ -498,7 +498,9 @@ read_42(fn(app) {
 })
 ```
 
-Handler 的类型为 `app` 创建 fresh generative identity，并保证它不能逃出 action 的静态 Region。这里不能把 `app` 当作普通未受约束的函数参数。
+Handler 的类型为 `app` 创建 fresh generative identity。编译器从这个 binder
+推导 capture，并保证保留 `app` 的值不会逃出 handler action。这里不能把
+`app` 当作普通未受约束的函数参数。
 
 Inline handler：
 
@@ -600,20 +602,21 @@ with (make_handler(1) { configure() }) { run() }
 
 - handler expression 与 operation dispatch；
 - `k.resume`、`k.discontinue`、`k.finalize`；
-- fresh named capability 与 Region skolem；
+- fresh named capability identity；
 - continuation usage/capture checking；
 - Owner adoption 的责任转移；
 - continuation-aware `defer`。
 
 它们可以有普通调用的表面外观，但 HIR 必须保留专用节点和 source origin。
 
-## 8. Owner、Region 与 capture
+## 8. Named capability capture 与 Owner
 
-### 8.1 Compiler-known Region scope
+### 8.1 Handler binding scope
 
 **已决定**
 
-Owner/Region 不能只靠一个未经编译器理解的 rank-2 库函数实现。第一方 API 可以保持库式外观：
+Named capability 的有效范围由 handler application 的 binder 决定。第一方
+Owner API 可以保持库式外观：
 
 ```moonbit
 Owner::scope { owner =>
@@ -622,24 +625,24 @@ Owner::scope { owner =>
 }
 ```
 
-但它必须降到 compiler-known `RegionScope`：
+Handler application 在 Kernel HIR 中保留专用 binder：
 
 ```text
-RegionScope[R] {
-  owner : Owner[R]
+HandlerAction {
+  capability : CapabilityId
   body
 }
 ```
 
 编译器负责：
 
-- 为 `R` 生成 fresh、不可伪造的 skolem；
+- 为 capability binder 生成 fresh、不可伪造的 identity；
 - 推导闭包、handler 与 continuation 的 capture；
-- 检查 escape、outlives 与 storage boundary；
+- 检查 return、closure、aggregate 与 storage boundary 上的 escape；
 - 检查 continuation 被 Owner adopt 后的唯一处置责任；
-- 把静态 `R` 与运行时 Owner/generation 区分开。
+- 把静态 capability identity 与运行时 Owner/generation 区分开。
 
-用户通常不手写 `R`。高级类型 dump 可显示 `Owner[R]` 和 `captures {R}`，但日常源代码优先依赖推导。
+源码只使用 `{app}`。Capture 结果保存在 HIR、接口摘要和诊断中。
 
 ### 8.2 Capture safety gate
 
@@ -650,7 +653,7 @@ Capture safety 要么作为一组一致的核心规则实现，要么整组延�
 在正式启用前，至少需要共同定义：
 
 - capture inference 与传递闭包；
-- Region escape/outlives；
+- capability binder escape；
 - `once` usage 在 closure、ADT 与 existential 中的传播；
 - multi-shot replayability；
 - mutable authority 的 replay 语义；
@@ -760,13 +763,12 @@ Expression precedence 不使用左递归 PEG 规则；手写 parser 采用明确
 1. `val` 是否保留为零参数 `fun` operation 的糖；
 2. 同一 effect 中未列 operation 的显式 forwarding 拼写；
 3. `owner.adopt(k)` 的最终名称；
-4. 是否提供显式 `owner[R] { ... }`，还是只提供 compiler-known `Owner::scope` 外观；
-5. capture set 是否允许在公开源签名中显式书写；
-6. multi-shot 下局部 mutation 的唯一一致语义；
-7. operation 最大 mode 与实际 handler mode 如何共同约束 capture safety；
-8. one-call/many-call closure 是否需要显式 surface marker；
-9. stable lexical site 的跨编辑、重构和增量编译身份规则；
-10. `Error[E]` 是否提供 `raise`、`try/catch` 的专用糖；
-11. shallow handler 是否永远只作为低层能力，或完全不提供。
+4. Owner 的第一方 API 与责任转移操作如何组合；
+5. multi-shot 下局部 mutation 的唯一一致语义；
+6. operation 最大 mode 与实际 handler mode 如何共同约束 capture safety；
+7. one-call/many-call closure 是否需要显式 surface marker；
+8. stable lexical site 的跨编辑、重构和增量编译身份规则；
+9. `Error[E]` 是否提供 `raise`、`try/catch` 的专用糖；
+10. shallow handler 是否永远只作为低层能力，或完全不提供。
 
 这些问题应先在 Core/HIR 类型规则中回答，再增加表面写法。

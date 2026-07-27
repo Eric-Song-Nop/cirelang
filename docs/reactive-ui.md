@@ -17,7 +17,7 @@ UI 框架组合：
 ```text
 typed effects + resumptions
 + incremental kernel
-+ Owner/Region
++ named capability + Owner
 + structured tasks/resources
 + stable identity
 + renderer protocol
@@ -74,7 +74,7 @@ Host render tree
 
 Portal、共享 Derived、异步任务和无 DOM 的 Provider 都证明这些结构不能合并为普通“组件树”。
 
-## 4. 必须区分的生命周期
+## 4. 必须区分的有效条件
 
 | 对象 | 身份来源 | 何时失效 |
 |---|---|---|
@@ -149,7 +149,7 @@ call-site identity，但不需要理解“组件”，也不因此引入宏系�
 - detach 或隐藏但暂不销毁；
 - 在 transition 中让旧、新节点短暂并存。
 
-因此 DOM 节点的生命周期需要区分：
+因此 DOM 节点需要区分以下状态：
 
 ```text
 Declared
@@ -181,7 +181,7 @@ DOM 还保存用户可观察的宿主状态：
 祖先 cut 失效时，不能立刻销毁当前已提交 UI。更稳健的流程是：
 
 ```text
-Owner ρ
+Owner
 ├── committed generation γ0
 └── candidate generation γ1
 ```
@@ -213,17 +213,17 @@ startNetworkTask(...)
 因此 view/render 阶段只产生：
 
 ```text
-ViewPlan<ρ, γ>
-ResourcePlan<ρ, γ>
+ViewPlan
+ResourcePlan
 ```
 
 真正宿主修改需要 commit capability：
 
 ```text
 commit(
-  plan: ViewPlan<ρ, γ>,
-  authority: CommitAuthority<γ>
-) ! {HostWrite<root>}
+  plan: ViewPlan,
+  authority: CommitAuthority
+) ! {host_write}
 ```
 
 `CommitAuthority<γ>` 最多只能消费一次。它可以由续体专用数量系统扩展出的通用 affine capability 表达，也可以先由标准库安全封装。
@@ -234,16 +234,16 @@ commit(
 
 ```text
 view :
-  Props -> ViewPlan<ρ>
-  ! {Observe<ρ>, Declare<ρ>}
+  Props -> ViewPlan
+  ! {observe, declare}
 
 action :
   Event -> Unit
-  ! {SnapshotRead<ρ>, StateWrite<ρ>, Spawn<ρ>, Command}
+  ! {snapshot, state, tasks, command}
 
 commit :
-  ViewPlan<ρ> -> Unit
-  ! {HostWrite<root>}
+  ViewPlan -> Unit
+  ! {host_write}
 ```
 
 结果是：
@@ -317,7 +317,7 @@ on click => action {
 不应把一次永久事件 continuation 反复恢复。需要区分：
 
 ```text
-listener callback  在 Owner 生命周期内 many-shot
+listener callback  在 Owner 关闭前 many-shot
 event action        每个 occurrence 独立、结构化结束
 ```
 
@@ -593,4 +593,4 @@ component UserPane(user: Source<User>) keyed user.id {
 - DOM retirement retry policy；
 - Suspense/transition 的产品策略。
 
-语言特性应减少这些系统中的续体和生命周期样板，但不应假装消除领域算法。
+语言特性应减少这些系统中的续体和结构化关闭样板，但不应假装消除领域算法。

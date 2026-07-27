@@ -214,7 +214,7 @@ Button("Save", fn() {
 lambda，以及跨换行和注释的附着都已进入 parser。这里的 `Column`、`Button`
 只是未来 UI 库的示意，还没有可运行的 UI 框架。
 
-## 7. Owner、Region 和 capture
+## 7. Owner 和 capability capture
 
 计划中的库式外观是：
 
@@ -224,8 +224,8 @@ Owner::scope { owner =>
 }
 ```
 
-但它不会只是一个普通库函数。编译器必须理解 Region、capture、escape、
-continuation ownership 和 finalization。
+但它不会只是一个普通容器插入函数。编译器必须理解 capability capture、
+escape、continuation ownership 和 finalization。
 
 状态：核心设计方向已确定，静态规则尚未实现。我们会等整套规则一致后再启用，
 不会先做几个不完整的“安全检查”。

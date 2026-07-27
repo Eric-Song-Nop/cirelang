@@ -8,8 +8,8 @@
 
 - **已接受为细化基线**：普通泛型与 effect 泛型使用双列表；
 - **设计方向**：effect ability、具名 capability type、associated
-  effect/row、row constraint 与 fresh identity quantification；
-- **仍可调整**：`ability`、`cap`、`fresh` 等具体关键词，以及 row formula
+  effect/row、row constraint 与 generative handler application；
+- **仍可调整**：`ability`、`cap` 等具体关键词，以及 row formula
   的运算符。
 
 本文只描述语言设计，没有对应 parser、类型检查器或运行时实现。当前 parser
@@ -26,7 +26,7 @@
    associated item；
 4. 匿名 effect 与具名 capability 使用同一份 effect constraint；
 5. effect row 能表达转发、union、contains/lacks 和 entry constraint；
-6. named handler 的 fresh identity、Region 与 capture 不能被普通
+6. named handler 的 fresh identity 与 capture 不能被普通
    let-polymorphism 抹掉；
 7. 常见签名保持短，只有确实需要高级多态时才展开复杂信息；
 8. CST、HIR、diagnostic 和 LSP 能保留每一种 binder 的真实类别。
@@ -258,7 +258,6 @@ app : cap F
 ```text
 family
 singleton identity
-Region
 origin
 ```
 
@@ -576,7 +575,7 @@ fn[A]![Err[_] : Raise[_]] fail(
 `_` 在 binder pattern 中表示 constructor parameter 位置，不是普通表达式
 inference hole。Higher-kinded constraint 的量化与 coherence 仍需形式化。
 
-## 10. Generic function value 与 fresh identity
+## 10. Generic function value 与 handler generativity
 
 普通函数类型继续保持简洁：
 
@@ -590,80 +589,38 @@ inference hole。Higher-kinded constraint 的量化与 coherence 仍需形式化
 mapper : fn[B]![..E](A) -> B ! E
 ```
 
-Named handler 还需要比普通泛型更强的生成性。工作写法：
+Named handler 还需要比普通泛型更强的生成性，但它属于 handler application
+的类型规则：
 
 ```moonbit
-fresh(app : cap F) -> A ! {app}
-```
-
-它表示对 fresh identity 和 fresh Region 的 rank-2 quantification，不是普通
-lambda parameter。
-
-通用 handler combinator 的概念签名：
-
-```moonbit
-fn[A, B]![F : Reader[A], ..E] run_reader(
-  handler : Handler[F],
-  body : fresh(app : cap F) -> B ! {app, ..E},
-) -> B ! E {
-  ...
-}
-```
-
-调用仍可以使用 trailing lambda：
-
-```moonbit
-run_reader(handler) { app =>
+with handler as app {
   app.read()
 }
 ```
 
-`with handler as app { ... }` 是相同 fresh boundary 的语法糖。Kernel HIR
-必须保存 generativity，不能把它降成普通 lambda 后丢失。
+每次 application 都创建新的 capability identity。Kernel HIR 必须保存
+generativity，不能把 `app` 降成普通、不受约束的 lambda parameter。
+Handler value 的序列化签名使用专用 `HandlerAction` 表示这一规则。
 
-`fresh` 是否为最终关键词仍可调整，但 Core 中的 rank-2/generative rule 不能
-省略。
+## 11. Capability capture
 
-## 11. Region 与 capture
-
-常见代码只写：
+源码使用已经确定的 capability term 与 named row：
 
 ```moonbit
-app : cap F
-```
-
-Region 默认推导。只有公开逃逸类型需要时才显式展开：
-
-```moonbit
-app : cap['r] F
-```
-
-概念例子：
-
-```moonbit
-struct Service['r, A]![F : Reader[A]] {
-  reader : cap['r] F
+fn[A]![F : Reader[A]] make_reader(
+  app : cap F,
+) -> () -> A ! {app} {
+  fn() { app.read() }
 }
 ```
 
-`'r` 是 Region variable，不是普通 `Type`。是否最终采用 Rust-like `'r`
-仍是开放问题。
+`{app}` 保留具体 handler identity。编译器从 term binder、闭包环境、聚合值
+和调用结果推导传递 capture，并在 handler action、return 和 storage boundary
+检查 escape。
 
-Capture set 同样默认推导。公开签名确实需要时，可以考虑：
-
-```moonbit
-fn[A, ^C]![..E] preserve(
-  body : () -> A ! E captures C,
-) -> () -> A ! E captures C {
-  body
-}
-```
-
-这里 `^C` 是 capture-set variable。`captures` 与 `^C` 的具体拼写尚未接受
-为基线；文档只记录它们必须与 `A`、`F`、`E` 使用不同 HIR ID。
-
-Owner/Region/capture safety 仍由编译器静态检查，不能因为 `cap` 看起来像普通
-库类型就退化成库约定。
+Capture 信息写入 HIR、序列化接口摘要和诊断，源码不增加另一套 binder 或
+函数类型后缀。Owner/capture safety 仍由编译器静态检查，不能因为 `cap`
+看起来像普通库类型就退化成库约定。
 
 ## 12. Conformance 与 `impl`
 
@@ -720,7 +677,7 @@ impl Store for LegacyDatabase {
 | `[A]` | `TypeParamId` |
 | `![F : Reader[A]]` | `EffectParamId` + ability evidence |
 | `![..E]` | `RowParamId` |
-| `app : cap F` | `CapabilityId` + family `F` + Region |
+| `app : cap F` | `CapabilityId` + family `F` + binder origin |
 | `{F}` | `Anonymous(F)` |
 | `{app}` | `Named(app, F)` |
 | `F::read()` | anonymous operation selection |
@@ -773,7 +730,7 @@ PEG 只保存语法，不负责：
 - 验证 associated argument；
 - 求解 row formula；
 - 建立 capability identity；
-- 检查 Region/capture。
+- 检查 capability capture 与 escape。
 
 这些工作属于 resolver、kind checker、constraint solver 和后续静态分析。
 
@@ -789,10 +746,8 @@ PEG 只保存语法，不负责：
 6. `Has`、`Lacks`、`All`、`Only` 是否为 compiler-known predicate；
 7. 多 ability 同名 operation 的限定调用；
 8. higher-kinded binder hole `_` 的作用域与诊断；
-9. `fresh` quantifier 的最终关键词和 function-type 语法；
-10. Region `'r` 与 capture `^C` 是否开放给普通用户；
-11. 独立 ability `impl` 是否进入第一阶段；
-12. 显式 effect generic argument 在所有 call/method 位置的附着规则。
+9. 独立 ability `impl` 是否进入第一阶段；
+10. 显式 effect generic argument 在所有 call/method 位置的附着规则。
 
 这些细节可以继续修改，但不能退回到把普通 type、effect family、effect row
 和 capability identity 混成同一种泛型变量。
