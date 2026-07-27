@@ -314,7 +314,7 @@ Core 必须继续区分：
 ```
 
 `app` 是普通 term binder 产生的 singleton identity，不写进 generic list。
-普通 `Int` value 不能出现在 effect row。`with h as app { ... }` 创建 fresh
+普通 `Int` value 不能出现在 effect row。`with h as app in ...` 创建 fresh
 identity，并在 Kernel HIR 中建立 rank-2/generative boundary。
 
 四种常见 annotation：
@@ -458,16 +458,24 @@ handler Reader[Int] {
 
 ## 7. 本质形式与语法糖
 
-语法糖必须在 resolver 和类型检查之前降到少量稳定的 HIR 形式；CST 始终保留用户原始写法，以供 formatter、诊断与 LSP 使用。
+语法糖最终必须降到少量稳定的 Kernel HIR 形式；CST 和 Surface HIR 始终
+保留用户原始写法，以供 formatter、诊断与 LSP 使用。`with` chain 可以先
+结构化地 right-fold 成统一的 `ScopedApply`，但普通 wrapper、effect handler
+和 generative application 的最终区分要等 resolver/type validation 提供
+足够 evidence 后完成。
 
-### 7.1 `with` 是 handler application 的糖
+### 7.1 `with` 是 scoped computation application 的糖
 
 **已决定**
 
-与 Koka 相同，`with` 不表示一个额外的核心控制构造。Handler value 本质上是接收 computation thunk 的函数。
+`with` 不表示一个额外的核心控制构造。它把一组有序的 scoped computation
+transformer 应用到 `in` 后面的计算。Effect handler 是最重要的 transformer，
+但不是唯一来源；普通高阶函数只要接收一个 computation thunk，也可以使用同一
+外观。
 
 ```moonbit
-with all_choices {
+with all_choices
+in {
   Choice::choose([false, true])
 }
 ```
@@ -480,12 +488,88 @@ all_choices(fn() {
 })
 ```
 
-evaluation order 以展开后的普通调用为准：先求值 handler expression，再构造 thunk，再调用 handler。
+匿名 entry 的类型形状可以概括为：
 
-Named capability binder 也只是把显式 action 参数写得更自然：
+```text
+body       : () -> A ! Ein
+transformer(body) : B ! Eout
+```
+
+它不要求 `A = B` 或 `Ein = Eout`。Handler 可以消除 effect、加入 effect，
+或通过 `return` clause 改变结果类型。
+
+`with` 语法本身不授予 wrapper 任意复制 action 的权限。Wrapper 能否零次、
+一次或多次调用 thunk，仍由 action function 的 usage/capture 类型与普通调用
+规则决定；具名 handler 的 `HandlerAction` 还要满足 generativity 和 capability
+escape 检查。
+
+Evaluation order 以展开后的普通调用为准：先求值当前最外层 transformer
+expression，再构造包含其余 chain 的 thunk，然后调用它。内层 operand 不会
+预先求值；只有外层 transformer 调用 action thunk 时才求值。外层若调用
+action 多次，内层 operand 也会随之重新求值多次。
+
+连续的 `with` entry 共用链末尾的一个 `in`：
 
 ```moonbit
-with read_42 as app {
+with retry(3)
+with transaction(db)
+with trace("save")
+in {
+  save_order(order)
+}
+```
+
+第一项是最外层，最后一项最靠近 computation：
+
+```moonbit
+(retry(3))(fn() {
+  (transaction(db))(fn() {
+    (trace("save"))(fn() {
+      save_order(order)
+    })
+  })
+})
+```
+
+因此 entry 顺序具有语义。`with retry(3)` 放在 `with transaction(db)` 外面，
+表示每次 retry 可以建立新的 transaction；调换顺序则表示同一个 transaction
+包住全部 retry。
+
+这里 `retry(3)`、`transaction(db)` 和 `trace("save")` 都求值得到
+transformer value；`with` 再把 action thunk 传给该值。它不会偷偷把 action
+追加成原调用的普通最后一个 argument。
+
+换行不参与 chain 语义；下面两种 token sequence 等价：
+
+```moonbit
+with retry(3) with transaction(db) in save_order(order)
+```
+
+```moonbit
+with retry(3)
+with transaction(db)
+in save_order(order)
+```
+
+Formatter 对多 entry chain 默认每行放一个 `with`。
+
+每层都写 `in` 仍然是合法的显式嵌套：
+
+```moonbit
+with retry(3) in
+  with transaction(db) in
+    save_order(order)
+```
+
+它由两个单 entry `WithChain` 构成，不是一个双 entry chain。规范写法对连续
+组合只在末尾写一次 `in`；formatter 保留用户明确写出的嵌套边界和其上的
+comment，不擅自把两棵 CST 合并。
+
+Named capability binder 把生成式 action 参数写得更自然：
+
+```moonbit
+with read_42 as app
+in {
   read_app(app)
 }
 ```
@@ -502,12 +586,24 @@ Handler 的类型为 `app` 创建 fresh generative identity。编译器从这个
 推导 capture，并保证保留 `app` 的值不会逃出 handler action。这里不能把
 `app` 当作普通未受约束的函数参数。
 
+在同一个 chain 中，entry 创建的 identity 对后续 entry operand 和最终
+computation 可见，但不在创建它的 operand 内可见：
+
+```moonbit
+with open_database(config) as db
+with traced_database(db)
+in {
+  db.query("select * from users")
+}
+```
+
 Inline handler：
 
 ```moonbit
 with handler Read[Int] {
   fun read() => 42
-} as app {
+} as app
+in {
   read_app(app)
 }
 ```
@@ -524,6 +620,34 @@ generated_handler(fn(app) {
 ```
 
 临时绑定只用于说明求值顺序，编译器不必实际生成可观察的名称。
+
+`with` operand 不要求是 `handler E { ... }` 产生的值。下面这些库式
+computation wrapper 都可以使用同一语法：
+
+```moonbit
+with timeout(200.ms)
+with trace("render")
+with ui_scheduler
+in render_page()
+```
+
+它们可以由 effect handler 实现，也可以只是普通高阶函数。类型检查只要求
+每个 entry 能接收当前内层 computation，并产生下一层 computation；不同 entry
+可以消除 effect、加入 effect 或改变结果类型。
+
+`as name` 不随之泛化成普通 binding。它只允许用于能建立 fresh named
+capability 的 handler application。普通运行时值继续使用普通 API 和 trailing
+lambda：
+
+```moonbit
+Owner::scope { owner =>
+  use(owner)
+}
+```
+
+`with` 也不复用于 record update、trait/effect constraint、普通对象 receiver
+scope、import 或 match clause。它始终只表示“用 scoped transformer 包住一段
+computation”。
 
 ### 7.2 Trailing lambda
 
@@ -581,19 +705,30 @@ users.for_each(fn(user) {
 - 它不获得 AST、调用点源码或卫生名称访问权；
 - 需要 lexical site 的第一方 API 必须使用编译器定义的稳定 site 机制，而不是偷偷实现宏展开。
 
-`with` 的 handler operand 是这一规则的有意例外。Parser 使用
-`StopBeforeTrailingBlock` flavor 解析 operand，因此：
+`in` 已经明确分开 operand 区和 computation，因此 `with` operand 可以正常
+包含 trailing lambda：
 
 ```moonbit
-with make_handler(1) { run() }
+with make_handler(1) {
+  configure()
+}
+in {
+  run()
+}
 ```
 
-唯一解释为 `with` action，不会先把 `{ run() }` 附着成
-`make_handler(1)` 的 trailing lambda。需要把 trailing lambda 放进 operand
-时必须显式加括号：
+这里第一个 block 属于 `make_handler(1)`；`in` 后面的 block 才是被包裹的
+computation。若 operand 自身是一个顶层 `with` expression，仍需用括号明确其
+边界：
 
 ```moonbit
-with (make_handler(1) { configure() }) { run() }
+with (
+  with configure_runtime
+  in make_handler()
+)
+in {
+  run()
+}
 ```
 
 ### 7.3 不属于语法糖的构造
@@ -734,10 +869,30 @@ HandlerClause  <- Mode LowerIdent ParamList ContinuationBinder? FAT_ARROW Expr
 ContinuationBinder <- AS LowerIdent
 ReturnClause   <- RETURN LPAREN Pattern RPAREN FAT_ARROW Expr
 
-WithExpr       <- WITH HandlerOperand (AS LowerIdent)? Block
+WithExpr       <- WithEntry+ IN Expr
+WithEntry      <- WITH WithOperand (AS LowerIdent)?
+WithOperand    <- ExprWithoutTopLevelWith
 TrailingLambda <- LBRACE LambdaHead? ExprItems RBRACE
 LambdaHead     <- LambdaParams FAT_ARROW
 ```
+
+`ExprWithoutTopLevelWith` 是 parser flavor，不是另一套 expression language。
+它完整解析 operand 内部的 call、trailing lambda、`if`、`match` 等构造，只在
+当前 chain 深度看到下一个 `WITH`、可选 binder 的 `AS` 或最终 `IN` 时结束。
+换行不作为 delimiter。顶层 nested `with` 必须加括号，括号内部再按普通
+`WithExpr` 解析。
+
+`WithExpr` 的 lossless CST 保留每个 `with` token、operand、可选 `as` binder、
+唯一 chain-level `in` token 和 body。Parser 在 `WITH`、`AS`、`IN` 以及
+body 的 closing delimiter 建立恢复点。典型缺失诊断是：
+
+```text
+expected `in` before the scoped computation
+```
+
+并提供插入 `in` 的 fix；不能把最后一个 trailing block 猜成 action。编辑一个
+entry 时，incremental parser 应以最近的 `WithExpr` 为候选 reparse island，
+保持未改 entry 与 body 的 stable syntax identity。
 
 Parser 必须在语义阶段额外检查：
 
@@ -752,6 +907,9 @@ Parser 必须在语义阶段额外检查：
 - row 中的 lower identifier 是否解析为 capability；
 - `Read[app]` 若出现在源代码中，应给出“诊断展开不可作为语法”的定向错误；
 - `pub(open)` 是否只用于允许该 visibility 的声明；
+- `WithEntry` 的 `as` 是否只用于 fresh named capability application；
+- 同一 `WithExpr` 中较早 entry 的 capability binder 是否按顺序进入后续
+  operand 和最终 body 的 scope；
 - trailing lambda 是否确实附着到 call expression。
 
 Expression precedence 不使用左递归 PEG 规则；手写 parser 采用明确的 precedence ladder 或 Pratt-style postfix/infix loop，同时保持 PEG 的 ordered-choice 与 commit 语义。完整 parser 设计见 [编译器前端架构](compiler-architecture.md)。

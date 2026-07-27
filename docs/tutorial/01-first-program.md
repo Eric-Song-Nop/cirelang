@@ -106,7 +106,8 @@ fn absolute(value : Int) -> Int {
 - 每个分支必须产生兼容的类型；
 - `result` 不会处于“声明了但还没有值”的中间状态。
 
-Cire 的 `match`、block 和 handler application 也遵循同一个表达式原则。
+Cire 的 `match`、block 和 scoped computation application 也遵循同一个
+表达式原则。
 
 ## 6. 一个常见错误
 

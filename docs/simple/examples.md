@@ -148,7 +148,8 @@ fn run() -> Int {
   with handler Choice {
     ctl choose(value) as k => k.resume(value)
     return(value) => value
-  } {
+  }
+  in {
     Choice::choose(1)
   }
 }
@@ -156,12 +157,13 @@ fn run() -> Int {
 
 - `handler Choice { ... }` 产生一个 handler value；
 - `as k` 只用于需要显式 continuation 的 `once` 和 `ctl`；
-- `with h { body }` 把 `body` 作为 thunk 交给 handler。
+- `with h in body` 把 `body` 作为 thunk 交给 scoped transformer。
 
 从核心含义看：
 
 ```moonbit
-with h {
+with h
+in {
   body()
 }
 ```
@@ -177,8 +179,22 @@ h(fn() {
 这只是帮助理解的展开。编译器后续仍会在 HIR 中保存 handler、fresh
 capability 和 source origin，不能把它们当成完全普通的库调用。
 
-状态：handler、`with`、named capability binder、`return` clause 和
-continuation binder 的定向错误已经进入 parser。
+连续 transformer 共用最后一个 `in`：
+
+```moonbit
+with retry(3)
+with transaction(db)
+in {
+  save()
+}
+```
+
+第一项最外层。`with` 常用于 effect handler，但普通接收 computation thunk
+的 wrapper 也可以使用；`as app` 仍只建立 fresh named capability。
+
+状态：handler、旧的单项 `with` baseline、named capability binder、
+`return` clause 和 continuation binder 的定向错误已经进入 parser；新的
+`with ... in ...` chain 尚未实现。
 
 ## 6. Trailing lambda 和 UI DSL
 

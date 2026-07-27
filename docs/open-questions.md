@@ -24,7 +24,8 @@
     row 中写 `{app}`；`Read[app]` 只允许作为诊断展开。Capability type
     当前工作写法为 `app : cap F`，`cap` 关键词仍可调整。
 15. `once`/`ctl` clause 使用 `as k`，处置写成 `k.resume(value)`、`k.discontinue(error)`、`k.finalize()`。
-16. Handler 是接收 computation thunk 的值；Koka 风格 `with` 是 handler application 的语法糖。
+16. `with` 把 scoped computation transformer 应用到 computation thunk；
+    effect handler 是主要用途，但普通同形高阶 wrapper 也可使用。
 17. Effect visibility 镜像 trait：`effect`、`pub effect`、`pub(open) effect`。
 18. Cire 不做宏系统；UI DSL 使用普通函数、labelled argument 与 Kotlin/Koka 风格 trailing lambda。
 19. Capability capture 与 Owner 责任转移必须有编译器静态分析，不能退化成
@@ -43,13 +44,23 @@
 
 - operation declaration、effect row、handler、`as k` 与 continuation disposition 采用 [表面语法工作规范](surface-syntax.md)中的写法；
 - Named capability 的源 row 写 `{app}`；`Read[app]` 仅用于诊断；
-- `with h { body }` 降为 `h(fn() { body })`；
-- `with h as app { body }` 降为 `h(fn(app) { body })`，其中 `app` 是生成式身份；
+- `with h in body` 降为 `h(fn() { body })`；
+- 连续 `with h1 with h2 in body` 是有序 chain，第一项最外层，只在末尾写
+  一个 `in`；
+- 每个 operand 先求值得到 transformer value，`with` 不把 action 偷偷追加
+  成 operand 中某个 call 的普通最后参数；right-fold 保持内层 operand 的
+  latent evaluation；
+- `with h as app in body` 降为 `h(fn(app) { body })`，其中 `app` 是生成式
+  identity，并对后续 entry 和 body 可见；
+- `with h1 in with h2 in body` 仍可作为两个显式嵌套的单项 chain；
+- 整个构造是 expression，`in` 后接受任意 expression，不强制 block；
 - `callee(args) { body }` 与 `callee { value => body }` 是最后一个 lambda argument 的糖；
 - newline/comment 不打断 trailing lambda 附着；显式 `;` 才把 call 与后续
   block 分开；
-- `with` operand 使用 stop-before-trailing-block 解析，operand 自身需要
-  trailing lambda 时写括号；
+- `in` 分隔 operand chain 与 computation，因而 `with` operand 可以正常包含
+  trailing lambda；只有顶层 operand 自身是 `with` expression 时需要括号；
+- `with` 不复用于 record update、constraint、普通 receiver scope 或普通
+  variable binding；`as` 只建立 fresh named capability；
 - effect visibility 镜像 trait visibility；
 - 不设计宏系统；
 - grammar 采用 PEG，并由项目手写 parser。

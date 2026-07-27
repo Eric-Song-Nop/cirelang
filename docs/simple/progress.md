@@ -30,7 +30,8 @@ diagnostic、resolver 和 type query。
 - 旧单列表 `A`、`Fx : Effect`、`Eff : EffectRow` 与 `app : Fx` 的
   parser baseline；
 - `{app}` 与错误写法 `Read[app]` 的定向修复；
-- call、method、labelled argument、trailing lambda、handler 和 `with`；
+- call、method、labelled argument、trailing lambda、handler 和旧的单项
+  `with` parser baseline；
 - `reparse` correctness baseline：先校验 revision/edit，再保证结果等价于完整重解析。
 
 Parser 还没有发出 trace event。当前基线在 MoonBit 的 wasm、wasm-gc、
@@ -51,6 +52,7 @@ JavaScript 和 native target 上各有 74 项测试，全部通过。
 - 还不能完成名字解析、类型检查或 effect row 推导；
 - 还不能解析最新设计的双泛型列表 `[...]![...]`、`ability`、`cap`、
   associated effect/row 或 row formula；
+- 还不能解析最新的多 entry `with ... in ...` chain；
 - 还不能验证 generic parameter 的 `Type`/`Effect`/`EffectRow` kind；
 - 还不能检查 capability capture、Owner 和 continuation safety；
 - 还没有 Surface HIR、Kernel HIR 和正式的语法糖展开；

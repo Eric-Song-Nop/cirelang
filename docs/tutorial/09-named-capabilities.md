@@ -39,7 +39,8 @@ fn increment() -> Unit ! {Counter} {
 安装一个 counter handler：
 
 ```cire
-with make_counter(0) {
+with make_counter(0)
+in {
   increment()
 }
 ```
@@ -104,10 +105,10 @@ DestinationAccount
 给每次 handler application 绑定一个名字：
 
 ```cire
-with make_account(100) as checking {
-  with make_account(20) as savings {
-    transfer(checking, savings, 10)
-  }
+with make_account(100) as checking
+with make_account(20) as savings
+in {
+  transfer(checking, savings, 10)
 }
 ```
 
@@ -177,7 +178,8 @@ let checking_handler = make_account(100)
 再安装它，并在 action 中获得 capability：
 
 ```cire
-with checking_handler as checking {
+with checking_handler as checking
+in {
   checking.balance()
 }
 ```
@@ -190,20 +192,41 @@ checking_handler(fn(checking) {
 })
 ```
 
+`as checking` 创建的 identity 对同一 chain 中后面的 entry 和最终
+computation 可见：
+
+```cire
+with make_account(100) as checking
+with audit_account(checking)
+in {
+  checking.balance()
+}
+```
+
+它不在 `make_account(100)` 自身内部可见，因为 identity 要到该 handler
+application 建立时才产生。
+
 但 `checking` 不是一个可以不受限制地保存到任何地方的普通参数。每次
 application 都创建新的、不可伪造的 identity，并且只在这次 action 中有效：
 
 ```cire
-with make_account(0) as first {
+with make_account(0) as first
+in {
   ...
 }
 
-with make_account(0) as second {
+with make_account(0) as second
+in {
   ...
 }
 ```
 
 即使两个 handler 的初始值和实现完全相同，`first` 与 `second` 也不是同一个
+capability。
+
+`with` 本身也可以应用 transaction、timeout 等普通 computation wrapper，
+但那些 entry 不能因此使用 `as` 绑定普通返回值。普通值继续用 `let` 或
+trailing-lambda parameter；`with ... as app` 专门保留给 fresh named
 capability。
 
 ## 7. 怎样读 `cap F`
@@ -424,7 +447,8 @@ identity。
 在 action 内创建并使用 closure 没问题：
 
 ```cire
-with make_account(100) as checking {
+with make_account(100) as checking
+in {
   let show_later = fn() {
     checking.balance()
   }
@@ -439,7 +463,8 @@ with make_account(100) as checking {
 把 closure 返回出去则不安全：
 
 ```cire
-with make_account(100) as checking {
+with make_account(100) as checking
+in {
   fn() {
     checking.balance()
   }
@@ -534,8 +559,8 @@ handler”在确实需要时变成显式、可检查的 receiver。
 
 ## 当前状态
 
-`{app}` 是已决定的源语法，`Read[app]` 只用于诊断。Named binder 已有 parser
-基线；`cap`、ability constraint、fresh identity、capture inference 和
-escape checking 尚未实现。
+`{app}` 是已决定的源语法，`Read[app]` 只用于诊断。Named binder 已有旧单项
+`with` parser 基线；新的 `with ... in ...` chain、`cap`、ability
+constraint、fresh identity、capture inference 和 escape checking 尚未实现。
 
 上一章：[Handler 与 with](08-handlers-and-with.md)　下一章：[四种恢复模式](10-resumptions.md)

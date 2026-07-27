@@ -406,17 +406,15 @@ handler EffectType {
 匿名 application：
 
 ```cire
-with handler_value {
-  action
-}
+with handler_value
+in action
 ```
 
 具名 application：
 
 ```cire
-with handler_value as app {
-  action
-}
+with handler_value as app
+in action
 ```
 
 概念展开：
@@ -427,22 +425,73 @@ handler_value(fn(app) { action })
 ```
 
 第二种 application 会创建 fresh identity，不能按普通无约束 lambda 参数
-处理。
+处理。整个 `with ... in ...` 是 expression；`in` 后可直接跟单个 expression
+或 `{ ... }` block。
 
-组合处理多个 effect 使用普通嵌套：
+组合处理多个 effect 使用有序 chain；第一项最外层，最后一项最靠近 action：
 
 ```cire
-with clock_handler {
-  with logger_handler {
-    with error_handler {
-      action()
-    }
-  }
+with clock_handler
+with logger_handler
+with error_handler
+in {
+  action()
 }
 ```
 
-也可以把嵌套封装成接收 action thunk 的普通高阶函数，再使用同一个 `with`
-外观。当前工作语法不增加 multi-effect handler literal。
+每层都写 `in` 表示显式嵌套的多个单项 chain，也合法：
+
+```cire
+with clock_handler in
+  with logger_handler in
+    with error_handler in {
+      action()
+    }
+```
+
+`with` operand 也可以是接收 computation thunk 的普通高阶 wrapper：
+
+```cire
+with retry(3)
+with transaction(db)
+in {
+  save()
+}
+```
+
+`as app` 只允许建立 fresh named capability，不是普通 variable binding。
+当前工作语法不增加 multi-effect handler literal。
+
+PEG 工作形状：
+
+```peg
+WithExpr    <- WithEntry+ IN Expr
+WithEntry   <- WITH WithOperand (AS LowerIdent)?
+```
+
+`in` 分隔 operand chain 与 computation，所以 operand 可以正常带 trailing
+lambda：
+
+```cire
+with make_handler {
+  configure()
+}
+in {
+  run()
+}
+```
+
+顶层 operand 自身若是 `with` expression，需要括号：
+
+```cire
+with (
+  with configure_runtime
+  in make_handler()
+)
+in {
+  run()
+}
+```
 
 ## 20. Continuation disposition
 
@@ -504,7 +553,8 @@ Cire 不设计：
 - effect declaration、四种 operation mode、基础 effect row；
 - `{app}` 和错误 `Read[app]` 的定向修复；
 - method/qualified call、labelled argument、label punning；
-- trailing lambda、handler、`with`、`return` clause、`as k`；
+- trailing lambda、handler、旧的单项 `with` parser baseline、`return`
+  clause、`as k`；
 - lossless CST、missing token、error node、diagnostic/fix serialization；
 - revision-checked reparse correctness baseline。
 
@@ -512,6 +562,7 @@ Cire 不设计：
 
 - 完整 ordinary expression、ADT、pattern、trait、package 和 precedence；
 - 双列表、ability、`cap`、associated item、row algebra；
+- 多 entry `with ... in ...` chain；
 - name resolution、kind/type/effect/capture checking；
 - Surface HIR、Kernel HIR 和正式 desugaring；
 - formatter、LSP、runtime、Wasm backend。

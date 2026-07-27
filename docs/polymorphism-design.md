@@ -593,7 +593,8 @@ Named handler 还需要比普通泛型更强的生成性，但它属于 handler 
 的类型规则：
 
 ```moonbit
-with handler as app {
+with handler as app
+in {
   app.read()
 }
 ```
@@ -682,7 +683,7 @@ impl Store for LegacyDatabase {
 | `{app}` | `Named(app, F)` |
 | `F::read()` | anonymous operation selection |
 | `app.read()` | named operation selection |
-| `with h as app { ... }` | fresh rank-2 handler application |
+| `with h as app in ...` | fresh rank-2 handler application |
 | `Read[app]` | diagnostic-only expansion |
 
 这些类别在 serialization、trace、diagnostic、LSP hover 和 incremental query

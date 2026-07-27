@@ -35,7 +35,8 @@ fn[A]![F : Reader[A]] read_app(
 fn main() -> Int {
   with handler Read[Int] {
     fun read() => 42
-  } as app {
+  } as app
+  in {
     read_app(app)
   }
 }
@@ -46,13 +47,13 @@ fn main() -> Int {
 - `Reader[Int]` 是 effect ability，`Read[Int]` 是具体 effect family；
 - `app` 是本次安装 handler 时产生的具体 capability；
 - `! {app}` 表示函数运行时可能向这个 capability 请求操作；
-- `with ... as app { ... }` 创建不可伪造的 identity；编译器从该 binder
+- `with ... as app in ...` 创建不可伪造的 identity；编译器从该 binder
   检查保留 `app` 的值没有逃出 handler action。
 
 双泛型列表、`ability` 和 `cap` 是最新设计，当前 parser **尚未支持**。
-Parser 已完成的是旧单列表 baseline、effect row、handler 与错误恢复。类型、
-effect、capture 和 Owner 检查也还没实现，所以这段代码目前不能一路编译到
-Wasm。
+Parser 已完成的是旧单列表 baseline、effect row、handler、旧的单项 `with`
+baseline 与错误恢复；新的 `with ... in ...` chain 尚未实现。类型、effect、
+capture 和 Owner 检查也还没实现，所以这段代码目前不能一路编译到 Wasm。
 
 ## 接下来读什么
 

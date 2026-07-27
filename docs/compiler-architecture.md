@@ -389,12 +389,33 @@ missing `]` to close type arguments
 Surface HIR 保留：
 
 ```text
-WithExpr
+WithChain
+WithEntry
 TrailingLambdaCall
 ImplicitReturnClause
 Method-shapedDisposition
 OwnerScopeCall
 ```
+
+`WithChain` 的可序列化形状至少保留：
+
+```text
+WithChain {
+  entries : [WithEntry {
+    operand
+    capability_binder?
+    origin
+  }]
+  in_origin
+  body
+  origin
+}
+```
+
+`with h1 with h2 in body` 是一个含两个 entry 的节点；
+`with h1 in with h2 in body` 是两个嵌套节点。CST/HIR 不能因为最终语义相同
+就抹掉这个差别，否则 formatter、comment ownership、selection range 和
+incremental subtree identity 都会不稳定。
 
 Kernel HIR 只保留：
 
@@ -402,7 +423,7 @@ Kernel HIR 只保留：
 Call
 Lambda
 Handler
-HandlerApply
+ScopedApply
 OperationCall
 Resume / Discontinue / Finalize
 HandlerAction
@@ -411,11 +432,16 @@ HandlerAction
 典型展开：
 
 ```text
-with h { body }
+with h in body
   → h(fn() { body })
 
-with h as app { body }
+with h as app in body
   → h(fn(app) { body })
+
+with h1
+with h2
+in body
+  → h1(fn() { h2(fn() { body }) })
 
 f(args) { body }
   → f(args, fn() { body })
@@ -424,8 +450,12 @@ xs.each { x => body }
   → xs.each(fn(x) { body })
 ```
 
-`handler` application 与 fresh capability binder 即使具有普通调用外观，
-也必须在 Kernel HIR 中保留语义节点。
+`WithChain` 在 Surface HIR 中保留扁平 entry、每个 operand/binder 的 origin、
+末尾 `in` 和 body origin。结构 lowering 对 entries 做 right fold，先统一
+产生 `ScopedApply`，不在未解析类型时猜 operand 类别。Resolver/type checker
+取得 evidence 后，匿名普通 wrapper 可以在 Typed HIR/Core 中成为 `Call`；
+effect handler 和 fresh capability binder 即使具有普通调用外观，也必须保留
+`HandlerApply`/`HandlerAction` 语义节点。
 
 ### 7.2 Evaluation order
 
@@ -434,7 +464,10 @@ Elaboration 必须显式保持：
 - callee 先于 argument 求值；
 - 普通 argument 由左到右求值；
 - trailing lambda 只构造 closure，不提前执行 body；
-- `with` 先求值 handler expression，再把 action thunk 传给它；
+- `with` chain 先求值最外层 transformer，再构造包含其余 chain 的 thunk
+  并调用它；内层 operand 只在外层调用 action 时求值；
+- 外层若零次或多次调用 action，内层 operand 相应地零次或多次求值，不能在
+  lowering 时把全部 entry operand 提前到 chain 外；
 - fresh capability 只在 action thunk 及允许的 handler scope 中可见。
 
 如果简单 AST rewrite 会复制、删除或重排 effectful expression，必须先引入临时绑定。
@@ -654,7 +687,7 @@ same CompilerSnapshot
 | P1 | baseline 完成 | lossless lexer、invalid token、nested comment、UTF-16 range、revision-checked `relex` | token-window relex 与 Unicode identifier policy |
 | P2 | 部分完成 | handwritten PEG cursor、ordered choice/probe、rule-local cut、farthest failure、context stack、transactional recovery、forward-parent marker | selective memo cache、cancellation polling、parser trace emission |
 | P3 | 部分完成 | `effect`/operation、`fn` signature、旧单列表 type parameter/argument、function type、effect row、`{app}`、`..Eff`、`Read[app]` 定向修复；旧 `A`/`Fx : Effect`/`Eff : EffectRow` baseline 可保留为 CST | 目标双列表 `[...]![...]`、`ability`、`cap`、associated effect/row、row formula/predicate、generic kind/constraint validation、显式 effect generic call、`struct`/`enum`/普通 `trait`/`impl`、module/import |
-| P4 | 部分完成 | name/literal/block、call/method、labelled argument、trailing lambda、handler、`with`、`as k` mode diagnostics | fixed precedence、`let`、`if`/`match`、完整 pattern、index/tuple/record/array expression |
+| P4 | 部分完成 | name/literal/block、call/method、labelled argument、trailing lambda、handler、旧的单项 `with` parser baseline、`as k` mode diagnostics | 多 entry `with ... in ...` chain、fixed precedence、`let`、`if`/`match`、完整 pattern、index/tuple/record/array expression |
 | P5 | 未开始 | CST 已保留 sugar boundary | typed CST、Surface/Kernel HIR 与 origin-preserving elaboration |
 | P6 | baseline 开始 | immutable `ParseSnapshot`、single-edit `reparse`、full-parse equivalence test | workspace/source DB、batch edit、reparse island、subtree reuse、LSP adapter |
 
@@ -744,7 +777,7 @@ Generalization 也按类别分开：
   let/top-level generalization 规则量化；
 - `CapabilityId` 是 term-indexed identity，普通 let-generalization 不能
   把它提升成任意 capability；
-- `with ... as app` 的 fresh identity 在 Kernel HIR 中使用 rank-2 action
+- `with ... as app in ...` 的 fresh identity 在 Kernel HIR 中使用 rank-2 action
   boundary；任何保留 `app` 的值都必须在该 boundary 内消费。
 
 稳定 artifact 不序列化裸整数冒充所有 ID。每种 ID 使用不同 tag，并记录
@@ -835,7 +868,8 @@ app : cap F; identity = app
 - trailing lambda；
 - `if`、`match`；
 - precedence；
-- `handler`、`with`、`as k` 与 continuation method-shaped syntax。
+- `handler`、多 entry `with ... in ...`、`as k` 与 continuation
+  method-shaped syntax。
 
 ### P5：Surface → Kernel HIR
 

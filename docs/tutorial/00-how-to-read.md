@@ -13,7 +13,8 @@ compiler 状态   现在能解析、检查或运行到哪一步
 例如：
 
 ```cire
-with read_42 as app {
+with read_42 as app
+in {
   app.read()
 }
 ```
@@ -90,12 +91,14 @@ compiler 推导。
 Cire 刻意保持少量核心构造。比如：
 
 ```cire
-with h {
+with h
+in {
   work()
 }
 ```
 
-是 handler application 的糖，近似展开成：
+是 scoped computation application 的糖；`h` 通常是 effect handler，也可以
+是接收 computation thunk 的普通高阶 wrapper。它近似展开成：
 
 ```cire
 h(fn() {

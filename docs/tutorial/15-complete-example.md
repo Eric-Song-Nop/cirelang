@@ -172,14 +172,12 @@ let catch_load_error = handler Error[LoadError] {
 
 ```cire
 fn test_load_current() -> Result[Profile, LoadError] {
-  with fixed_settings as settings {
-    with fake_api {
-      with quiet_logger {
-        with catch_load_error {
-          load_current(settings)
-        }
-      }
-    }
+  with fixed_settings as settings
+  with fake_api
+  with quiet_logger
+  with catch_load_error
+  in {
+    load_current(settings)
   }
 }
 ```
@@ -210,12 +208,12 @@ with fixed_settings as settings
 同一个测试可以同时安装两个设置实例：
 
 ```cire
-with settings_for_user_7 as left {
-  with settings_for_user_9 as right {
-    let first = load_current(left)
-    let second = load_current(right)
-    (first, second)
-  }
+with settings_for_user_7 as left
+with settings_for_user_9 as right
+in {
+  let first = load_current(left)
+  let second = load_current(right)
+  (first, second)
 }
 ```
 
@@ -301,7 +299,8 @@ Button body 是 latent event action。它的 `ProfileApi`、`Logger`、
 
 ```cire
 fn broken() -> () -> Settings {
-  with fixed_settings as settings {
+  with fixed_settings as settings
+  in {
     fn() {
       settings.read()
     }

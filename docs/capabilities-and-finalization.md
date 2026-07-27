@@ -53,7 +53,8 @@ fn read_app(app : cap Read[Int]) -> Int ! {app} {
 `with ... as app` 创建不可伪造的 capability identity：
 
 ```moonbit
-with read_42 as app {
+with read_42 as app
+in {
   let read_later = fn() {
     app.read()
   }
@@ -67,7 +68,8 @@ with read_42 as app {
 继续传播，直到证明它仍在该 handler 绑定内使用，否则拒绝。
 
 ```moonbit
-with read_42 as app {
+with read_42 as app
+in {
   return fn() {
     app.read()
   }
