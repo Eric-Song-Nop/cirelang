@@ -1,48 +1,214 @@
 # 09　具名 capability
 
-## 1. Effect family 有时还不够精确
+## 1. 先记住一句话
 
-假设界面同时显示主文档和预览文档：
+具名 capability 是：
 
-```text
-两个状态都满足 Reader[Document]
-但读取主文档与读取预览不能混为同一件事
-```
-
-匿名 row 只能说：
+> 一个显式传递的值，它指向当前 `with` 安装的某一个具体 handler。
 
 ```cire
-! {Read[Document]}
+app.read()
 ```
 
-它没有指出使用哪一个具体 handler。Cire 因此允许 handler application
-创建不可伪造的具名 capability。
+表示“向 `app` 指向的那个 handler 请求 `read`”，而不是“向当前最近的
+`Read` handler 请求 `read`”。
 
-## 2. 创建具名 capability
+对应的 effect row：
 
 ```cire
-with read_main as app {
-  app.read()
+! {app}
+```
+
+表示这段计算精确依赖 `app`。如果现在只记住“显式 receiver + 精确 effect
+依赖”，就已经抓住了 named capability 的主要用途。
+
+## 2. 先看普通的匿名 effect
+
+```cire
+effect Counter {
+  fun get() -> Int
+  fun set(value : Int) -> Unit
+}
+
+fn increment() -> Unit ! {Counter} {
+  let value = Counter::get()
+  Counter::set(value + 1)
 }
 ```
 
-`app` 是一个普通 term binder，但它也有由 compiler 创建的 singleton
-identity。每次 application 都是 fresh：
+安装一个 counter handler：
 
 ```cire
-with read_main as left {
-  with read_main as right {
-    // left 和 right 的 family 相同，identity 不同
+with make_counter(0) {
+  increment()
+}
+```
+
+`Counter::get()` 没有显式 receiver。它使用当前上下文中最近的 `Counter`
+handler：
+
+```text
+increment()
+  └── Counter::get()
+        └── 当前最近的 Counter handler
+```
+
+这很像一个由词法上下文提供的隐式参数。一个作用域只需要一个 Counter 时，
+匿名 effect 简单而清楚。
+
+## 3. 两个相同 effect 实例的问题
+
+现在同时打开两个账户：
+
+```text
+checking  余额 100
+savings   余额 20
+```
+
+两者提供完全相同的操作：
+
+```cire
+ability Account {
+  fun balance() -> Int
+  fun withdraw(amount : Int) -> Unit
+  fun deposit(amount : Int) -> Unit
+}
+
+effect BankAccount : Account {}
+```
+
+如果只使用匿名调用：
+
+```cire
+BankAccount::withdraw(10)
+BankAccount::deposit(10)
+```
+
+两次调用都会寻找“当前最近的 `BankAccount` handler”。代码没有表达哪次操作
+针对 checking，哪次针对 savings。即使嵌套安装两个 handler，也只能自然选择
+最内层；业务含义依赖微妙的安装顺序。
+
+为每个角色声明新 effect 也不好：
+
+```text
+CheckingAccount
+SavingsAccount
+SourceAccount
+DestinationAccount
+```
+
+账户的角色是运行时数据，不应该迫使程序不断创造新的 effect family。
+
+## 4. 用名字选择具体实例
+
+给每次 handler application 绑定一个名字：
+
+```cire
+with make_account(100) as checking {
+  with make_account(20) as savings {
+    transfer(checking, savings, 10)
   }
 }
 ```
 
-名字相同不代表 identity 相同；identity 也不是字符串、整数或用户可以伪造的
-全局 token。
+`checking` 与 `savings` 都是 `BankAccount` capability，但它们指向两个不同的
+handler 实例。
 
-## 3. Capability type 与 named row
+`transfer` 显式选择 receiver：
 
-函数接收一个具体 capability：
+```cire
+fn![F : Account] transfer(
+  from : cap F,
+  to : cap F,
+  amount : Int,
+) -> Unit ! {from, to} {
+  from.withdraw(amount)
+  to.deposit(amount)
+}
+```
+
+逐行读：
+
+```text
+from.withdraw(amount)  只请求 from 指向的实例
+to.deposit(amount)     只请求 to 指向的实例
+! {from, to}           函数精确依赖这两个实例
+```
+
+执行后：
+
+```text
+checking  90
+savings   30
+```
+
+Handler 的嵌套顺序不再决定账户角色；`from` 和 `to` 决定。
+
+## 5. Ability、effect family、instance 是三层
+
+这三个概念容易混淆：
+
+| 层次 | 例子 | 回答的问题 |
+|---|---|---|
+| Ability | `Account` | 这类 effect 有哪些 operation？ |
+| Effect family | `BankAccount` | 这是哪一种名义化 effect？ |
+| Named capability | `checking` | 现在具体使用哪个 handler 实例？ |
+
+类比普通类型：
+
+```text
+trait/interface  → ability Account
+concrete class   → effect BankAccount
+object/reference → capability checking
+```
+
+这个类比只帮助理解“接口、类别、实例”的层次。Capability operation 仍属于
+effect system，受 effect row、handler、resumption 和 capture checking
+约束，并不等同于普通对象调用。
+
+## 6. `with ... as name` 到底做了什么
+
+先创建 handler value：
+
+```cire
+let checking_handler = make_account(100)
+```
+
+再安装它，并在 action 中获得 capability：
+
+```cire
+with checking_handler as checking {
+  checking.balance()
+}
+```
+
+概念展开：
+
+```cire
+checking_handler(fn(checking) {
+  checking.balance()
+})
+```
+
+但 `checking` 不是一个可以不受限制地保存到任何地方的普通参数。每次
+application 都创建新的、不可伪造的 identity，并且只在这次 action 中有效：
+
+```cire
+with make_account(0) as first {
+  ...
+}
+
+with make_account(0) as second {
+  ...
+}
+```
+
+即使两个 handler 的初始值和实现完全相同，`first` 与 `second` 也不是同一个
+capability。
+
+## 7. 怎样读 `cap F`
+
+再看一次泛型函数：
 
 ```cire
 fn[A]![F : Reader[A]] read_from(
@@ -52,41 +218,94 @@ fn[A]![F : Reader[A]] read_from(
 }
 ```
 
-逐部分读：
+从外到内读：
 
 ```text
-A                 普通结果类型
-F : Reader[A]     任意满足 Reader[A] 的 effect family
-app : cap F       family F 的一个具体 capability value
-{app}             调用精确依赖这个 identity
+A
+  普通返回类型
+
+F : Reader[A]
+  任意满足 Reader[A] 的 effect family
+
+app : cap F
+  family F 的一个具体 handler capability
+
+app.read()
+  向 app 指定的实例发出 read 请求
+
+! {app}
+  调用这个函数需要 app 仍然有效并已安装
 ```
 
-`cap F` 是 capability type 的当前工作写法。
+`cap F` 是当前工作 type syntax。它不是“某个 F 值的数据内容”，而是选择
+handler instance 的受检查引用。
 
-## 4. 源代码只写 `{app}`
+## 8. 匿名 row 与具名 row 的区别
 
-具名 row 的最终源语法是：
+匿名：
+
+```cire
+fn current_balance() -> Int ! {BankAccount} {
+  BankAccount::balance()
+}
+```
+
+含义：
+
+```text
+调用时需要上下文提供某个当前 BankAccount handler
+```
+
+具名：
+
+```cire
+fn![F : Account] selected_balance(
+  account : cap F,
+) -> Int ! {account} {
+  account.balance()
+}
+```
+
+含义：
+
+```text
+调用时精确需要参数 account 指向的那个 handler
+```
+
+可以把它们记成：
+
+```text
+{F}        “给我一个当前的 F”
+{account}  “我要这个 account”
+```
+
+两种形式都重要。只有一个自然实例时用匿名 effect；实例选择属于业务数据时用
+named capability。
+
+## 9. 源代码为什么写 `{app}`
+
+具名 row 的源语法是：
 
 ```cire
 ! {app}
 ```
 
-Compiler 在诊断或高级类型展开中可以显示：
+Compiler 为了帮助诊断，可以展开显示：
 
 ```text
 Read[app]
 ```
 
-`Read[app]` 只用于解释 `app` 属于哪个 family，不能写进源程序：
+它读作“`app` 是一个 Read family 的实例”，但不能写进源程序：
 
 ```cire
-// 错误
+// 错误：Read[app] 不是源语法
 fn wrong(app : cap Read[Int]) -> Int ! {Read[app]} {
   app.read()
 }
 ```
 
-定向诊断应建议改成：
+正确写法：
 
 ```cire
 fn right(app : cap Read[Int]) -> Int ! {app} {
@@ -94,10 +313,43 @@ fn right(app : cap Read[Int]) -> Int ! {app} {
 }
 ```
 
-这条区别很重要：`Read[A]` 是普通类型参数化的 effect family，
-`Read[app]` 不是泛型应用。
+原因是 row 需要记录 term identity `app`；`Read[A]` 中的方括号只用于普通
+type argument，不能同时承担 instance syntax。
 
-## 5. 匿名与具名调用共享 ability
+## 10. 为什么不直接传一个普通对象
+
+如果一个服务只是普通数据，拥有普通 method，而且不需要 handler 控制，
+直接传对象通常更简单：
+
+```cire
+fn render(settings : Settings) -> View {
+  Text(settings.theme)
+}
+```
+
+Named capability 额外提供的是：
+
+- operation 仍由词法安装的 handler 解释；
+- effect row 能精确记录使用了哪个实例；
+- 同一 ability 的多个实例可以显式选择；
+- closure 或 continuation 保留实例时，compiler 能继续追踪；
+- handler action 结束后，实例不能被偷偷带走继续调用；
+- Owner、resumption 和 cleanup 规则可以使用同一个 identity。
+
+所以 named capability 不是“所有依赖注入都要换一种写法”。判断标准是：
+
+```text
+普通值/普通服务对象
+  只需要传数据或调用普通 method
+
+匿名 effect
+  需要上下文解释 operation，并且作用域内只有一个自然实例
+
+named capability
+  需要上下文解释 operation，而且同一协议有多个实例或必须追踪具体权限
+```
+
+## 11. 匿名与具名调用共享同一个 ability
 
 ```cire
 ability Reader[A] {
@@ -123,16 +375,21 @@ fn[A]![F : Reader[A]] read_named(
 }
 ```
 
-二者共享同一份 `Reader[A]` evidence，但 Core row entry 不同：
+两者共享同一份 `Reader[A]` contract。区别只在 operation 路由：
+
+```text
+F::read()   → 当前匿名 F handler
+app.read()  → app 指定的 handler
+```
+
+Compiler 内部必须保留这个区别：
 
 ```text
 {F}    Anonymous(F)
 {app}  Named(app, F)
 ```
 
-这样具名 effect 不会退化成一套与普通 effect 多态互不相干的系统。
-
-## 6. Identity polymorphism
+## 12. Capability 参数本身就是 identity polymorphism
 
 ```cire
 fn[A]![F : Reader[A], ..E] relay(
@@ -143,7 +400,14 @@ fn[A]![F : Reader[A], ..E] relay(
 }
 ```
 
-这个函数同时对四件事抽象：
+这个函数不固定某个全局 `app`。每次调用都可以传不同 capability：
+
+```cire
+relay(checking, body_for_checking)
+relay(savings, body_for_savings)
+```
+
+因此它同时对：
 
 ```text
 A     普通类型
@@ -152,75 +416,126 @@ E     额外 effect row
 app   本次调用传入的具体 identity
 ```
 
-`app` 不写进 generic list。它由普通参数绑定，函数体中的 `{app}` 精确引用
-本次传入的 capability。
+抽象。`app` 不需要写进 generic list；普通 term parameter 已经绑定了本次
+identity。
 
-`E` 也可以实例化为包含其他 named capability 的 row，因此 row polymorphism
-与 identity polymorphism 可以自然组合。
+## 13. Closure 为什么不能把 capability 带出 `with`
 
-## 7. 捕获与逃逸
-
-Lambda 可以保留 capability：
+在 action 内创建并使用 closure 没问题：
 
 ```cire
-with read_main as app {
-  let later = fn() {
-    app.read()
+with make_account(100) as checking {
+  let show_later = fn() {
+    checking.balance()
   }
 
-  use_inside(later)
+  use_inside(show_later)
 }
 ```
 
-`later` 的函数类型带 `! {app}`，compiler 也在内部记录它保留了 `app`。
-如果它被带出 handler action：
+`show_later` 保留了 `checking`。只要它仍在安装 checking handler 的 action
+内被调用，路由目标就存在。
+
+把 closure 返回出去则不安全：
 
 ```cire
-with read_main as app {
+with make_account(100) as checking {
   fn() {
-    app.read()
+    checking.balance()
   }
 }
 ```
 
-应拒绝并指出：
+离开 `with` 后，checking handler 已经不再安装。Compiler 应拒绝并指出：
 
 ```text
 cannot return this closure
 
-it retains `app`, whose handler is installed by this `with`
+it retains `checking`, installed by this `with`
 the handler is no longer installed after the action returns
 ```
 
-捕获信息由 compiler 从 term binder、闭包、aggregate 和调用结果推导。
-源码不增加另一套 capture 标注。
+用户不需要手写 capture annotation。Compiler 从 closure、struct、调用结果和
+其他聚合值中推导这种依赖。
 
-## 8. 为什么局部 handle 不会“洗掉权限”
+## 14. Capability 不能防止所有业务错误
 
-局部 handler 可以消除 computation 的 effect demand，但不能凭空获得另一个
-实例：
+Named capability 可以保证：
 
-```text
-effect row   调用值时还会请求什么
-capture      值已经固定保留了什么具体 capability
-authority    当前作用域实际授予哪些操作
+- `from.withdraw` 一定路由到 `from`；
+- `{from}` 不会被误当成 `{to}`；
+- capability 不能被伪造或越过安装范围；
+- 抽象边界不能静默擦掉具体依赖。
+
+它不能保证程序员没有把实参顺序写反：
+
+```cire
+transfer(savings, checking, 10)
 ```
 
-三者相互关联但不能互相替代。一个闭包即使把内部匿名 effect 处理完，仍不能把
-捕获的 `app` 伪装成“适用于任意 Reader 实例”的普通纯值。
+这仍是业务逻辑问题。可以通过更明确的 labelled parameter、新类型或更高层
+API 解决。类型系统的目标是消除环境路由和权限边界的歧义，不是假装理解所有
+业务意图。
 
-## 9. Package 抽象也必须保留 identity
+## 15. 什么时候应该使用
 
-Capability 被放进 struct、trait object 或抽象 package 返回值时，接口摘要
-必须保留必要的 capture 约束。否则模块化会把静态安全信息擦掉。
+适合匿名 effect：
 
-这也是 compiler 从一开始就需要可序列化 HIR/interface 的原因：CLI、增量
-编译和 LSP 应共享同一份 identity 与 capture 分析，而不是各自猜测。
+```text
+当前测试环境唯一的 Clock
+当前请求唯一的 Logger
+当前控制范围唯一的 Error handler
+```
+
+适合 named capability：
+
+```text
+两个数据库连接
+两个状态 cell
+source account 与 destination account
+两个 DOM root
+读权限和写权限指向不同宿主实例
+```
+
+适合普通值：
+
+```text
+不可变 Settings
+普通配置记录
+不需要 effect/handler 语义的 service object
+```
+
+不要仅仅因为 `cap` 看起来“更安全”就给所有参数加上它。
+
+## 16. 最后再看完整心智模型
+
+```text
+effect family
+  定义一类 operation
+
+handler value
+  定义这些 operation 的一种解释
+
+with handler
+  在 action 中安装解释
+
+with handler as app
+  安装解释，并给这个具体实例一个可传递的 capability
+
+app.operation()
+  向这个具体实例发出请求
+
+! {app}
+  在类型中记录对这个具体实例的依赖
+```
+
+Named capability 的核心不是多一层复杂类型，而是把原本隐式的“到底调用哪个
+handler”在确实需要时变成显式、可检查的 receiver。
 
 ## 当前状态
 
-`{app}` 是已决定源语法，`Read[app]` 只用于诊断。Named binder 已有 parser
-基线；`cap`、ability constraint、fresh generativity、capture inference 和
+`{app}` 是已决定的源语法，`Read[app]` 只用于诊断。Named binder 已有 parser
+基线；`cap`、ability constraint、fresh identity、capture inference 和
 escape checking 尚未实现。
 
 上一章：[Handler 与 with](08-handlers-and-with.md)　下一章：[四种恢复模式](10-resumptions.md)

@@ -429,6 +429,21 @@ handler_value(fn(app) { action })
 第二种 application 会创建 fresh identity，不能按普通无约束 lambda 参数
 处理。
 
+组合处理多个 effect 使用普通嵌套：
+
+```cire
+with clock_handler {
+  with logger_handler {
+    with error_handler {
+      action()
+    }
+  }
+}
+```
+
+也可以把嵌套封装成接收 action thunk 的普通高阶函数，再使用同一个 `with`
+外观。当前工作语法不增加 multi-effect handler literal。
+
 ## 20. Continuation disposition
 
 ```cire

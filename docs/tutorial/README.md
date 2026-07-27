@@ -18,8 +18,8 @@ polymorphism、handler、具名 capability、受控续体和结构化清理。
 | [05](05-generics-traits-and-packages.md) | 泛型、trait 与包 | 如何写可复用、可抽象的普通代码？ |
 | [06](06-effects.md) | 第一个 effect | effect row 为什么比“这个函数有副作用”更精确？ |
 | [07](07-effect-polymorphism.md) | Effect 多态与 ability | 普通泛型、effect family 和 effect row 如何同时抽象？ |
-| [08](08-handlers-and-with.md) | Handler 与 `with` | operation 的意义如何由调用上下文提供？ |
-| [09](09-named-capabilities.md) | 具名 capability | 如何区分同一种 effect 的两个具体实例？ |
+| [08](08-handlers-and-with.md) | Handler 与 `with` | 如何解释 operation，并组合处理多个 effect？ |
+| [09](09-named-capabilities.md) | 具名 capability | 如何用显式 receiver 区分同一种 effect 的多个实例？ |
 | [10](10-resumptions.md) | 四种恢复模式 | `abort`、`fun`、`once`、`ctl` 分别允许什么？ |
 | [11](11-cleanup-owner-and-concurrency.md) | 清理、Owner 与并发 | 暂停、取消或放弃计算时，谁负责善后？ |
 | [12](12-incremental-computation.md) | 增量计算 | 为什么增量计算是第一方库，而不是特殊语法？ |

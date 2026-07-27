@@ -117,7 +117,162 @@ fn attempt[A, E]![..Rest](
 这个例子也说明 handler 不是简单的“回调表”：它能够解释控制流，并改变整段
 计算的结果类型。
 
-## 6. 自动 forwarding
+## 6. 一个作用域同时处理多个 effect
+
+实际程序通常不只需要一个 effect：
+
+```cire
+fn load_page() -> Page
+  ! {Clock, Logger, Error[LoadError]} {
+  ...
+}
+```
+
+为测试准备三个 handler：
+
+```cire
+let quiet_logger = handler Logger {
+  fun log(_level, _message) => ()
+}
+
+let catch_load_error = handler Error[LoadError] {
+  abort raise(error) => Err(error)
+  return(page) => Ok(page)
+}
+```
+
+`fixed_clock` 沿用本章开头的定义。
+
+处理多个 effect 的最直接方法是嵌套 handler：
+
+```cire
+with fixed_clock {
+  with quiet_logger {
+    with catch_load_error {
+      load_page()
+    }
+  }
+}
+```
+
+这一个作用域同时处理了 `Clock`、`Logger` 和 `Error[LoadError]`。它不是三个
+互不相干的阶段；`load_page()` 在三层 handler 共同构成的上下文中运行。
+
+从 row 变化来看：
+
+```text
+load_page
+  Page ! {Clock, Logger, Error[LoadError]}
+
+with catch_load_error
+  Result[Page, LoadError] ! {Clock, Logger}
+
+with quiet_logger
+  Result[Page, LoadError] ! {Clock}
+
+with fixed_clock
+  Result[Page, LoadError]
+```
+
+最内层 `catch_load_error` 先改变结果类型；外面的两个 handler 保持结果类型，
+只消除自己的 effect。
+
+当前工作语法中，一个 `handler Effect { ... }` literal 负责一个 effect
+family。处理多个 family 不需要第二种 multi-handler literal；组合发生在
+普通 handler application 上。
+
+如果直接设计：
+
+```text
+handler {Clock, Logger, Error[LoadError]} { ... }
+```
+
+仍然必须回答 handler 的先后顺序、只有一个还是多个 `return` clause、一个
+clause 发出的 effect 由谁处理。显式组合已经把这些答案写进嵌套结构。以后即使
+增加 multi-handler 糖，也应无歧义地展开成这种有序组合，而不是获得另一套
+控制语义。
+
+## 7. 把组合封装成可复用 handler
+
+因为 `with h { body }` 本质上把 `body` thunk 交给 `h`，普通高阶函数也可以
+封装整套 handler：
+
+```cire
+fn[A]![..E] test_runtime(
+  action : () -> A
+    ! {Clock, Logger, Error[LoadError], ..E},
+) -> Result[A, LoadError] ! E {
+  with fixed_clock {
+    with quiet_logger {
+      with catch_load_error {
+        action()
+      }
+    }
+  }
+}
+```
+
+调用者只看到一个组合后的 handler：
+
+```cire
+with test_runtime {
+  load_page()
+}
+```
+
+展开后就是：
+
+```cire
+test_runtime(fn() {
+  load_page()
+})
+```
+
+`test_runtime` 同时消除三个 effect，并原样转发 `E` 中不认识的其他 effect。
+这也是“handler 是值”和“effect row 多态”结合后的价值：库可以提供
+`test_runtime`、`server_runtime`、`browser_runtime`，而语言不需要为每种
+组合增加关键字。
+
+## 8. 组合顺序为什么重要
+
+下面两个嵌套顺序不一定等价：
+
+```cire
+with logger {
+  with errors {
+    action()
+  }
+}
+```
+
+```cire
+with errors {
+  with logger {
+    action()
+  }
+}
+```
+
+原因有两个：
+
+- handler 可以通过 `return` 改变整段计算的结果类型；
+- 一个 handler 的 clause 自己也可能请求另一个 effect。
+
+例如 error handler 在捕获错误时调用 `Logger::log`，就应把 Logger handler
+放在它外面：
+
+```cire
+with logger {
+  with errors_that_log {
+    action()
+  }
+}
+```
+
+这样 error clause 发出的日志仍处于 Logger handler 的范围内。组合器的公开
+类型应明确展示它消除了什么、保留了什么、最终返回什么，不能只靠名称猜测。
+
+## 9. 自动 forwarding
 
 一个 handler 只处理自己的 effect。action 中的其他 effect 自动向外层转发：
 
@@ -139,7 +294,7 @@ with fixed_clock {
 当前 effect 中缺少 operation clause 应产生穷尽性诊断；显式 forwarding
 同一个 effect operation 的最终语法尚未冻结。
 
-## 7. 嵌套、覆盖与 masking
+## 10. 嵌套、覆盖与 masking
 
 同一 effect 的 handler 嵌套时，普通 operation 先交给最内层：
 
@@ -158,7 +313,7 @@ Cire 已把这种能力列入 effect 组合模型，但不在核心规则完成�
 
 普通库代码不应通过保存一个全局 handler 指针绕过词法作用域。
 
-## 8. Lexical deep handler
+## 11. Lexical deep handler
 
 第一版 handler 是 lexical deep handler。被恢复的计算再次请求同一 effect
 时，仍由当前 handler 处理：
@@ -174,7 +329,7 @@ Deep handler 让局部解释在整个 action 的动态执行期间保持一致�
 handler 会把恢复后的代码放到 handler 外侧，组合规则更难；第一版不为它增加
 表面语法。
 
-## 9. `with` operand 与 trailing lambda
+## 12. `with` operand 与 trailing lambda
 
 下面的写法唯一解释为“创建 handler，然后运行 action”：
 
@@ -197,7 +352,7 @@ with (make_handler(1) {
 
 这个局部规则避免 `with h { ... }` 与 UI 风格调用产生结构歧义。
 
-## 10. Named application 预览
+## 13. Named application 预览
 
 匿名 `Clock::now()` 由当前同 family handler 解释。有时同一 family 的两个
 实例必须同时存在：
