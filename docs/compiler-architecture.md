@@ -651,7 +651,7 @@ same CompilerSnapshot
 | P0 | baseline 完成 | revisioned source、UTF-16 span/edit、content fingerprint、validated JSON、diagnostic/fix、trace DTO | stable parse artifact adapter 与长期 schema migration test |
 | P1 | baseline 完成 | lossless lexer、invalid token、nested comment、UTF-16 range、revision-checked `relex` | token-window relex 与 Unicode identifier policy |
 | P2 | 部分完成 | handwritten PEG cursor、ordered choice/probe、rule-local cut、farthest failure、context stack、transactional recovery、forward-parent marker | selective memo cache、cancellation polling、parser trace emission |
-| P3 | 部分完成 | `effect`/operation、`fn` signature、type parameter/argument、function type、effect row、`{app}`、`..Eff`、`Read[app]` 定向修复；`A`/`Fx : Effect`/`Eff : EffectRow` 可保留为 CST | generic kind validation、显式 row generic argument/call、`struct`/`enum`/`trait`/`impl`、module/import 与完整 constraint grammar |
+| P3 | 部分完成 | `effect`/operation、`fn` signature、旧单列表 type parameter/argument、function type、effect row、`{app}`、`..Eff`、`Read[app]` 定向修复；旧 `A`/`Fx : Effect`/`Eff : EffectRow` baseline 可保留为 CST | 目标双列表 `[...]![...]`、`ability`、`cap`、associated effect/row、row formula/predicate、generic kind/constraint validation、显式 effect generic call、`struct`/`enum`/普通 `trait`/`impl`、module/import |
 | P4 | 部分完成 | name/literal/block、call/method、labelled argument、trailing lambda、handler、`with`、`as k` mode diagnostics | fixed precedence、`let`、`if`/`match`、完整 pattern、index/tuple/record/array expression |
 | P5 | 未开始 | CST 已保留 sugar boundary | typed CST、Surface/Kernel HIR 与 origin-preserving elaboration |
 | P6 | baseline 开始 | immutable `ParseSnapshot`、single-edit `reparse`、full-parse equivalence test | workspace/source DB、batch edit、reparse island、subtree reuse、LSP adapter |
@@ -663,14 +663,16 @@ from-scratch result 等价。
 
 ### 11.2 多态与 named capability 的前端表示
 
-Parser 只负责无损保留统一的方括号 generic syntax；kind resolution 不能靠
-变量名大小写或 `Eff` 这样的命名习惯猜测。Typed CST/Surface HIR 应把
-binder 降成互不混用的 ID：
+目标表面语法把 ordinary generic `[...]` 与 effect generic `![...]` 分开；
+effect 列表再用 `F`、`F[_]`、`..E` 的 binder shape 区分 atom、
+constructor 与 row。Parser 只负责无损保留这些形状；Typed CST/Surface HIR
+应把 binder 降成互不混用的 ID：
 
 ```text
 GenericParam =
   TypeParam(TypeParamId)
   EffectParam(EffectParamId)
+  EffectConstructorParam(EffectConstructorParamId)
   RowParam(RowParamId)
 
 CapabilityBinder {
@@ -679,17 +681,28 @@ CapabilityBinder {
   region
   origin
 }
+
+ConstraintEvidence =
+  TypeTrait(TypeTraitId, arguments)
+  Ability(AbilityId, arguments, associated_equalities)
+  RowPredicate(RowPredicateId, arguments)
 ```
 
 其中：
 
-- 未标注 generic binder 默认为 `TypeParam`；
-- `Fx : Effect` 产生 `EffectParamId`；
-- `Eff : EffectRow` 产生 `RowParamId`；
-- `app : Fx` 或 `as app` 是 term binder，产生 `CapabilityId`，不能复用
+- `[A : Eq]` 产生 `TypeParamId` 和普通 trait evidence；
+- `![F : Reader[A]]` 产生 `EffectParamId` 和 ability evidence；
+- `![F[_] : Reader[_]]` 产生 `EffectConstructorParamId`；
+- `![..E : Lacks[Blocking]]` 产生 `RowParamId` 和 row predicate；
+- `app : cap F` 或 `as app` 是 term binder，产生 `CapabilityId`，不能复用
   generic parameter ID；
 - polymorphic operation 的普通 type parameter 在 handler clause 中以
   fresh skolem 打开，不能按名称与外层 binder 合并。
+
+当前 parser 尚未识别以上目标语法。已经存在的 `Fx : Effect` /
+`Eff : EffectRow` CST 测试只是旧实现 baseline，迁移时应保留 fixture 用于
+明确 migration diagnostic 或按兼容策略删除，不能把旧 shape 带入 typed
+HIR 作为最终设计。
 
 Effect row 的 typed representation 至少区分：
 
@@ -708,7 +721,7 @@ EffectRow {
 }
 ```
 
-因此 `{Fx}`、`{app}` 和 `..Eff` 在序列化、unification、diagnostic 与 LSP
+因此 `{F}`、`{app}` 和 `..E` 在序列化、unification、diagnostic 与 LSP
 hover 中始终有不同 tag。`Read[app]` 可以由
 `Named(app, ConcreteEffect(Read, ...))` 生成用于诊断，但 parser 不接受它
 作为源 row item。
@@ -716,10 +729,12 @@ hover 中始终有不同 tag。`Read[app]` 可以由
 Kind checking 必须早于 effect-row unification：
 
 1. 解析 generic binder 与 scope；
-2. 检查 `Type`、`Effect`、`EffectRow` 的使用位置；
-3. 为 capability term 建立稳定 identity 与 family；
-4. 再做 row normalization/unification 和 handler elimination；
-5. 最后把 fixed capability capture 交给统一的 capture/Region checker。
+2. 根据普通/effect generic list 与 binder shape 建立初始 kind；
+3. resolve 普通 trait、ability、associated argument 和 row predicate；
+4. 为 capability term 建立稳定 identity、family 与 Region；
+5. 做 row normalization/unification、operation resolution 和 handler
+   elimination；
+6. 最后把 fixed capability capture 交给统一的 capture/Region checker。
 
 Generalization 也按类别分开：
 
@@ -735,13 +750,13 @@ scope/origin；LSP hover 可以显示：
 
 ```text
 A   : Type
-Fx  : Effect
-Eff : EffectRow
-app : Fx capability
+F   : Effect; ability = Reader[A]
+E   : EffectRow; constraints = Lacks[Blocking]
+app : cap F; identity = app
 ```
 
-当前 parser 已能无损保留这些 binder 和 row shape，但 generic kind
-validation、typed row、generalization 与显式 row generic argument 尚未实现。
+完整目标与表面/Core 对照见
+[多态与 effect abstraction 工作设计](polymorphism-design.md)。
 
 ### P0：Serialization shell
 

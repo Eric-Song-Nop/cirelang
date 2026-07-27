@@ -18,24 +18,35 @@ fn[A] apply(
 
 状态：parser 已支持函数、类型参数、函数类型、调用和 block。
 
-## 2. 四种多态不要混在一起
+## 2. 普通泛型和 effect 泛型分开写
 
-Cire 的方括号外观和 MoonBit 一致，但泛型参数有不同种类：
+Cire 保留 MoonBit 风格的普通泛型，并增加独立的 effect 泛型列表：
 
-| 写法 | 表示什么 | 可以替换成 |
+| 写法 | 表示什么 | 例子 |
 |---|---|---|
-| `A` | 一个普通类型 | `Int`、`String` |
-| `Fx : Effect` | 一个完整的 effect | `Network`、`Read[Int]` |
-| `Eff : EffectRow` | 一整行 effect | `{}`、`{Network, app}` |
-| `app : Fx` | 一个具体 capability 身份 | 调用者传入的任意 `Fx` 实例 |
+| `[A]` | 普通类型参数 | `Int`、`String` |
+| `![F]` | 单个 effect family | `Network`、`Read[Int]` |
+| `![F : Reader[A]]` | 有 ability constraint 的 effect | `Read[Int]` |
+| `![..E]` | 一整行 effect | `{}`、`{Network, app}` |
+| `app : cap F` | 一个具体 capability 身份 | 调用者传入的 `F` 实例 |
 
-前三个写在泛型方括号中。`app` 是一等值，所以写在普通参数括号中：
+先声明 ability 和具体 effect：
 
 ```moonbit
-fn[A, Fx : Effect, Eff : EffectRow] relay(
-  app : Fx,
-  body : () -> A ! {app, ..Eff},
-) -> A ! {app, ..Eff} {
+ability Reader[A] {
+  fun read() -> A
+}
+
+effect Read[A] : Reader[A] {}
+```
+
+然后同时对普通类型、effect family、row 与 identity 多态：
+
+```moonbit
+fn[A]![F : Reader[A], ..E] relay(
+  app : cap F,
+  body : () -> A ! {app, ..E},
+) -> A ! {app, ..E} {
   body()
 }
 ```
@@ -43,20 +54,20 @@ fn[A, Fx : Effect, Eff : EffectRow] relay(
 这里同时有四种抽象：
 
 - `A` 对普通值类型多态；
-- `Fx` 对 capability 所属的 effect 多态；
-- `Eff` 对剩余的整行 effect 多态；
+- `F` 对满足 `Reader[A]` 的 effect family 多态；
+- `E` 对剩余的整行 effect 多态；
 - `app` 对一个具体但任意的 capability 身份多态。
 
-`Eff` 可以实例化成包含匿名 effect 和具名 capability 的 row。例如高阶函数
-收到一个使用 `{Network, app}` 的回调时，可以推导出对应的 `Eff`。
+`E` 可以实例化成包含匿名 effect 和具名 capability 的 row。例如高阶函数
+收到一个使用 `{Network, app}` 的回调时，可以推导对应的 `E`。
 
 如果只需要匿名 effect polymorphism，不传具体 capability：
 
 ```moonbit
-fn[A, Fx : Effect, Eff : EffectRow] relay_anonymous(
-  body : () -> A ! {Fx, ..Eff},
-) -> A ! {Fx, ..Eff} {
-  body()
+fn[A]![F : Reader[A], ..E] read_then(
+  next : (A) -> Unit ! E,
+) -> Unit ! {F, ..E} {
+  next(F::read())
 }
 ```
 
@@ -64,9 +75,9 @@ fn[A, Fx : Effect, Eff : EffectRow] relay_anonymous(
 `Read : Type -> Effect`。同样，`abort[A] raise(...) -> A` 里的 `A`
 是 operation 的普通返回类型多态，不是 effect row 多态。
 
-状态：当前 parser 已能保留 kinded generic binder、`! Eff`、
-`{Fx, app, ..Eff}` 和 capability term binder。它还没有 kind checker，
-所以暂时不会验证 `Fx`、`Eff` 和 `app` 是否被放在了正确位置。
+状态：双列表、`ability`、`cap` 和 ability constraint 是设计工作形式，
+当前 parser 尚未支持。当前 parser 只实现了旧单列表 generic baseline、
+`! E` 对应的基础 type shape、effect row 与 capability identity CST。
 
 ## 3. Effect 声明
 
@@ -100,7 +111,7 @@ fn fetch() -> Data ! {Network, Error[HttpError]} {
 具体 capability 直接写变量名：
 
 ```moonbit
-fn read_app(app : Read[Int]) -> Int ! {app} {
+fn read_app(app : cap Read[Int]) -> Int ! {app} {
   app.read()
 }
 ```
@@ -108,23 +119,26 @@ fn read_app(app : Read[Int]) -> Int ! {app} {
 `{app}` 是源代码写法。下面的写法不合法：
 
 ```moonbit
-fn wrong(app : Read[Int]) -> Int ! {Read[app]} {
+fn wrong(app : cap Read[Int]) -> Int ! {Read[app]} {
   app.read()
 }
 ```
 
-Parser 会给出定向诊断，并建议把 `Read[app]` 改成 `app`。`Read[app]`
-只用于编译器解释“这是 `Read` family 的具体实例”。
+目标 parser 必须给出定向诊断，并建议把 `Read[app]` 改成 `app`。
+当前 parser 已在旧参数 type baseline 上实现相同的 row 修复；
+`cap Read[Int]` 本身尚未进入 parser。`Read[app]` 只用于编译器解释
+“这是 `Read` family 的具体实例”。
 
-状态：closed row、`..Eff` open tail、family item 和 `{app}` 都已支持。
+状态：closed row、open tail、family item、`{app}` 和 `Read[app]` 定向修复
+已经支持；双列表 binder 与 `cap` 尚未支持。
 
 四种常见 effect annotation 要分清：
 
 ```moonbit
-! Eff                   // 恰好是 row 变量 Eff
-! {Fx}                  // 一个多态的匿名 effect
+! E                     // 恰好是 row 变量 E
+! {F}                   // 一个多态的匿名 effect
 ! {app}                 // 一个具体的具名 capability
-! {Fx, app, ..Eff}      // 在 Eff 上增加 Fx 和 app
+! {F, app, ..E}         // 在 E 上增加 F 和 app
 ```
 
 ## 5. Handler 和 `with`

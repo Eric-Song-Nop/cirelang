@@ -1,22 +1,30 @@
 # 设计文档索引
 
-这组文档记录了从代数效应、增量计算和响应式 UI 设计中反推出来的语言需求。[表面语法工作规范](surface-syntax.md)中的“已决定”与“工作形式”是 parser 的当前输入约定；其他文档中的旧示例若与它冲突，以该规范为准。
+这组文档记录了从代数效应、增量计算和响应式 UI 设计中反推出来的语言需求。
+[表面语法工作规范](surface-syntax.md)中的“已决定”是稳定设计约束，“工作形式”
+是可继续细化的目标语法，不保证当前 parser 已经支持。实现状态以
+[编译器前端架构](compiler-architecture.md)和简明进度文档为准；其他文档中的
+旧示例若与表面规范冲突，以该规范为准。
 
 第一次了解 Cire，可以先看篇幅更短的 [Cire 简明文档](simple/README.md)。
+多态、effect ability 与 named capability 的新工作设计见
+[多态与 effect abstraction 工作设计](polymorphism-design.md)。该文档记录
+双泛型列表基线，也明确区分已接受方向、开放语法和尚未实现的部分。
 
 ## 建议阅读顺序
 
 1. [语言定位与特性总览](language-overview.md)
 2. [表面语法工作规范](surface-syntax.md)
-3. [代数效应与恢复模式](effects-and-resumptions.md)
-4. [Owner、Region、capture set 与结构化清理](lifetimes-and-finalization.md)
-5. [编译器前端架构](compiler-architecture.md)
-6. [第一方增量计算库](incremental-computation.md)
-7. [第一方响应式 UI 框架](reactive-ui.md)
-8. [WebAssembly 与宿主互操作](webassembly-and-host-interop.md)
-9. [Kokaine 案例研究](kokaine-case-study.md)
-10. [相关语言与设计先例](prior-art.md)
-11. [开放问题与原型验证计划](open-questions.md)
+3. [多态与 effect abstraction 工作设计](polymorphism-design.md)
+4. [代数效应与恢复模式](effects-and-resumptions.md)
+5. [Owner、Region、capture set 与结构化清理](lifetimes-and-finalization.md)
+6. [编译器前端架构](compiler-architecture.md)
+7. [第一方增量计算库](incremental-computation.md)
+8. [第一方响应式 UI 框架](reactive-ui.md)
+9. [WebAssembly 与宿主互操作](webassembly-and-host-interop.md)
+10. [Kokaine 案例研究](kokaine-case-study.md)
+11. [相关语言与设计先例](prior-art.md)
+12. [开放问题与原型验证计划](open-questions.md)
 
 ## 结论状态
 

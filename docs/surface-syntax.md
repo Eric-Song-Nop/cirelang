@@ -150,18 +150,19 @@ Clause 不能假定某个具体 `A`，也不能把它和外层同名 type parame
 `ctl[A] choose(...)` 的 clause 表面写法。
 
 如果 operation 需要接收 effect-polymorphic callback，可以在自己的 generic
-list 中显式声明非 `Type` kind：
+列表中声明 effect row。普通参数与 effect 参数使用双列表：
 
 ```moonbit
 effect Scope {
-  ctl[A, Eff : EffectRow] run(
-    body : () -> A ! Eff,
+  ctl[A]![..E] run(
+    body : () -> A ! E,
   ) -> A
 }
 ```
 
-这仍使用同一套 kinded generic binder；是否把这种 higher-order operation
-限制为特定 resumption mode，留给 type/effect safety 规则决定。
+`[A]` 是普通类型参数，`![..E]` 是 effect row 参数。是否把这种
+higher-order operation 限制为特定 resumption mode，留给
+type/effect safety 规则决定。
 
 ## 4. Effect row
 
@@ -175,33 +176,33 @@ fn load(url : Url) -> Data
   ...
 }
 
-fn[A, B, Eff : EffectRow] map_effectful(
+fn[A, B]![..E] map_effectful(
   xs : Array[A],
-  f : (A) -> B ! Eff,
-) -> Array[B] ! Eff {
+  f : (A) -> B ! E,
+) -> Array[B] ! E {
   ...
 }
 
-fn[A, Eff : EffectRow] observe_then(
-  body : () -> A ! {Observe, ..Eff},
-) -> A ! {Observe, ..Eff} {
+fn[A]![..E] observe_then(
+  body : () -> A ! {Observe, ..E},
+) -> A ! {Observe, ..E} {
   ...
 }
 ```
 
 - `! {}` 是空 row，但纯函数应省略它；
-- `..Eff` 是 open row tail；
+- `..E` 是 open row tail；
 - row 的顺序不影响类型相等性；
 - formatter 可以采用稳定顺序，但不得改变 source 中 capability binder 的身份。
 
 ### 4.2 Named capability
 
-**已决定**
+**已决定：row 中写 identity；`cap F` 是仍可调整的工作形式**
 
 源程序在 row 中直接写 capability 的 term identity：
 
 ```moonbit
-fn read_app(app : Read[Int]) -> Int ! {app} {
+fn read_app(app : cap Read[Int]) -> Int ! {app} {
   app.read()
 }
 ```
@@ -219,7 +220,7 @@ Read[app]
 匿名 family effect 与 named capability 可以出现在同一 row：
 
 ```moonbit
-fn sync(app : Read[Model]) -> Unit
+fn sync(app : cap Read[Model]) -> Unit
   ! {Network, Error[SyncError], app} {
   ...
 }
@@ -227,141 +228,141 @@ fn sync(app : Read[Model]) -> Unit
 
 ### 4.3 普通类型、effect 与 capability 多态
 
-**已决定**
+**工作形式；双列表已接受为细化基线，尚未实现**
 
-Cire 的泛型参数列表保持 MoonBit 的方括号外观，但每个 binder 都有明确的
-kind。没有 kind 标注的泛型参数默认为 `Type`；非 `Type` 参数必须显式标注：
+Cire 使用两个相邻但职责不同的 generic list：
+
+```text
+[...]   普通类型参数与普通 trait constraint
+![...]  effect family、effect constructor 与 effect row 参数
+```
+
+Effect 列表中的 binder 由自身形状分类：
 
 | Binder | Kind | 含义 | 典型出现位置 |
 |---|---|---|---|
-| `A` | `Type` | 普通值类型 | `Array[A]`、参数和结果类型 |
-| `Fx : Effect` | `Effect` | 一个完整应用的原子 effect | row item `{Fx}` |
-| `Eff : EffectRow` | `EffectRow` | 零个或多个 row item | `! Eff`、`..Eff` |
-| `app : Fx` | capability term | 一个具体 effect instance 的身份和值 | 调用已知 operation、row item `{app}` |
+| `A` | `Type` | 普通值类型 | `[A]`、`Array[A]` |
+| `F` | `Effect` | 一个完整原子 effect | `![F]`、row item `{F}` |
+| `F : Reader[A]` | `Effect` | 满足 ability 的原子 effect | `F::read()` |
+| `F[_]` | `Type -> Effect` | effect constructor | `F[A]` |
+| `..E` | `EffectRow` | 零个或多个 row item | `![..E]`、`! E`、`..E` |
+| `app : cap F` | capability term | `F` 的一个具体 instance | `app.read()`、`{app}` |
 
-因此下面的签名同时对普通类型、原子 effect、effect row 和具名 capability
-identity 多态：
+完整例子：
 
 ```moonbit
-fn[A, Fx : Effect, Eff : EffectRow] relay(
-  app : Fx,
-  body : () -> A ! {app, ..Eff},
-) -> A ! {app, ..Eff} {
-  body()
+fn[
+  A : Eq + Show,
+]![
+  Input : Reader[A],
+  Output : Writer[A],
+  ..E,
+] transfer(
+  input : cap Input,
+  output : cap Output,
+  log : (String) -> Unit ! E,
+) -> Bool ! {input, output, ..E} {
+  let value = input.read()
+  output.write(value)
+  log(value.to_string())
+  input.read() == value
 }
 ```
 
-其含义不是把四个名字都塞进同一种 System F type parameter：
-
-- `A` 在类型层量化；
-- `Fx` 在原子 effect 层量化；
-- `Eff` 在整行 effect 层量化；
-- `app` 由普通 lambda/函数参数绑定，但该 term 同时提供一个可在 row 和
-  capture set 中引用的稳定 singleton identity。
-
-这是一种受限的 term-indexed effect typing，不开放任意 dependent type。
-只有解析为 capability 的稳定 term path 才能出现在 row 中；普通 `Int`
-变量不能写进 effect row。
-
-`Effect` 表示已经完整应用的 effect：
+Effect constraint 使用 ability。`ability`、`effect` 与 `cap` 的当前设计
+职责是：
 
 ```text
-Read[Int]        : Effect
-Error[HttpError] : Effect
+ability   effect family 的静态 operation contract
+effect    具体、名义化的 effect family
+cap F     family F 的具名 capability value
 ```
 
-`Read` 自身概念上具有 `Type -> Effect` kind，但第一版不提供
-`F : Type -> Effect` 这样的用户可写 higher-kinded parameter。需要对任意
-完整 effect 多态时写 `Fx : Effect`。
-
-`Effect`-kind expression 在 value parameter 的 type 位置表示该 effect 的
-capability value，因此 `app : Fx` 是合法的 named capability
-polymorphism；源码不需要再包一层 `Capability[Fx]`。在 row item 位置，
-`Fx` 表示匿名 family demand，`app` 表示指定 instance demand。两者不能
-互换：
+示例：
 
 ```moonbit
-! {Fx}   // 由上下文提供任意一个 Fx handler
-! {app}  // 必须请求参数 app 指定的 handler
-```
-
-当 `Fx` 是抽象 effect 时，普通代码只能传递、处理或记录 capability；调用
-某个具名 operation 仍需要静态已知的 effect signature 或相应约束。
-
-`EffectRow` 变量可以实例化为同时包含匿名 family 和 named capability 的
-row。它不是“只能装大写 effect”的集合：
-
-```text
-Eff := {Network, Error[HttpError], app}
-```
-
-四种 annotation 具有不同形状：
-
-```moonbit
-! Eff                   // 精确使用 row 变量
-! {Fx}                  // 一个原子 effect
-! {app}                 // 一个具名 capability
-! {Fx, app, ..Eff}      // 扩展 row 变量
-```
-
-原子 effect 和 capability 必须放在 `{...}` 中；brace-less `! Eff` 只允许
-kind 为 `EffectRow` 的变量或等价 row alias。这样 `Fx`、`Eff`、`app`
-即使采用相近名字，kind checker 和诊断也不会靠命名习惯猜测。
-
-Effect declaration 和 operation declaration 中的方括号仍是普通类型多态：
-
-```moonbit
-effect Read[A] {
+ability Reader[A] {
   fun read() -> A
 }
 
-effect Error[E] {
-  abort[A] raise(error : E) -> A
+ability Writer[A] {
+  fun write(value : A) -> Unit
+}
+
+effect State[A] : Reader[A] + Writer[A] {}
+```
+
+同一份 ability evidence 同时支持匿名和具名调用：
+
+```moonbit
+fn[A]![F : Reader[A]] read_any() -> A ! {F} {
+  F::read()
+}
+
+fn[A]![F : Reader[A]] read_from(
+  app : cap F,
+) -> A ! {app} {
+  app.read()
 }
 ```
 
-这里 `Read : Type -> Effect`；`raise` 的 `[A]` 表示它能适配调用点需要的
-任意普通返回类型。两者都不是 effect-row quantification。
+Core 必须继续区分：
 
-Named capability polymorphism 不写成 `[app : Read[A]]`。名称是 first-class
-term，遵循普通参数和 lambda 的作用域：
+```text
+{F}    Anonymous(F)
+{app}  Named(app, F)
+```
+
+`app` 是普通 term binder 产生的 singleton identity，不写进 generic list。
+普通 `Int` value 不能出现在 effect row。`with h as app { ... }` 创建 fresh
+identity，并在 Kernel HIR 中建立 rank-2/generative boundary。
+
+四种常见 annotation：
 
 ```moonbit
-fn[A, Eff : EffectRow] use_reader(
-  app : Read[A],
-  body : () -> A ! {app, ..Eff},
-) -> A ! {app, ..Eff} {
-  body()
+! E                    // 精确 row variable
+! {F}                  // 匿名 effect family
+! {app}                // 具名 capability
+! {F, app, ..E}        // 扩展开放 row
+```
+
+两个未知 row 使用 row formula，不在一个 literal 中放两个开放 tail：
+
+```moonbit
+fn[A, B, C]![..E1, ..E2] compose(
+  first : (A) -> B ! E1,
+  second : (B) -> C ! E2,
+) -> (A) -> C ! (E1 | E2) {
+  value => second(first(value))
 }
 ```
 
-每次调用都可以传入不同的 `Read[A]` instance，函数体则始终把 effect
-精确归因到本次参数绑定的 identity。`with h as app { ... }` 进一步创建
-fresh identity；Core 把 action 按 fresh `app` 做 rank-2 检查，不能通过普通
-let-generalization 把它变成可逃逸的全局泛型值。第一版不提供用户手写
-`forall app` 的表面语法。
-
-**工作形式：显式泛型实参**
-
-调用点通常推导 `Fx` 和 `Eff`。需要显式指定时，仍使用统一方括号；row
-实参使用不带 `!` 的 row literal：
+Effect row constraint 的工作形式：
 
 ```moonbit
-map_effectful[Int, String, {Network, app}](values, render)
+fn![
+  ..E : Has[Log] + Lacks[Blocking] + All[Replayable],
+] schedule(task : () -> Unit ! E) -> Task ! E {
+  ...
+}
 ```
 
-泛型声明已给出每个位置的 kind，因此 `Int`、`Network` 和
-`{Network, app}` 不会混淆。Capability identity 本身不作为独立的方括号
-实参传递；它仍由普通 value argument 或 `as app` binder 传入。显式 row
-generic argument 和 generic call expression 尚未进入当前 parser slice。
+`Has`、`Lacks`、`All` 是 row predicate，不是可调用 operation 的 ability。
 
-**仍需形式化**
+显式调用也使用双列表：
 
-- local `let` 在 `ctl`、mutation 和 capture 下采用何种 generalization
-  policy；
-- 是否以及何时开放显式 higher-rank type；
-- 是否需要 higher-kinded effect constructor parameter；
-- mode、capture 或 replayability constraint 如何附加在 `Fx`/`Eff` 上。
+```moonbit
+consume[Int]![State[Int], {Log}](app, log_value)
+```
+
+普通类型实参和 effect/row 实参不会再依靠位置上的 kind marker 混合解释。
+
+Ability 的 associated type/effect/row、higher-kinded binder、`fresh` function
+type 与 Core 展开见[多态与 effect abstraction 工作设计](polymorphism-design.md)。
+
+当前 parser 尚未支持 `![...]`、`ability`、`cap`、associated effect/row、
+row formula 或 `fresh`。旧的 `Fx : Effect` / `Eff : EffectRow` parser
+fixture 只代表已经完成的实现 baseline，不再代表目标表面语法。
 
 ## 5. Operation 调用
 
@@ -696,22 +697,33 @@ fn user_pane(user : Source[User]) -> View ! {Observe} {
 下面使用 PEG 的 ordered choice、repetition 与 lookahead；它们是 parser 规则的设计片段，不是 EBNF。
 
 ```peg
+GenericClauses <- TypeParams? EffectParams?
 TypeParams     <- LBRACKET TypeParam (COMMA TypeParam)* COMMA? RBRACKET
-TypeParam      <- UpperIdent (COLON Type)?
-TypeArgs       <- LBRACKET GenericArg (COMMA GenericArg)* COMMA? RBRACKET
-GenericArg     <- RowLiteral / Type
+TypeParam      <- UpperIdent (COLON TypeConstraintList)?
+EffectParams   <- BANG LBRACKET EffectParam
+                  (COMMA EffectParam)* COMMA? RBRACKET
+EffectParam    <- DOTDOT UpperIdent RowConstraintList?
+                / EffectConstructorBinder AbilityConstraintList?
+                / UpperIdent AbilityConstraintList?
+
+TypeArgs       <- LBRACKET Type (COMMA Type)* COMMA? RBRACKET
+EffectArgs     <- BANG LBRACKET EffectArg (COMMA EffectArg)* COMMA? RBRACKET
+EffectArg      <- RowLiteral / Type
 
 Visibility     <- PUB (LPAREN OPEN RPAREN)?
 Mode           <- ABORT / ONCE / FUN / CTL
 
-EffectDecl     <- Visibility? EFFECT TypeHead
-                  LBRACE OperationDecl* RBRACE
-OperationDecl  <- Mode TypeParams? LowerIdent ParamList ARROW Type
+AbilityDecl    <- Visibility? ABILITY TypeHead SuperAbilities?
+                  LBRACE AbilityItem* RBRACE
+EffectDecl     <- Visibility? EFFECT TypeHead EffectConformance?
+                  LBRACE EffectItem* RBRACE
+OperationDecl  <- Mode GenericClauses LowerIdent ParamList ARROW Type
 
 EffectAnnotation <- BANG (RowLiteral / Type)
 RowLiteral     <- LBRACE RowItems? RBRACE
 RowItems       <- RowItem (COMMA RowItem)* COMMA?
 RowItem        <- DOTDOT UpperIdent / CapabilityIdent / Type
+CapabilityType <- CAP Type
 
 HandlerExpr    <- HANDLER Type HandlerBody
 HandlerBody    <- LBRACE HandlerClause* ReturnClause? RBRACE
@@ -726,11 +738,12 @@ LambdaHead     <- LambdaParams FAT_ARROW
 
 Parser 必须在语义阶段额外检查：
 
-- unannotated generic parameter 的 kind 是 `Type`，而 `Effect`/
-  `EffectRow` 是 compiler-known kind marker，不是普通 trait；
+- `[...]` 与 `![...]` 是否建立了不同的 binder domain；
+- `F`、`F[_]` 与 `..E` 是否分别解析为 effect atom、effect constructor 和
+  effect row binder；
 - brace-less effect annotation 中的 type 是否解析为 `EffectRow`；
-- generic row argument 中的 `{...}` 是否与声明位置的 `EffectRow` kind 对应；
-- `Fx : Effect` 是否只出现在原子 row item 或 capability value type 等合法位置；
+- `![...]` 的 row argument `{...}` 是否对应声明位置的 `..E`；
+- `cap F` 是否引用一个 effect-family binder；
 - polymorphic operation clause 是否以 declaration 的 fresh type skolem 检查；
 - `ContinuationBinder` 只出现在 `once` 或 `ctl` clause；
 - row 中的 lower identifier 是否解析为 capability；

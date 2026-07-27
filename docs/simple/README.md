@@ -10,9 +10,9 @@ Cire 是一门语法接近 MoonBit、面向 WebAssembly 的严格求值函数式
 ## 先记住五件事
 
 1. 普通声明、泛型、类型和调用尽量沿用 MoonBit 的外观。
-2. `[A]` 是普通类型多态，`[Fx : Effect]` 是单个 effect 多态，
-   `[Eff : EffectRow]` 是整行 effect 多态。
-3. 具名 capability 用普通参数 `app : Read[A]` 绑定，在 effect row 中写成
+2. `[A]` 放普通类型参数；`![F : Reader[A], ..E]` 放单 effect 和
+   effect row 参数。
+3. 具名 capability 的工作写法是 `app : cap F`，在 effect row 中写
    `{app}`；`Read[app]` 只会出现在诊断展开中。
 4. Effect 有 `abort`、`fun`、`once`、`ctl` 四种恢复模式。
 5. Cire 不做宏系统。UI DSL 使用 labelled argument 和 trailing lambda。
@@ -20,11 +20,15 @@ Cire 是一门语法接近 MoonBit、面向 WebAssembly 的严格求值函数式
 ## 30 秒例子
 
 ```moonbit
-pub(open) effect Read[A] {
+pub(open) ability Reader[A] {
   fun read() -> A
 }
 
-fn read_app(app : Read[Int]) -> Int ! {app} {
+pub(open) effect Read[A] : Reader[A] {}
+
+fn[A]![F : Reader[A]] read_app(
+  app : cap F,
+) -> A ! {app} {
   app.read()
 }
 
@@ -39,16 +43,20 @@ fn main() -> Int {
 
 这里：
 
-- `Read[Int]` 是一个 effect family；
+- `Reader[Int]` 是 effect ability，`Read[Int]` 是具体 effect family；
 - `app` 是本次安装 handler 时产生的具体 capability；
 - `! {app}` 表示函数运行时可能向这个 capability 请求操作；
 - `with ... as app { ... }` 在设计上会把 capability 限制在 action 的静态 Region 内。
 
-当前 parser 已经能识别并保留这类语法，也能对坏输入继续恢复。类型、effect、
-capture 和 Region 检查还没实现，所以这段代码目前不能一路编译到 Wasm。
+双泛型列表、`ability` 和 `cap` 是最新设计，当前 parser **尚未支持**。
+Parser 已完成的是旧单列表 baseline、effect row、handler 与错误恢复。类型、
+effect、capture 和 Region 检查也还没实现，所以这段代码目前不能一路编译到
+Wasm。
 
 ## 接下来读什么
 
 - [语法和例子](examples.md)：看函数、effect、handler 和 UI DSL。
+- [完整多态设计](../polymorphism-design.md)：看双列表、ability、row
+  constraint 和 named capability。
 - [实现设计与进度](progress.md)：看编译器已经完成什么、下一步做什么。
 - [完整设计文档](../README.md)：需要规则依据和开放问题时再读。

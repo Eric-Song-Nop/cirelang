@@ -32,13 +32,13 @@ k(answer) = answer * 10
 
 ### 2.1 Effect row
 
-**已决定**
+**已决定 effect-row 语义；双列表是尚未实现的工作语法**
 
 ```moonbit
-fn[A, B, Eff : EffectRow] map_effectful(
+fn[A, B]![..E] map_effectful(
   xs : Array[A],
-  f : (A) -> B ! Eff,
-) -> Array[B] ! Eff
+  f : (A) -> B ! E,
+) -> Array[B] ! E
 ```
 
 Effect polymorphism 让效应能够穿过高阶函数、组合器与模块抽象，而无需在每一层手写转发代码。
@@ -50,43 +50,45 @@ fn load(url : Url) -> Data
   ! {Network, Async, Error[HttpError]}
 ```
 
-这里需要区分三个 kind 和一个 term identity：
+普通参数和 effect 参数使用双列表，需要区分三个 kind、ability constraint
+和一个 term identity：
 
 ```text
-A                 : Type
-Fx                : Effect
-Eff               : EffectRow
-app : Fx          : capability term
+A                       : Type
+F                       : Effect
+E                       : EffectRow
+Reader[A]               : Effect -> Constraint
+app : cap F             : capability term
 ```
 
 - `A` 是普通参数多态；
-- `Fx : Effect` 代表一个完整的原子 effect，例如 `Network` 或
-  `Read[Int]`；
-- `Eff : EffectRow` 代表零个或多个 effect/capability row item；
+- `![F]` 代表一个完整的原子 effect；
+- `![F : Reader[A]]` 进一步提供可调用 operation 的 ability evidence；
+- `![..E]` 代表零个或多个 effect/capability row item；
 - `app` 是一等 term，同时具有不可伪造的 singleton identity。
 
-`! Eff` 表示结果恰好携带 `Eff`，`! {Fx, app, ..Eff}` 表示在 `Eff`
+`! E` 表示结果恰好携带 `E`，`! {F, app, ..E}` 表示在 `E`
 上增加一个原子 effect 和一个具名 capability。
 
-`Fx` 在 row 中表示匿名 effect demand；`app : Fx` 则允许同一个函数对
+`F` 在 row 中表示匿名 effect demand；`app : cap F` 允许同一个函数对
 capability 所属 family 和具体 identity 同时多态：
 
 ```moonbit
-fn[A, Fx : Effect, Eff : EffectRow] relay(
-  app : Fx,
-  body : () -> A ! {app, ..Eff},
-) -> A ! {app, ..Eff} {
+fn[A]![F : Reader[A], ..E] relay(
+  app : cap F,
+  body : () -> A ! {app, ..E},
+) -> A ! {app, ..E} {
   body()
 }
 ```
 
-源码把 `Fx` 直接用作 capability value 的 type，不额外书写
-`Capability[Fx]`。当 `Fx` 完全抽象时，函数可以转交或处理该 capability；
-调用具体 operation 仍需要已知 effect signature 或相应约束。
+`cap F` 明确表示 named capability value；它在 Core 中携带 family、
+singleton identity、Region 和 origin。`Reader[A]` ability 让泛型代码既能
+使用匿名 `F::read()`，也能使用具名 `app.read()`。
 
 `effect Read[A]` 中的 `[A]` 只是普通类型参数，它建立
 `Read : Type -> Effect`；operation 的 `[A]` 也只是普通参数多态。它们都
-不能替代 `Fx : Effect` 或 `Eff : EffectRow`。
+不能替代 `![F]`、`![F : Reader[A]]` 或 `![..E]`。
 
 Polymorphic operation 的 handler clause 不重新声明同名 `[A]`。Typechecker
 从 operation signature 打开 fresh type skolem，再检查 clause、结果和
@@ -95,7 +97,7 @@ continuation；这样 `abort[A] raise(...) -> A` 不会因为 handler 实现而�
 
 ### 2.2 具名 capability 与 identity polymorphism
 
-**已决定**
+**已决定 identity 语义与 `{app}` row 写法；`cap F` 仍是工作关键词**
 
 种类相同的 effect 可以有多个具体实例：
 
@@ -107,15 +109,16 @@ Read[preview]   // 只用于诊断展开
 源程序不写上面的诊断形式，而是直接绑定并使用 capability term：
 
 ```moonbit
-fn[A, Eff : EffectRow] use_reader(
-  app : Read[A],
-  body : () -> A ! {app, ..Eff},
-) -> A ! {app, ..Eff} {
+fn[A]![F : Reader[A], ..E] use_reader(
+  app : cap F,
+  body : () -> A ! {app, ..E},
+) -> A ! {app, ..E} {
   body()
 }
 ```
 
-这个函数既对普通类型 `A` 和额外 row `Eff` 多态，也对参数 `app` 所代表的
+这个函数既对普通类型 `A`、family `F` 和额外 row `E` 多态，也对参数
+`app` 所代表的
 具体 identity 多态。后者不是普通类型参数：每次调用可以传入不同实例，
 但函数体中的 `{app}` 精确引用本次 value binder。
 
@@ -123,10 +126,14 @@ fn[A, Eff : EffectRow] use_reader(
 fresh handler action 则由编译器按 rank-2 generativity 检查。源语言第一版
 不引入 `[app : Read[A]]` 或显式 `forall app`。
 
-`Eff : EffectRow` 本身也能实例化为包含 named capability 的 row。例如调用
+`..E` 本身也能实例化为包含 named capability 的 row。例如调用
 `map_effectful` 时，回调使用 `app.read()`，编译器可以推导
-`Eff = {app}`。因此 row polymorphism 不会在遇到具名实例时退化成只能列举
+`E = {app}`。因此 row polymorphism 不会在遇到具名实例时退化成只能列举
 固定 family 的系统。
+
+Ability、associated effect/row、row predicate、higher-kinded effect 与
+`fresh` quantifier 的完整工作设计见
+[多态与 effect abstraction 工作设计](polymorphism-design.md)。
 
 `app` 和 `preview` 不是可以伪造的字符串，而是 handler 创建或参数传入的
 identity。一个函数即使能够执行某种 `Write` operation，也只有拿到对应

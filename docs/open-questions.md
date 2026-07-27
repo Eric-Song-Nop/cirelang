@@ -16,11 +16,13 @@
 10. 增量计算是第一方库，最小核心为 `Source + Trace + Queue + Epoch`。
 11. 响应式 UI 是第一方框架；stable key、reconciliation 与 DOM renderer 不属于语言核心。
 12. Wasm 是编译目标，不会替代增量调度算法。
-13. 表面语法以 MoonBit 为基线；泛型统一使用方括号。未标注参数默认为
-    `Type`，原子 effect 写 `Fx : Effect`，整行 effect 写
-    `Eff : EffectRow`。
-14. Named capability identity 由普通 term binder `app : Read[A]` 或
-    `as app` 绑定，在源 row 中写 `{app}`；`Read[app]` 只允许作为诊断展开。
+13. 表面语法以 MoonBit 为基线。普通泛型写 `[...]`；effect family、
+    effect constructor 与 row 使用独立的 `![...]`。单 effect 写 `![F]`
+    或 `![F : Reader[A]]`，整行写 `![..E]`。双列表已接受为继续细化的
+    设计基线，但 parser 尚未实现。
+14. Named capability identity 由普通 term binder 或 `as app` 绑定，在源
+    row 中写 `{app}`；`Read[app]` 只允许作为诊断展开。Capability type
+    当前工作写法为 `app : cap F`，`cap` 关键词仍可调整。
 15. `once`/`ctl` clause 使用 `as k`，处置写成 `k.resume(value)`、`k.discontinue(error)`、`k.finalize()`。
 16. Handler 是接收 computation thunk 的值；Koka 风格 `with` 是 handler application 的语法糖。
 17. Effect visibility 镜像 trait：`effect`、`pub effect`、`pub(open) effect`。
@@ -29,6 +31,10 @@
 20. Capture safety 要么以一致的核心规则整体实现，要么整体延后，不能只补少数特例后默认其余程序安全。
 21. Parser 使用手写 PEG，不维护 EBNF 或依赖 parser generator。
 22. Compiler interface 从 parser 阶段起以可序列化 diagnostic/artifact、immutable snapshot、增量 query 与 LSP 直接复用为约束。
+23. Effect abstraction 分为 ability、具体 effect family 与 named
+    capability identity；匿名 `{F}` 与具名 `{app}` 共享 ability evidence。
+24. Effect row constraint 使用独立 row predicate/solver，不把整行 effect
+    伪装成拥有 operation 的普通 trait。
 
 ## 2. 表面语法
 
@@ -60,10 +66,16 @@
 - shallow handler 是否提供；
 - local let-polymorphism 在 `ctl`、mutation、capture 和 Region 下的
   generalization/value-restriction 规则；
-- 用户是否需要显式 higher-rank type，以及是否开放
-  `F : Type -> Effect` 形式的 higher-kinded effect parameter；
-- 显式 generic call 中 row argument 的最终写法；当前工作形式为
-  `f[Int, {Network, app}](...)`。
+- `ability`、`cap`、associated `effect`/`effects` 是否为最终关键词；
+- 用户是否需要普通显式 higher-rank type；named handler 的生成式 action
+  当前设计方向为 `fresh(app : cap F) -> ...`；
+- higher-kinded effect constructor binder `![F[_] : Reader[_]]` 的精确
+  量化与诊断；
+- row union 的 `|`、row predicate `Has`/`Lacks`/`All`/`Only` 是否冻结；
+- 多 ability 提供同名 operation 时的限定调用；
+- 独立 ability `impl` 是否进入第一阶段，以及 coherence/orphan 规则；
+- 显式 generic call 中 effect/row argument 的最终写法；当前工作形式为
+  `f[Int]![State[Int], {Network, app}](...)`。
 
 语法糖不能先于核心类型规则获得独立语义。CST 保留糖，Surface HIR 到 Kernel HIR 的 elaboration 必须可检查、可序列化并保留 source origin。
 
