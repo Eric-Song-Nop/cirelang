@@ -114,6 +114,29 @@ test "function types, named capabilities, family rows, and open tails parse" {
 }
 
 ///|
+test "generic kinds keep effect rows and capability identities distinct" {
+  let text =
+    #|fn[A, Fx : Effect, Eff : EffectRow] relay(
+    #|  app : Fx,
+    #|  body : () -> A ! {Fx, app, ..Eff},
+    #|) -> A ! {Fx, app, ..Eff} {
+    #|  body()
+    #|}
+  let snapshot = parser_test_parse(text)
+  assert_eq(snapshot.source_text(), text)
+  assert_eq(snapshot.diagnostics(), [])
+  let sexpr = snapshot.to_sexpr()
+  assert_true(sexpr.contains("(upper_identifier \"A\")"))
+  assert_true(sexpr.contains("(upper_identifier \"Fx\")"))
+  assert_true(sexpr.contains("(upper_identifier \"Effect\")"))
+  assert_true(sexpr.contains("(upper_identifier \"Eff\")"))
+  assert_true(sexpr.contains("(upper_identifier \"EffectRow\")"))
+  assert_true(sexpr.contains("(effect_family_row_item "))
+  assert_true(sexpr.contains("(named_capability_row_item "))
+  assert_true(sexpr.contains("(open_effect_row_item "))
+}
+
+///|
 test "Read capability expansion gets a targeted node and always-applicable fix" {
   let text = "fn read(app : Read[Int]) -> Int ! {Read[app]} {}"
   let snapshot = parser_test_parse(text)
