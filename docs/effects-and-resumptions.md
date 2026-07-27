@@ -50,18 +50,18 @@ fn load(url : Url) -> Data
   ! {Network, Async, Error[HttpError]}
 ```
 
-这里需要区分三个 kind、effect trait constraint 和一个 term identity：
+这里需要区分三个 kind 和一个 term identity：
 
 ```text
 A                 : Type
-Fx                : Effect, constrained by Reader[A]
+Fx                : Effect
 Eff               : EffectRow
 app : Fx          : capability term
 ```
 
 - `A` 是普通参数多态；
-- `Fx : Reader[A]` 代表一个满足 `Reader[A]` effect trait 的完整原子
-  effect；
+- `Fx : Effect` 代表一个完整的原子 effect，例如 `Network` 或
+  `Read[Int]`；
 - `Eff : EffectRow` 代表零个或多个 effect/capability row item；
 - `app` 是一等 term，同时具有不可伪造的 singleton identity。
 
@@ -72,7 +72,7 @@ app : Fx          : capability term
 capability 所属 family 和具体 identity 同时多态：
 
 ```moonbit
-fn[A, Fx : Reader[A], Eff : EffectRow] relay(
+fn[A, Fx : Effect, Eff : EffectRow] relay(
   app : Fx,
   body : () -> A ! {app, ..Eff},
 ) -> A ! {app, ..Eff} {
@@ -81,14 +81,12 @@ fn[A, Fx : Reader[A], Eff : EffectRow] relay(
 ```
 
 源码把 `Fx` 直接用作 capability value 的 type，不额外书写
-`Capability[Fx]`。`Reader[A]` constraint 同时允许 `Fx::read()` 选择匿名
-handler，以及 `app.read()` 选择具名 instance；二者共享 operation signature
-与恢复 mode 证据。
+`Capability[Fx]`。当 `Fx` 完全抽象时，函数可以转交或处理该 capability；
+调用具体 operation 仍需要已知 effect signature 或相应约束。
 
 `effect Read[A]` 中的 `[A]` 只是普通类型参数，它建立
 `Read : Type -> Effect`；operation 的 `[A]` 也只是普通参数多态。它们都
-不能替代 `Fx : Reader[A]` 或 `Eff : EffectRow`。只有 kind 的
-`Fx : Effect` 仍可用于完全抽象的转发代码，但不允许调用未知 operation。
+不能替代 `Fx : Effect` 或 `Eff : EffectRow`。
 
 Polymorphic operation 的 handler clause 不重新声明同名 `[A]`。Typechecker
 从 operation signature 打开 fresh type skolem，再检查 clause、结果和

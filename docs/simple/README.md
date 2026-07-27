@@ -10,8 +10,8 @@ Cire 是一门语法接近 MoonBit、面向 WebAssembly 的严格求值函数式
 ## 先记住五件事
 
 1. 普通声明、泛型、类型和调用尽量沿用 MoonBit 的外观。
-2. `[A]` 是普通类型多态，`[Fx : Reader[A]]` 是受 effect trait 约束的
-   单 effect 多态，`[Eff : EffectRow]` 是整行 effect 多态。
+2. `[A]` 是普通类型多态，`[Fx : Effect]` 是单个 effect 多态，
+   `[Eff : EffectRow]` 是整行 effect 多态。
 3. 具名 capability 用普通参数 `app : Read[A]` 绑定，在 effect row 中写成
    `{app}`；`Read[app]` 只会出现在诊断展开中。
 4. Effect 有 `abort`、`fun`、`once`、`ctl` 四种恢复模式。
@@ -20,13 +20,11 @@ Cire 是一门语法接近 MoonBit、面向 WebAssembly 的严格求值函数式
 ## 30 秒例子
 
 ```moonbit
-pub(open) effect trait Reader[A] {
+pub(open) effect Read[A] {
   fun read() -> A
 }
 
-pub(open) effect Read[A] : Reader[A] {}
-
-fn[A, Fx : Reader[A]] read_app(app : Fx) -> A ! {app} {
+fn read_app(app : Read[Int]) -> Int ! {app} {
   app.read()
 }
 

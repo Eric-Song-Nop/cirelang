@@ -27,7 +27,7 @@ diagnostic、resolver 和 type query。
 - ordered choice、lookahead、局部 cut、最远失败和错误恢复；
 - lossless CST、missing token、error node 和确定性 JSON/S-expression；
 - effect、operation mode、函数签名、类型和 effect row；
-- `A`、单 generic bound、`Eff : EffectRow` 与 `app : Fx` 的语法形状；
+- `A`、`Fx : Effect`、`Eff : EffectRow` 与 `app : Fx` 的语法形状；
 - `{app}` 与错误写法 `Read[app]` 的定向修复；
 - call、method、labelled argument、trailing lambda、handler 和 `with`；
 - `reparse` correctness baseline：先校验 revision/edit，再保证结果等价于完整重解析。
@@ -49,8 +49,6 @@ JavaScript 和 native target 上各有 74 项测试，全部通过。
 
 - 还不能完成名字解析、类型检查或 effect row 推导；
 - 还不能验证 generic parameter 的 `Type`/`Effect`/`EffectRow` kind；
-- 还没有检查 `Fx : Reader[A] + Writer[A]` 的 effect trait constraint、
-  associated item 或 conformance；
 - 还不能检查 capture、Region、Owner 和 continuation safety；
 - 还没有 Surface HIR、Kernel HIR 和正式的语法糖展开；
 - 还没有完整的 `let`、`if`、`match`、pattern、ADT 和运算符优先级语法；
@@ -70,8 +68,7 @@ Parser 不只是给命令行编译器使用。以后编辑器会不断发送不�
 
 1. 补齐常用表达式、声明、pattern 和优先级；
 2. 建立 typed CST view、Surface HIR 和 Kernel HIR；
-3. 实现 generic kind checking、普通/effect trait constraint、名字解析、
-   类型推导和 effect row；
+3. 实现 generic kind checking、名字解析、类型推导和 effect row；
 4. 一次性建立一致的 capture、Region、Owner 和 continuation safety 规则；
 5. 加入 query cache、reparse island、subtree reuse 和 cancellation；
 6. 让 CLI、测试和 LSP 复用同一个 compiler workspace API；
