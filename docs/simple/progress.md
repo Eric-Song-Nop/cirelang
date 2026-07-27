@@ -33,7 +33,7 @@ diagnostic、resolver 和 type query。
 - `reparse` correctness baseline：先校验 revision/edit，再保证结果等价于完整重解析。
 
 Parser 还没有发出 trace event。当前基线在 MoonBit 的 wasm、wasm-gc、
-JavaScript 和 native target 上各有 73 项测试，全部通过。
+JavaScript 和 native target 上各有 74 项测试，全部通过。
 
 ## 现在能做什么
 
