@@ -6,25 +6,28 @@
 [编译器前端架构](compiler-architecture.md)和简明进度文档为准；其他文档中的
 旧示例若与表面规范冲突，以该规范为准。
 
-第一次了解 Cire，可以先看篇幅更短的 [Cire 简明文档](simple/README.md)。
+第一次系统学习 Cire，请从分章节的
+[Cire 语言教程](tutorial/README.md)开始；只想快速了解当前方向和实现进度，
+可以看篇幅更短的 [Cire 简明文档](simple/README.md)。
 多态、effect ability 与 named capability 的新工作设计见
 [多态与 effect abstraction 工作设计](polymorphism-design.md)。该文档记录
 双泛型列表基线，也明确区分已接受方向、开放语法和尚未实现的部分。
 
 ## 建议阅读顺序
 
-1. [语言定位与特性总览](language-overview.md)
-2. [表面语法工作规范](surface-syntax.md)
-3. [多态与 effect abstraction 工作设计](polymorphism-design.md)
-4. [代数效应与恢复模式](effects-and-resumptions.md)
-5. [Named capability、Owner 与结构化清理](capabilities-and-finalization.md)
-6. [编译器前端架构](compiler-architecture.md)
-7. [第一方增量计算库](incremental-computation.md)
-8. [第一方响应式 UI 框架](reactive-ui.md)
-9. [WebAssembly 与宿主互操作](webassembly-and-host-interop.md)
-10. [Kokaine 案例研究](kokaine-case-study.md)
-11. [相关语言与设计先例](prior-art.md)
-12. [开放问题与原型验证计划](open-questions.md)
+1. [Cire 语言教程](tutorial/README.md)
+2. [语言定位与特性总览](language-overview.md)
+3. [表面语法工作规范](surface-syntax.md)
+4. [多态与 effect abstraction 工作设计](polymorphism-design.md)
+5. [代数效应与恢复模式](effects-and-resumptions.md)
+6. [Named capability、Owner 与结构化清理](capabilities-and-finalization.md)
+7. [编译器前端架构](compiler-architecture.md)
+8. [第一方增量计算库](incremental-computation.md)
+9. [第一方响应式 UI 框架](reactive-ui.md)
+10. [WebAssembly 与宿主互操作](webassembly-and-host-interop.md)
+11. [Kokaine 案例研究](kokaine-case-study.md)
+12. [相关语言与设计先例](prior-art.md)
+13. [开放问题与原型验证计划](open-questions.md)
 
 ## 结论状态
 

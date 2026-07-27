@@ -10,5 +10,7 @@ Parser 能保留原始文本、恢复错误并产生可序列化 CST；类型检
 capability capture、Owner 静态规则、Wasm 后端和 LSP 仍待实现。因此它现在
 是一个前端原型，还不是可以编译应用的完整工具链。
 
-想快速了解项目，请先读 [Cire 简明文档](docs/simple/README.md)；需要完整设计
-依据时，再看 [设计文档索引](docs/README.md)。
+想从零学习语言，请按顺序阅读
+[Cire 语言教程](docs/tutorial/README.md)；想快速了解项目，可以看
+[Cire 简明文档](docs/simple/README.md)；需要完整设计依据时，再看
+[设计文档索引](docs/README.md)。
