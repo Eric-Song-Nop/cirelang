@@ -104,7 +104,6 @@ pub(all) enum SyntaxKind {
   Visibility
   TypeParameterList
   TypeParameter
-  ConstraintList
   TypeArgumentList
   ParameterList
   Parameter
@@ -122,7 +121,6 @@ pub(all) enum SyntaxKind {
   OpenEffectRowItem
   DiagnosticEffectRowItem
   EffectDeclaration
-  EffectTraitDeclaration
   OperationDeclaration
   FunctionDeclaration
   StructDeclaration
@@ -161,7 +159,6 @@ pub fn SyntaxKind::is_node(self : SyntaxKind) -> Bool {
     | Visibility
     | TypeParameterList
     | TypeParameter
-    | ConstraintList
     | TypeArgumentList
     | ParameterList
     | Parameter
@@ -179,7 +176,6 @@ pub fn SyntaxKind::is_node(self : SyntaxKind) -> Bool {
     | OpenEffectRowItem
     | DiagnosticEffectRowItem
     | EffectDeclaration
-    | EffectTraitDeclaration
     | OperationDeclaration
     | FunctionDeclaration
     | StructDeclaration
@@ -551,7 +547,6 @@ pub fn SyntaxKind::wire_name(self : SyntaxKind) -> String {
     Visibility => "visibility"
     TypeParameterList => "type_parameter_list"
     TypeParameter => "type_parameter"
-    ConstraintList => "constraint_list"
     TypeArgumentList => "type_argument_list"
     ParameterList => "parameter_list"
     Parameter => "parameter"
@@ -569,7 +564,6 @@ pub fn SyntaxKind::wire_name(self : SyntaxKind) -> String {
     OpenEffectRowItem => "open_effect_row_item"
     DiagnosticEffectRowItem => "diagnostic_effect_row_item"
     EffectDeclaration => "effect_declaration"
-    EffectTraitDeclaration => "effect_trait_declaration"
     OperationDeclaration => "operation_declaration"
     FunctionDeclaration => "function_declaration"
     StructDeclaration => "struct_declaration"
