@@ -651,7 +651,7 @@ same CompilerSnapshot
 | P0 | baseline 完成 | revisioned source、UTF-16 span/edit、content fingerprint、validated JSON、diagnostic/fix、trace DTO | stable parse artifact adapter 与长期 schema migration test |
 | P1 | baseline 完成 | lossless lexer、invalid token、nested comment、UTF-16 range、revision-checked `relex` | token-window relex 与 Unicode identifier policy |
 | P2 | 部分完成 | handwritten PEG cursor、ordered choice/probe、rule-local cut、farthest failure、context stack、transactional recovery、forward-parent marker | selective memo cache、cancellation polling、parser trace emission |
-| P3 | 部分完成 | `effect`/operation、`fn` signature、type parameter/argument、function type、effect row、`{app}`、`..Eff`、`Read[app]` 定向修复；`A`/`Fx : Effect`/`Eff : EffectRow` 可保留为 CST | generic kind validation、显式 row generic argument/call、`struct`/`enum`/`trait`/`impl`、module/import 与完整 constraint grammar |
+| P3 | 部分完成 | `effect`/operation、`fn` signature、单 generic bound、type argument、function type、effect row、`{app}`、`..Eff`、`Read[app]` 定向修复 | `effect trait`、`+` 多约束、associated item、generic kind/constraint validation、显式 row generic argument/call、`struct`/`enum`/普通 `trait`/`impl`、module/import 与完整 constraint grammar |
 | P4 | 部分完成 | name/literal/block、call/method、labelled argument、trailing lambda、handler、`with`、`as k` mode diagnostics | fixed precedence、`let`、`if`/`match`、完整 pattern、index/tuple/record/array expression |
 | P5 | 未开始 | CST 已保留 sugar boundary | typed CST、Surface/Kernel HIR 与 origin-preserving elaboration |
 | P6 | baseline 开始 | immutable `ParseSnapshot`、single-edit `reparse`、full-parse equivalence test | workspace/source DB、batch edit、reparse island、subtree reuse、LSP adapter |
@@ -673,6 +673,11 @@ GenericParam =
   EffectParam(EffectParamId)
   RowParam(RowParamId)
 
+ConstraintEvidence =
+  TypeTrait(TypeTraitId, arguments)
+  EffectTrait(EffectTraitId, arguments)
+  AssociatedEquality(projection, value)
+
 CapabilityBinder {
   id : CapabilityId
   family : EffectAtom
@@ -684,7 +689,11 @@ CapabilityBinder {
 其中：
 
 - 未标注 generic binder 默认为 `TypeParam`；
-- `Fx : Effect` 产生 `EffectParamId`；
+- `Fx : Reader[A] + Writer[A]` 解析到 effect trait 后产生
+  `EffectParamId`，并保存可供 operation resolution 使用的
+  `EffectTrait` evidence；
+- `Fx : Effect` 仍产生没有 operation evidence 的 `EffectParamId`，只允许
+  完全抽象的转发；
 - `Eff : EffectRow` 产生 `RowParamId`；
 - `app : Fx` 或 `as app` 是 term binder，产生 `CapabilityId`，不能复用
   generic parameter ID；
@@ -716,10 +725,13 @@ hover 中始终有不同 tag。`Read[app]` 可以由
 Kind checking 必须早于 effect-row unification：
 
 1. 解析 generic binder 与 scope；
-2. 检查 `Type`、`Effect`、`EffectRow` 的使用位置；
-3. 为 capability term 建立稳定 identity 与 family；
-4. 再做 row normalization/unification 和 handler elimination；
-5. 最后把 fixed capability capture 交给统一的 capture/Region checker。
+2. resolve constraint name，区分普通 trait、effect trait 与 compiler-known
+   `Type`/`Effect`/`EffectRow`；
+3. 检查 binder、supertrait、associated item 与 equality 的 kind；
+4. 为 capability term 建立稳定 identity、family 与 effect trait evidence；
+5. 做 operation resolution、row normalization/unification 和 handler
+   elimination；
+6. 最后把 fixed capability capture 交给统一的 capture/Region checker。
 
 Generalization 也按类别分开：
 
@@ -735,13 +747,15 @@ scope/origin；LSP hover 可以显示：
 
 ```text
 A   : Type
-Fx  : Effect
+Fx  : Effect; constraints = Reader[A] + Writer[A]
 Eff : EffectRow
-app : Fx capability
+app : Fx capability; identity = app
 ```
 
-当前 parser 已能无损保留这些 binder 和 row shape，但 generic kind
-validation、typed row、generalization 与显式 row generic argument 尚未实现。
+当前 parser 已能无损保留单 bound binder 和 row shape，但 `effect trait`、
+多 constraint、generic kind/constraint validation、typed row、
+generalization 与显式 row generic argument 尚未实现。完整设计见
+[多态设计](polymorphism.md)。
 
 ### P0：Serialization shell
 

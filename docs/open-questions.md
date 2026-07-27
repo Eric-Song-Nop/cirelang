@@ -17,8 +17,10 @@
 11. 响应式 UI 是第一方框架；stable key、reconciliation 与 DOM renderer 不属于语言核心。
 12. Wasm 是编译目标，不会替代增量调度算法。
 13. 表面语法以 MoonBit 为基线；泛型统一使用方括号。未标注参数默认为
-    `Type`，原子 effect 写 `Fx : Effect`，整行 effect 写
-    `Eff : EffectRow`。
+    `Type`，有 operation 的原子 effect 多态写
+    `Fx : Reader[A] + Writer[A]` 这类 effect trait constraint，整行
+    effect 写 `Eff : EffectRow`。`Fx : Effect` 只保留给不调用 operation
+    的完全抽象转发。
 14. Named capability identity 由普通 term binder `app : Read[A]` 或
     `as app` 绑定，在源 row 中写 `{app}`；`Read[app]` 只允许作为诊断展开。
 15. `once`/`ctl` clause 使用 `as k`，处置写成 `k.resume(value)`、`k.discontinue(error)`、`k.finalize()`。
@@ -29,6 +31,10 @@
 20. Capture safety 要么以一致的核心规则整体实现，要么整体延后，不能只补少数特例后默认其余程序安全。
 21. Parser 使用手写 PEG，不维护 EBNF 或依赖 parser generator。
 22. Compiler interface 从 parser 阶段起以可序列化 diagnostic/artifact、immutable snapshot、增量 query 与 LSP 直接复用为约束。
+23. `effect trait` 与普通 trait 同样支持 supertrait、多约束和关联项；
+    同一份 constraint evidence 同时约束匿名 `{Fx}` 与具名 `{app}`。
+24. `EffectRow` 的 contains/lacks/union/difference 属于 row algebra，不把
+    整行伪装成有 operation method 的普通 trait。
 
 ## 2. 表面语法
 
@@ -62,6 +68,11 @@
   generalization/value-restriction 规则；
 - 用户是否需要显式 higher-rank type，以及是否开放
   `F : Type -> Effect` 形式的 higher-kinded effect parameter；
+- effect trait conformance 是否开放独立 `impl`，以及对应 orphan/coherence
+  与 operation adapter 规则；
+- associated item equality、row `includes/excludes` 和 effect formula 的
+  最终表面拼写；
+- 多 effect trait 提供同名 operation 时的限定调用写法；
 - 显式 generic call 中 row argument 的最终写法；当前工作形式为
   `f[Int, {Network, app}](...)`。
 

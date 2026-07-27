@@ -85,19 +85,20 @@ polymorphism 防止 fresh name 逃逸。
 Cire 采用相同的分层动机，但使用 MoonBit 风格的表面写法：
 
 ```moonbit
-fn[A, Fx : Effect, Eff : EffectRow] relay(
+fn[A, Fx : Reader[A], Eff : EffectRow] relay(
   app : Fx,
   body : () -> A ! {app, ..Eff},
 ) -> A ! {app, ..Eff}
 ```
 
 - `A` 是普通类型参数；
-- `Fx` 是原子 effect 参数；
+- `Fx` 是受 `Reader[A]` effect trait 约束的原子 effect 参数；
 - `Eff` 是 row 参数；
 - `app` 是普通 term binder，同时携带具体 handler identity。
 
-这样 named capability polymorphism 不需要伪装成普通 type argument，也不需要
-把 capability name 降成字符串 label。
+这样匿名 effect 与 named capability 共享 trait 级 operation contract，
+同时 named capability polymorphism 不需要把 capability name 降成字符串
+label。只有 `Fx : Effect` 的旧形式仍能表示 kind，但不能提供 operation。
 
 参考：
 
