@@ -57,6 +57,24 @@ fn Parser::visibility_follower(self : Parser) -> @syntax.SyntaxKind? {
 }
 
 ///|
+fn Parser::is_effect_trait_start(self : Parser) -> Bool {
+  if self.at(KwEffect) {
+    self.significant_kind_at(1) == Some(KwTrait)
+  } else if self.at(KwPub) &&
+    self.significant_kind_at(1) == Some(LParen) &&
+    self.significant_kind_at(2) == Some(KwOpen) &&
+    self.significant_kind_at(3) == Some(RParen) {
+    self.significant_kind_at(4) == Some(KwEffect) &&
+    self.significant_kind_at(5) == Some(KwTrait)
+  } else if self.at(KwPub) {
+    self.significant_kind_at(1) == Some(KwEffect) &&
+    self.significant_kind_at(2) == Some(KwTrait)
+  } else {
+    false
+  }
+}
+
+///|
 fn Parser::span(self : Parser, range : @source.TextRange) -> @source.Span {
   @source.Span::new(self.token_snapshot().source(), range)
 }
@@ -171,6 +189,17 @@ fn Parser::parse_visibility(self : Parser) -> Unit {
 }
 
 ///|
+fn Parser::parse_constraint_list(self : Parser) -> Bool {
+  self.start_node(ConstraintList)
+  let mut matched = self.parse_type_reference()
+  while self.eat(Plus) {
+    matched = self.parse_type_reference() && matched
+  }
+  self.finish_node()
+  matched
+}
+
+///|
 fn Parser::parse_type_parameter_list(self : Parser) -> Unit {
   guard self.at(LBracket) else { return }
   self.start_node(TypeParameterList)
@@ -180,7 +209,7 @@ fn Parser::parse_type_parameter_list(self : Parser) -> Unit {
     self.start_node(TypeParameter)
     let has_name = self.parse_name("a type parameter")
     let has_bound = if self.eat(Colon) {
-      self.parse_type_reference()
+      self.parse_constraint_list()
     } else {
       true
     }
@@ -506,18 +535,39 @@ fn Parser::parse_operation_declaration(self : Parser) -> Bool {
 
 ///|
 fn Parser::parse_effect_declaration(self : Parser) -> Bool {
+  let is_trait = self.is_effect_trait_start()
   let entered = self.enter_rule(
-    RuleId::new("effect_declaration"),
+    if is_trait {
+      RuleId::new("effect_trait_declaration")
+    } else {
+      RuleId::new("effect_declaration")
+    },
     StopBeforeTrailingBlock,
-    "effect declaration",
+    if is_trait {
+      "effect trait declaration"
+    } else {
+      "effect declaration"
+    },
   )
   guard entered else { return false }
-  self.start_node(EffectDeclaration)
+  self.start_node(
+    if is_trait {
+      EffectTraitDeclaration
+    } else {
+      EffectDeclaration
+    },
+  )
   self.parse_visibility()
   ignore(self.expect_or_missing(KwEffect, "`effect`"))
   self.cut()
+  if is_trait {
+    ignore(self.expect_or_missing(KwTrait, "`trait`"))
+  }
   ignore(self.parse_name("an effect name"))
   self.parse_type_parameter_list()
+  if self.eat(Colon) {
+    ignore(self.parse_constraint_list())
+  }
   ignore(self.expect_or_missing(LBrace, "`{`"))
   while !self.at(RBrace) && !self.at(Eof) {
     let mark = self.progress_mark()

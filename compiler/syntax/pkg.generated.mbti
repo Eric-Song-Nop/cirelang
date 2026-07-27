@@ -178,6 +178,7 @@ pub(all) enum SyntaxKind {
   Visibility
   TypeParameterList
   TypeParameter
+  ConstraintList
   TypeArgumentList
   ParameterList
   Parameter
@@ -195,6 +196,7 @@ pub(all) enum SyntaxKind {
   OpenEffectRowItem
   DiagnosticEffectRowItem
   EffectDeclaration
+  EffectTraitDeclaration
   OperationDeclaration
   FunctionDeclaration
   StructDeclaration
