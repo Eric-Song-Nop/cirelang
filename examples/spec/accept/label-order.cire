@@ -1,6 +1,7 @@
 // profile: Cire-TR₀/2026-07-31
 // expect: accept
 // rule: labelled arguments follow positional arguments and evaluate in source order
+// oracle: type=View; row={}; labels={enabled,gap}; eval=make_title,is_enabled,measure_gap
 
 def panel(title : String, gap~ : Int, enabled~ : Bool) -> View {
   Column(gap~) {

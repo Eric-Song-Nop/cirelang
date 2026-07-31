@@ -61,7 +61,10 @@ def[A, B] map(
 | 结构化退出动作 | `defer cleanup()` |
 
 纯函数省略 effect row。无参数具名函数写 `def name() { ... }`；匿名函数值写
-`fn() { ... }`，不会引入单独的 procedure 语法。
+`fn() { ... }`。Lambda parameter 使用独立 grammar，既可推导
+`fn(value) { ... }`，也可显式写 `fn(value : Int) { ... }`；它不复用要求
+类型 annotation 的 declaration `ParamList`，也不会引入单独的 procedure
+语法。
 
 ## 3. Effect 声明
 
@@ -868,6 +871,10 @@ def user_pane(user : Source[User]) -> View ! {Observe} {
 - row literal 最多一个 open tail，`..S::Extra` 是合法 projection，多 row 用
   `! (E1 | E2)`；
 - labelled argument 必须在 positional argument 后，且一律按源码顺序求值；
+- argument 起点的 `name=` / `name~` 先识别为 label，不会被 assignment
+  expression吞掉；positional assignment 必须写成 `(slot = value)`；
+- anonymous `fn` 使用可推导/可标注的 lambda parameter grammar，不复用
+  具名声明的 typed `ParamList`；
 - `factory() { ... }` 给当前 call 追加 lambda，不调用返回值；
 - 换行只是 trivia；block 由 maximal expression boundary 分项，最后一个未加
   `;` 的表达式才是结果；

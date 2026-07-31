@@ -1,6 +1,7 @@
 // profile: Cire-TR₀/2026-07-31
 // expect: reject
 // rule: T-Park — Transfers(ParkContract) has no expression result
+// oracle: reject_at=let-binding; diagnostic=terminal-transfer-has-no-value; flow=Transfers(ParkContract)
 
 effect Async {
   once[A] await(task : Task[A]) -> A may_suspend

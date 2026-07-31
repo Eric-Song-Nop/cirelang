@@ -8,12 +8,15 @@
 profile
 expect
 rule
+oracle
 ```
 
 `accept` 表示存在符合 profile 的静态推导；`reject` 表示必须由指定 rule
-拒绝。未来测试 harness 应另外保存 resolved identity graph、normalized Core、
-type、row、world、capture、usage 和 Owner evidence，不得只检查 parser 是否
-接受。
+拒绝。`oracle` 是首版 machine-readable semantic expectation：accept case
+至少记录 type/row，并按构造记录 world、demand route、capture、usage 或
+Owner evidence；reject case记录稳定 diagnostic id 与拒绝位置。未来 harness
+应把它扩展成 resolved identity graph、normalized Core 与完整 evidence
+artifact，不得只检查 parser 是否接受。
 
 | Case | 结论 | 核心义务 |
 |---|---|---|
@@ -32,6 +35,11 @@ type、row、world、capture、usage 和 Owner evidence，不得只检查 parser
 | `reject/early-advance.cire` | reject | `T-Advance` 需要对应 clock lock |
 | `reject/abort-resumes-next.cire` | reject | abort operation 没有 successful resumption |
 | `reject/park-is-not-unit.cire` | reject | T-Park 不产生 `Unit` 或普通 expression result |
+
+`interfaces/q-lambda-call-install.json` 是跨模块
+`FunctionContractV1` oracle：call只能 discharge `stage=Call` 的 obligation，
+而 `HandlerInstall` obligation和 latent site必须保留到 fresh prompt存在的
+installation。
 
 这些 case 是首批 corpus。完整规则来源：
 

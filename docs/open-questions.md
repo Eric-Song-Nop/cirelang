@@ -97,63 +97,55 @@
 
 语法糖不能先于核心类型规则获得独立语义。CST 保留糖，Surface HIR 到 Kernel HIR 的 elaboration 必须可检查、可序列化并保留 source origin。
 
-### 2.1 Parser 推进前后还要冻结的普通语法
+### 2.1 `TR₀` 已冻结的普通语法边界
 
-以下问题不改变 effect 核心，但会直接影响 lexer、错误恢复、formatter 与
-LSP。首个 parser slice 不应偷偷替整个语言作出不可逆决定：
+[完整表面语法](surface-grammar.md)已经冻结实现入口所需的普通语法：
 
-1. **标识符**：第一版 scanner 可以只接受 ASCII lower/upper identifier，
-   但最终要决定 Unicode XID、关键字转义和 package name 的规则。暂时遇到
-   非 ASCII identifier 应产生可恢复 diagnostic，不能静默按 ASCII 截断。
-2. **换行与分隔符**：newline 先作为 lossless trivia 和 recovery boundary，
-   不承担自动插入分号的语义。仍需冻结 block 中 declaration、statement、
-   final expression 以及连续 expression 的分隔规则。
-3. **labelled argument**：需要在 `key=value`、label punning、可选参数和
-   默认值之间给出完整且无歧义的 call/parameter grammar。
-4. **括号与 tuple**：`()`、`(x)`、`(x,)`、多元素 tuple，以及 function type
-   参数 tuple 的关系需要一次性定清。
-5. **operator**：先使用固定 precedence/associativity 表；是否允许
-   user-defined operator、pipe operator 与 assignment expression 仍开放。
-   首版不引入会改变 parser grammar 的 operator declaration。
-6. **literal**：numeric suffix、raw/multiline string、interpolation、byte
-   literal 与 escape validation 需要独立 lexical spec。
-7. **pattern**：constructor、record、array、or-pattern、guard、typed pattern
-   和 rest pattern 的优先级尚未形成完整 PEG。
-8. **item/module syntax**：import、package alias、attribute/doc comment、
-   generic constraint 与 `where` 风格约束仍需和 MoonBit 基线逐项对齐。
-9. **handler body**：`return` clause 是否必须最后、clause 间如何分隔，
-   parser 可以先宽松保留 CST，再由 syntax validation 给定向错误。
+1. identifier 使用 Unicode XID，keyword 采用 identifier boundary；
+2. newline 是 trivia，不做 semicolon insertion；block 的 item/result 规则
+   与 maximal-expression 边界已经给出；
+3. labelled parameter、label punning、默认值和 positional-before-labelled
+   call grammar 已无歧义；
+4. `()`、group、tuple、function parameter tuple 各有独立规则；
+5. precedence/associativity 固定，`TR₀` 不允许 user-defined operator；
+6. 十/十六/八/二进制数字、float、char、string 与 escape 已有 lexical
+   baseline；
+7. constructor、record、array、or/alias/rest pattern 与 match guard 已有
+   完整 PEG；
+8. handler member、separator、continuation binder 和 synthesized return
+   已有 grammar/elaboration。
 
-这些项目进入实现时应分别有 valid、malformed、lossless、UTF-16 range 和
+仍开放的是不属于本 profile 的**新增构造**，例如 numeric suffix、
+raw/multiline string、interpolation、byte literal、source-level import/
+package alias、attribute/doc comment 与额外 constraint sugar。未来加入它们
+必须发布新 profile，不能让 parser 自行扩张 `TR₀`。
+
+实现仍应为已冻结规则建立 valid、malformed、lossless、UTF-16 range 和
 recovery fixture；“MoonBit-like”不能替代 Cire 自己的可测试规范。
 
 ## 3. 恢复模式与类型系统
 
 ### 3.1 Operation 最大模式与实际 handler
 
-operation 声明给出最大控制能力，handler 可以采用更弱 clause。需要决定 multi-shot capture safety 按什么检查：
+`TR₀` 已选择 **declared-max**：operation 声明给出最大控制能力，handler
+可以采用更弱 clause，但 capture/replay safety 始终按声明的最大 mode
+检查。因而一个声明为 `ctl`、当前由 `fun` clause 处理的 operation，仍不能
+捕获不满足 multi-shot replay 的环境。
 
-- 按 operation 声明的最大模式；
-- 按词法上已知 handler 的实际模式；
-- 通过 effect polymorphism 携带 handler mode constraint；
-- 默认保守，允许局部 specialization。
-
-这直接影响一个声明为 `ctl`、但当前由 `fun` handler 处理的 operation 是否能出现在捕获 affine capability 的后缀之前。
-
-**实现门槛**
-
-在这一问题与 capture/replay 规则形成一致 Core 前，不启用“部分安全”的
-capture checker。编译器可以暂时不支持相关程序，但不能接受程序后只对
-`once` 或 UI API 做 ad-hoc 检查。
+词法 handler specialization、携带 handler-mode constraint 的 effect
+polymorphism 都只能作为未来 profile 扩展；它们必须证明与 declared-max
+结果兼容，不能成为第一版 checker 的隐式优化。
 
 ### 3.2 `fun` 的尾位置
 
-需要形式化：
+`TR₀` 的 `fun` clause elaboration 在整个 clause body 的唯一 normal exit
+插入隐藏 tail `resume`；嵌套 handler 不改变这个 clause boundary，cleanup
+在 resume/finalize flow 中显式保存。声明为 `fun` 的 operation 只由 `fun`
+clause 处理；`abort` 与 `fun` 在 mode refinement 中不可比较，也不能提升为
+`once`/`ctl`。
 
-- tail position 相对于 clause 的哪一层；
-- `try/finally`、handler nesting 与 tail resume 如何交互；
-- effectful clause body 能否被优化成普通调用；
-- `fun` operation 的 handler 是否只允许 `fun` clause。
+仍开放的只有不改变语义的优化，例如在证明 world、cleanup 与 secondary
+summary 等价后把 effectful tail resume 降成普通调用。
 
 ### 3.3 `once` 的闭包传播
 

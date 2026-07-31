@@ -431,7 +431,9 @@ write(file, choice)
 - 捕获显式可共享、并发语义明确的 capability；
 - 对已知采用更弱 clause 的 handler 做安全的词法专门化。
 
-最后一项涉及“按 operation 声明的最大模式检查，还是按词法已知 handler 的实际模式检查”，目前仍是开放的类型系统问题。
+`TR₀` 采用 declared-max：即使词法上已知当前 handler 使用更弱 clause，
+capture/replay safety 仍按 operation 声明的最大 mode 检查。词法
+specialization 只能在未来 profile 中作为带证明的优化加入。
 
 ## 8. 多次恢复与局部可变状态
 

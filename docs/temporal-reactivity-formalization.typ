@@ -111,7 +111,7 @@
 - `Source`、`Live`、`Event`、`Signal`、`Task`、`Resource` 的第一方契约；
 - fixed-Epoch、continuation cut、candidate replacement 与 Commit gate；
 - 一个结构递归、双向、算法化的 type checker；
-- 与 canonical surface grammar 兼容的 token-oriented PEG fragment。
+- 以 profile id导入 canonical surface grammar 的 elaboration boundary。
 
 == 非目标
 
@@ -473,153 +473,31 @@ lookahead还丢弃内部 expectation。
 
 = Canonical surface fragment 与 temporal delta
 
-== Calculus 使用的普通语法 fragment
+== Calculus 使用的 canonical grammar import
 
-下面是从 `surface-grammar.md` 抽出的 calculus fragment。它不是第二份完整
-grammar；普通 declaration、pattern、precedence、label 和 block 规则一律以
-该文档为准。
+本 calculus 不复制第二份 PEG。它按 profile id
+`Cire-TR₀/2026-07-31` 导入 `surface-grammar.md` 的 token/rule table，并只对
+下列 canonical rule产生的 CST node定义 elaboration：
 
-```peg
-File          <- Declaration* EOF
-Declaration   <- AbilityDecl / EffectDecl / FunctionDecl
-
-Visibility    <- PUB (LPAREN OPEN RPAREN)?
-Mode          <- ABORT / ONCE / FUN / CTL
-Name          <- Identifier / LowerIdent / UpperIdent / UNDERSCORE
-LowerName     <- LowerIdent / Identifier
-
-GenericClauses <- TypeParams? EffectParams?
-TypeParams    <- LBRACKET
-                 (TypeParam (COMMA TypeParam)* COMMA?)?
-                 RBRACKET
-TypeParam     <- Name (COLON Type)?
-EffectParams  <- BANG LBRACKET
-                 (EffectParam (COMMA EffectParam)* COMMA?)?
-                 RBRACKET
-EffectParam   <- DOTDOT UpperIdent / UpperIdent TypeArgs?
-
-TypeArgs      <- LBRACKET
-                 (Type (COMMA Type)* COMMA?)?
-                 RBRACKET
-
-QualifiedName <- AT Name (DOT Name)*
-               / Name (COLONCOLON Name)*
-
-Type          <- FunctionType
-               / QualifiedName TypeArgs?
-
-FunctionType  <- LPAREN
-                 (Type (COMMA Type)* COMMA?)?
-                 RPAREN ARROW Type EffectAnnotation?
-
-EffectAnnotation <- BANG (EffectRow / Type)
-EffectRow        <- LBRACE
-                    (RowItem (COMMA RowItem)* COMMA?)?
-                    RBRACE
-RowItem          <- DOTDOT Type / LowerIdent / FamilyType
-FamilyType       <- QualifiedName TypeArgs?
-
-OperationDecl <- Mode GenericClauses? Name ParamList
-                 ARROW Type EffectAnnotation? SEMICOLON?
-
-AbilityDecl   <- Visibility? ABILITY Name TypeParams?
-                 LBRACE OperationDecl* RBRACE
-EffectDecl    <- Visibility? EFFECT Name TypeParams? EffectConformance?
-                 LBRACE OperationDecl* RBRACE
-
-FunctionDecl  <- Visibility? DEF GenericClauses? Name ParamList
-                 ARROW Type EffectAnnotation? Block
-
-Expr[allow]   <- Primary PostfixSuffix[allow]*
-PostfixSuffix[allow]
-              <- DOT Name
-               / ArgList TrailingLambda?
-               / TrailingLambda
-
-Primary       <- WithChain / HandlerExpr / Literal / NameExpr
-               / LPAREN Expr[allow] RPAREN / Block
-
-HandlerExpr   <- HANDLER Type LBRACE HandlerMember* RBRACE
-HandlerMember <- ReturnClause / HandlerClause
-HandlerClause <- Mode LowerName ClausePatterns
-                 ContinuationBinder? FAT_ARROW Expr[allow] SEMICOLON?
-ReturnClause  <- RETURN ClausePatterns FAT_ARROW Expr[allow] SEMICOLON?
-
-WithChain     <- WithEntry+ IN Expr[allow]
-WithEntry     <- WITH Expr[with_operand] (AS LowerName)?
+```text
+Declaration, GenericClauses, Type, RowExpr, FunctionDecl, OperationDecl,
+LambdaExpr, CallArguments, HandlerExpr, HandlerClause, ReturnClause,
+WithExpr, DelayExpr, Block
 ```
 
-`allow` / `with_operand` 控制 trailing block 与 chain terminator；上述
-skeleton省略 rule-local `CUT`，所以只比较成功语言，不比较错误恢复边界。
+因此 `GenericClauses` 的非空分支、`fn(value)` 的 inferred
+`LambdaParameter`、label-first lookahead、`RowUnion` 和 single-final-tail
+约束都由同一 canonical grammar裁决。形式化中的
+`SurfaceTR0(profile,node)` premise表示 node必须来自该 rule table；本文
+没有第二个 recognizer，也没有“只比较成功语言”的兼容后门。
 
 == 目标 temporal surface
 
-`delay`、`resumes`、`next` 与 `may_suspend` 采用 contextual terminal：
-
-```peg
-DELAY       := LowerIdent[text = "delay"]
-CAP         := LowerIdent[text = "cap"]
-RESUMES     := LowerIdent[text = "resumes"]
-NEXT_WORLD  := LowerIdent[text = "next"]
-MAY_SUSPEND := LowerIdent[text = "may_suspend"]
-NEXT_TYPE   := UpperIdent[text = "Next"]
-```
-
-目标 delta：
-
-```peg
-OperationDecl <-
-  Mode GenericClauses? Name ParamList
-  ARROW Type EffectAnnotation?
-  OperationContractItem*
-  SEMICOLON?
-
-OperationContractItem <-
-    RESUMES NEXT_WORLD
-  / MAY_SUSPEND
-
-Type <-
-    CapabilityType
-  / FunctionType
-  / QualifiedName TypeArgs?
-
-CapabilityType <-
-  CAP CUT Type
-
-Primary <-
-    DelayExpr
-  / WithChain
-  / HandlerExpr
-  / Literal
-  / NameExpr
-  / LPAREN Expr[allow] RPAREN
-  / Block
-
-TemporalDelayTail <-
-  LBRACKET CapabilityIdent RBRACKET &LBRACE
-
-DelayExpr <-
-  DELAY &TemporalDelayTail CUT
-  LBRACKET CapabilityIdent RBRACKET Block
-
-CapabilityIdent <- LowerIdent
-
-WithChain <- WithEntry+ IN Expr[allow]
-WithEntry <- WITH WithOperand (AS LowerName)?
-WithOperand <- Expr[with_operand]
-```
-
-`with_operand` 允许 operand自己的 trailing lambda，但在 chain level的
-`WITH`、`AS`、`IN` 前停止，并排除未加括号的顶层 `WithChain`。因此普通
-scoped transformer 与 effect handler共享 chain shape，而不会把 inner
-operand提前求值。
-
-`delay` 只有在完整看到 `[CapabilityIdent]` 后紧跟 block时才进入 dedicated
-branch并 `CUT`；`delay[Int](x)` 不会被 temporal branch提交，而按 canonical
-generic-call grammar处理。`delay[name] { ... }` 这一完整形状在本 profile中
-保留给 temporal form；
-若用户确实要调用同形普通函数，必须加括号或改名。把 `delay` 整词升为 keyword
-仍是更强、目前未采用的选择。
+`CAP`、`RESUMES`、`NEXT` 与 `MAY_SUSPEND` 是 canonical keyword token，
+不是 contextual `LowerIdent`。`delay`、`advance` 与 `Next` 保持 canonical
+grammar规定的 sealed prelude name：resolver只有在完整 intrinsic
+shape/evidence成立时才产生 `DelayExpr`、`advance` Kernel node 与 hidden
+`Next[i,A,L]` contract。这个 resolver delta不修改 token language。
 
 `advance(e)` 保持普通 call grammar。Resolver 只在 callee 绑定到 sealed
 prelude intrinsic 时降为 Core `advance`；同名用户函数仍是普通函数。
@@ -629,7 +507,7 @@ Kind/lowering 阶段只对 sealed `Next` constructor 把首个 lower-name argume
 重分类为 capability identity；这不是一般 dependent type。
 
 `cap FrameClock` 是 target capability binder/type marker；在 parameter位置
-lowering 会创建 restricted singleton identity quantifier。`NEXT_TYPE` 只供
+lowering 会创建 restricted singleton identity quantifier。`Next` 只供
 resolver识别 sealed constructor，不另建 parser branch。
 
 == Profile boundary
@@ -700,7 +578,7 @@ $
     | "CompletionPort"[rho,R]
     | "CommitTicket"[rho] | "CommitGate"[rho]
     | "Resume"[q,D,A,B,Pi,chi,rho]
-    | "Handler"[F,rho,A,B,epsilon,C,P]$
+    | "HandlerTemplate"[F,rho,A,B,epsilon,(p).C,P]$
 ]
 
 函数 contract：
@@ -727,25 +605,90 @@ $Lambda$ 是跨 abstraction序列化的 latent operation-site/coeffect schemas�
 Surface function type 通常只显示 $epsilon$；其余字段必须写入 Typed HIR
 与 interface artifact。
 
+每个 $C$ 还带派生但必须序列化的
+$"flow"(C):"FlowSetV1"$：`r_f=MayReturn` 当且仅当该 set含 `Returns`，
+`NoReturn` 当且仅当不含；`Aborts/Transfers` entries无论是否同时存在 normal
+return都保留。$hat(zeta)$ 与 $hat(R)_"out"$ 只描述 Returns projection，
+不能替代整个 flow set。
+
 跨模块 artifact 不以裸字母作为 wire format。第一版稳定 schema 为：
 
 ```text
 FunctionContractV1 {
   profile: "Cire-TR₀/2026-07-31"
   schema_version: 1
-  ...
+  row: RowExprV1
+  transition: TransitionV1
+  flow_summary: FlowSetV1
+  suspension: SuspensionV1
+  semantic_summary: SummaryV1
+  capture_slots: [CaptureSlotV1]
+  usage: [UsageV1]
+  result_transformer: ResultTransformerV1
+  required_phase: PhaseRequirementV1
   ParametricObligations: [ObligationV1]
   LatentSites: [LatentSiteV1]
 }
 
-ObligationV1.stage = Call | HandlerInstall
-LatentSiteV1.stage = Call | HandlerInstall
+CaptureSlotV1 {
+  slot: u32                  // alpha-normalized declaration-order slot
+  type: TypeRefV1
+  provenance: ProvenanceExprV1
+  capture: CaptureExprV1
+}
+
+ObligationV1 =
+    BoundarySafeV1      { id, stage, slots, boundary, origin }
+  | StableAcrossV1      { id, stage, slots, clock_slot, worlds, origin }
+  | OutlivesV1          { id, stage, shorter, longer, origin }
+  | PhaseAllowsV1       { id, stage, required_phase, origin }
+  | DuplicableEnvV1     { id, stage, slots, site_slot, origin }
+  | ReplayableCleanupV1 { id, stage, site_slot, cleanup, origin }
+  | TickWitnessV1       { id, stage, clock_slot, site_slot, origin }
+  | OwnerParkingV1      { id, stage, owner_slot, site_slot, origin }
+  | RowLacksV1          { id, stage, row_slot, entry, origin }
+
+LatentSiteV1 {
+  site_slot: u32             // alpha-normalized lexical-site slot
+  stage: Call | HandlerInstall
+  receiver: EffectEntrySelectorV1
+  operation: OperationSelectorV1
+  route: RouteSelectorV1
+  argument_slots: [u32]
+  suffix: SuffixContractV1
+  secondary_sites: [SecondarySiteV1]
+  obligation_ids: [u32]
+  origin: SourceOriginV1
+}
+
+SecondarySiteV1 {
+  site_slot: u32
+  receiver: EffectEntrySelectorV1
+  operation: OperationSelectorV1 | AnyOperationOfEntry
+  route: RouteSelectorV1
+  suspension: SuspensionV1
+  semantic_summary: SummaryV1
+  origin: SourceOriginV1
+}
+
+RouteSelectorV1 =
+    ResolveAtCall
+  | ResolveAtInstallation
+  | InstallationPrompt { prompt_slot: u32 }
+  | OuterOf { prompt_slot: u32 }
+
+StageV1 = Call | HandlerInstall
 ```
 
-本文内部仍用 $Q/Lambda$ 简写这两个字段。每个 obligation/site 都有稳定
-kind tag、nominal selector/identity、route、source origin 与 stage；未知
-version 必须拒绝，不能默默丢字段。`Call` 在 T-App 实例化和 discharge，
-`HandlerInstall` 随 site evidence 保留到具体 delimiter 的 `InstallOK`。
+本文内部仍用 $Q/Lambda$ 简写这两个字段。`id`、capture/site/prompt slot
+都在 declaration boundary按 source order alpha-normalize；wire equality不依赖
+source变量名或运行时地址。每个 secondary site有自己的 receiver和 route，
+不能继承 primary route。未知 schema version、variant tag、route selector或
+悬空 slot/id必须拒绝，不能默默丢字段。
+
+`Call` obligation 在 T-App 实例化和 discharge；`HandlerInstall`
+obligation与对应 `LatentSiteV1` 原样保留到 fresh delimiter prompt存在时的
+`InstallOK`。调用者不得仅因跨模块 call成功就把后一阶段清空。
 
 与 hidden $L$ 相同，surface `(A) -> B ! ε` 先 elaboration为
 $A arrow.r.long^(?C) B$，不是把未显示字段填成 `pure/same`。有 initializer
@@ -832,14 +775,20 @@ $
 $
 
 $
-  epsilon ::= emptyset | {a_1, ..., a_n} | {a_1, ..., a_n | mu}
+  epsilon ::= emptyset | mu | {a} | epsilon_1 ⊔ epsilon_2
+  quad
+  C_epsilon ::= emptyset | {"Lacks"(epsilon,a)} | C_1 ∪ C_2
 $
 
 $
   Delta ::= emptyset
-    | {"Demand"(kappa,r,a,o,epsilon_"secondary")}
+    | {"Demand"(kappa,p,a,o,q)}
     | Delta_1 ∪ Delta_2
 $
+
+这里 $p$ 是一次 handler *installation* 的 fresh prompt（或 outer/root
+route），$q$ 是 `Primary` 或稳定的 secondary-site slot；handler value本身
+不是 route。
 
 $
   chi ::= emptyset
@@ -860,15 +809,68 @@ $
   Pi ::= emptyset | {x ↦ (A,pi,chi)} | Pi_1 ∪ Pi_2
 $
 
-Rows 按 entry identity 归一化；`Anon(F)` 与 `Named(ι,F)` 不相等。
-Row literal `{a | μ}` 生成约束 `"Lacks"(mu,a)`；union只合并 identity-aware
-set并传播 Lacks constraints，不能把同 family 的不同 identity 合并。
-$Delta$ 是 attributed demand：$kappa$ 是 call site，$r$ 是 prompt/handler
-route，$a/o$ 是 resolved entry/operation。Public row只是
-$"eraseDemand"(Delta)$；exact handling移除路由到该 delimiter 的 demand，
-不是对 family 名做 raw set subtraction。
+Rows 是带约束的 AC-idempotent union algebra；`Anon(F)` 与 `Named(ι,F)`
+不相等。Surface row elaboration judgment 为：
+
+$
+  K;I ⊢ R_"surface" ⇝ epsilon ⊣ C_epsilon
+$
+
+#irule(
+  [Row-Ref],
+  ([$K(mu)="EffectRow"$],),
+  [$K;I ⊢ mu ⇝ mu ⊣ emptyset$],
+)
+
+#irule(
+  [Row-Extend],
+  (
+    [$K;I ⊢ R ⇝ epsilon ⊣ C$],
+    [$K;I ⊢ a:"EffectEntry"$],
+  ),
+  [$K;I ⊢ {a,..R} ⇝ {a} ⊔ epsilon
+    ⊣ C∪{"Lacks"(epsilon,a)}$],
+)
+
+#irule(
+  [Row-Union],
+  (
+    [$K;I ⊢ R_1 ⇝ epsilon_1 ⊣ C_1$],
+    [$K;I ⊢ R_2 ⇝ epsilon_2 ⊣ C_2$],
+  ),
+  [$K;I ⊢ R_1 | R_2 ⇝
+    epsilon_1 ⊔ epsilon_2 ⊣ C_1∪C_2$],
+)
+
+`RowNormalize(ε,Cε)` 按 identity排序已知 entry、保留所有 rigid row
+variable和 `Lacks` constraint；它不把 `E1 | E2` 假装成单一 tail。
+Surface literal的 grammar仍只允许一个 final tail，所以
+`{..E1,..E2}` 被拒绝；`E1 | E2` 则由 `Row-Union` 合法进入 Core union
+algebra。
+
+Demand splitting是对 attribution做的可判定 partition：
+
+$
+  "RowSplit"(Delta,p)
+  =
+  ⟨Delta_"here",Delta_"out"⟩
+$
+
+其中 $Delta_"here"={d in Delta | "route"(d)=p}$，
+$Delta_"out"=Delta - Delta_"here"$，并满足
+$"eraseDemand"(Delta)=
+  "eraseDemand"(Delta_"here") ⊔ "eraseDemand"(Delta_"out")$。
+因此 public row由 `$epsilon="eraseDemand"(Delta)$` 导出，不再作为与
+$Delta$ 可独立漂移的第二项事实。
+
+$Delta$ 是 attributed demand：$kappa$ 是稳定 call site，$p$ 是
+installation prompt route，$a/o$ 是 resolved entry/operation，$q$ 区分
+primary 与各 secondary-site slot。每个 secondary site先实例化自己的
+$(kappa_q,a_q,o_q)$，再由当前 prompt stack独立运行 `resolveRoute(a_q)`；
+它不能继承 primary demand 的 route。Exact handling只移除
+`RowSplit(Δ,p).here`，不是对 family 名做 raw set subtraction。
 同 family forwarding 在 Surface 尚无冻结拼写；Kernel 必须显式产生
-`forward[r](a,o,args)`，把 demand route更新到 outer prompt并保留原
+`forward[p_outer](a,o,args)`，把 primary demand route更新到 outer prompt并保留原
 identity/site。它不能用“先删 `{a}`、再加 `{a}`”模拟，否则 nested
 same-family handler 与 secondary demand会失去 attribution。
 空 residual row 只表示没有 operation 向外请求：
@@ -894,7 +896,7 @@ $
   $quad | "op"[a]("name",bar(e))
     | "forward"[r](a,"name",bar(e))
     | "handler"[F]{bar(c)}
-    | "handle"[h,i?](e)$ \
+    | "freshprompt" p " in " "handle"[p,h,i?](e)$ \
   $quad | "resume"(k,v)
     | "finalize"(k)
     | "park"("src",o,k)$ \
@@ -951,8 +953,9 @@ f(a_source1, ..., a_sourcen)
     after labels are resolved; source evaluation order is unchanged
 
 resolver:
-  ScopedApply(handlerValue : Handler[...], cap, bodyThunk)
-    ↦ let h = handlerValue in handle[h, cap](bodyThunk())
+  ScopedApply(handlerValue : HandlerTemplate[...], cap, bodyThunk)
+    ↦ let h = handlerValue in
+      freshprompt p in handle[p, h, cap](bodyThunk())
 
   ScopedApply(ordinaryTransformer, none, bodyThunk)
     ↦ ordinaryTransformer(bodyThunk)
@@ -966,10 +969,12 @@ live { e }
 
 `with ... as cap` 的 identity 不能按普通 lambda parameter generalize。
 Surface HIR先保留统一的 `ScopedApply`，以保证 operand evaluation order与
-inner thunk调用次数；resolver证明 operand具有 `Handler[...]` type后才降为
+inner thunk调用次数；resolver证明 operand具有 `HandlerTemplate[...]`
+type后才降为
 Kernel `handle`。普通 scoped transformer仍是函数调用，不能被错误地赋予
-effect-row elimination。Kernel `handle[h,i]` 自己引入 generative identity，
-并在结果处执行 escape check。
+effect-row elimination。Kernel `freshprompt p; handle[p,h,i]` 每次安装
+生成 route prompt，并自己引入 generative identity，在结果处执行 escape
+check。
 
 Synthetic identity return 强制 $B=A$，contract 为 same-world、empty row、
 `NoSuspend`、`Pure`，并把输入 summary逐字保留：
@@ -1507,8 +1512,8 @@ $S$ 的拼写，但 Core binder、变量与 module interface不省略。
 )
 
 `Plan[A]` 在 $K;I ⊢ A:"Type"$ 且 `Shareable(A)` 时成型。
-`Handler[F,ρ,A,B,ε,C,P]` 在 family、origin region、answer types、row、
-contract 与 policy
+`HandlerTemplate[F,ρ,A,B,ε,(p).C,P]` 在 family、origin region、
+answer types、row、prompt-abstract contract 与 policy
 分别 well formed 时成型。以上类型内部可携带 opaque runtime token，
 但 kinding 不比较运行时 generation。
 `ContinuationContract` formation还要求其中的 cleanup contract $F_k$
@@ -1615,7 +1620,7 @@ $
 Handler clause contract：
 
 $
-  H_c = ⟨m_h,Q_"site",d_h,s_"res",delta_h,R_h,P_"park"⟩
+  H_c = ⟨m_h,Q_"site",d_h,Delta_"res",s_"res",delta_h,R_h,P_"park"⟩
 $
 
 Refinement judgment：
@@ -1637,7 +1642,7 @@ $
 - handler semantic law 的 witness 具有允许的 trust origin；
 - operation 的每个 polymorphic type parameter在 clause 中 fresh skolemize。
 - `may_suspend` 的 $P_"park"$ 必须证明同步 resume或 Owner-bound transfer。
-- clause residual row、suspension与 summary 必须包含
+- clause residual attributed demand、suspension与 summary 必须包含
   $Sigma_o$ 的 secondary contract，不能因 exact family handling而擦除。
 
 == Shareability、duplicability 与 boundary safety
@@ -1748,7 +1753,7 @@ Synthesis：
 
 $
   K; I; Phi; Omega @ Theta
-  ⊢ e ⇒ A @[pi] ! epsilon ▷ s; delta; chi
+  ⊢ e ⇒ A @[pi] ! epsilon;Delta ▷ s; delta; chi
   @ Theta' ⊣ Omega'
 $
 
@@ -1756,7 +1761,7 @@ Checking：
 
 $
   K; I; Phi; Omega @ Theta
-  ⊢ e ⇐ A @[pi] ! epsilon ▷ s; delta; chi
+  ⊢ e ⇐ A @[pi] ! epsilon;Delta ▷ s; delta; chi
   @ Theta' ⊣ Omega'
 $
 
@@ -1767,19 +1772,27 @@ $
   ⊢_v v ⇒ A @[pi] ▷ chi
 $
 
-$pi$ 与 $chi$ 都描述结果。Branch provenance使用最小安全上界
+$pi$ 与 $chi$ 都描述结果；所有 derivation 维持
+$epsilon="eraseDemand"(Delta)$，所以 row不能脱离 route/site attribution
+单独变化。Branch provenance使用最小安全上界
 `joinProv`；capture union后做 binder substitution。Rule中省略
 $@[pi]$ 只允许在紧邻文字明确结果为 `Stable` 时使用。
+
+为保持长规则可读，后文旧式 `! ε ▷ ...` 只是一种排版缩写：它必须从该
+rule的 typed subderivations/site constructors结构性计算唯一 $Delta$，并同时
+证明 `ε=eraseDemand(Δ)`；它绝不表示“没有 Δ 字段”或允许事后用
+side-effecting recorder修改全局状态。T-App、T-Operation、handler、resume/finalize
+与 flow rules显式写出 $Delta$，因为这些正是 attribution发生变化的边界。
 
 Checking rule：
 
 #irule(
   [T-Check],
   (
-    [$K;I;Phi;Omega@Theta ⊢ e ⇒ A' @[pi] ! epsilon ▷ s;delta;chi @Theta'⊣Omega'$],
+    [$K;I;Phi;Omega@Theta ⊢ e ⇒ A' @[pi] ! epsilon;Delta ▷ s;delta;chi @Theta'⊣Omega'$],
     [$K;I ⊢ A' <: A$],
   ),
-  [$K;I;Phi;Omega@Theta ⊢ e ⇐ A @[pi] ! epsilon ▷ s;delta;chi @Theta'⊣Omega'$],
+  [$K;I;Phi;Omega@Theta ⊢ e ⇐ A @[pi] ! epsilon;Delta ▷ s;delta;chi @Theta'⊣Omega'$],
 )
 
 #irule(
@@ -1865,34 +1878,97 @@ T-App当作任意 world transformer。`analyzeAbortClosure` 只是
 `AbstractParametricAbortObligations` 对 rigid $(pi_x,xi_x)$ 普遍抽象为
 $Q$；abortive body不能借“不产生结果”绕过实参相关的前缀安全条件。
 
+T-Lambda 与 T-Lambda-Abort 是下列 path-set rule 的单一路径投影；真正
+checker使用后者，所以带 terminal transfer 的具名函数仍可形成：
+
+#irule(
+  [T-Lambda-Paths],
+  (
+    [$eta_f=⟨A,B,Phi_f⟩ quad
+      (pi_x,xi_x)="freshRigidSummaryVars"(A)$],
+    [$Theta_x="bind"(Theta,x:A @[pi_x] ▷ xi_x)$],
+    [$K;I;Phi_f;Omega_"sym"@Theta_x ⊢ "body"_B(e) ⇓
+      cal(F)_b ! epsilon;Delta;s;delta ⊣Omega_b$],
+    [$(Pi_c,chi_c,u,Lambda)="analyzeFlowClosure"(
+      e,x,Theta,Omega_"sym",Omega_b,cal(F)_b,Delta)$],
+    [$(r_f,hat(zeta),hat(R),Q)="AbstractParametricFlow"(
+      pi_x,xi_x,cal(F)_b)$],
+    [$C_0=⟨epsilon,hat(zeta),r_f,s,delta,Pi_c,chi_c,u,
+      hat(R),Phi_f,Q,Lambda⟩$],
+    [$C="attachFlow"(C_0,"abstractFlow"(cal(F)_b))$],
+    [$pi_c="Env"(Pi_c) quad "ManyCallSafe"(Pi_c,u,chi_c)$],
+  ),
+  [$K;I;Phi@Theta ⊢_v lambda^[eta_f] x.e ⇒
+    A arrow.r.long^C B @[pi_c] ▷ chi_c$],
+)
+
+若 $cal(F)_b={"Transfers"(P)}$，则
+$r_f="NoReturn"$、$hat(zeta)=hat(R)=bot$，但
+`flow(C)={Transfers(P)}`；它不会被改写成 abort。Surface named `def`
+的一元 tuple elaboration使用同一 rule。
+
 #irule(
   [T-App],
   (
     [$C_f=⟨epsilon_f,zeta,"MayReturn",s_f,delta_f,Pi_f,chi_f,u_f,R_f,Phi_f,Q_f,Lambda_f⟩$],
-    [$K;I;Phi;Omega@Theta_0 ⊢ e_1 ⇒ A arrow.r.long^(C_f) B @[pi_1] ! epsilon_1 ▷ s_1;delta_1;chi_1 @Theta_1⊣Omega_1$],
-    [$K;I;Phi;Omega_1@Theta_1 ⊢ e_2 ⇐ A @[pi_2] ! epsilon_2 ▷ s_2;delta_2;chi_2 @Theta_2⊣Omega_2$],
+    [$K;I;Phi;Omega@Theta_0 ⊢ e_1 ⇒ A arrow.r.long^(C_f) B @[pi_1] ! epsilon_1;Delta_1 ▷ s_1;delta_1;chi_1 @Theta_1⊣Omega_1$],
+    [$K;I;Phi;Omega_1@Theta_1 ⊢ e_2 ⇐ A @[pi_2] ! epsilon_2;Delta_2 ▷ s_2;delta_2;chi_2 @Theta_2⊣Omega_2$],
     [$"PhaseAllows"(Phi,Phi_f) quad "applyUsage"(Omega_2,u_f)=Omega_3$],
     [$"Discharge"("instantiate"("stageCall"(Q_f),pi_2,chi_2,I,Theta_2))$],
     [$zeta(Theta_2) = Theta_3$],
     [$R_f(pi_2,chi_2)=(pi_3,chi_3)$],
-    [$Lambda'="instantiateLatentSites"(Lambda_f,Theta_2)
-      quad "PreserveUntilInstall"("stageHandlerInstall"(Q_f),Lambda')$],
+    [$(Delta_f,Lambda_"install")="instantiateLatentSites"(Lambda_f,Theta_2)$],
+    [$"PreserveUntilInstall"("stageHandlerInstall"(Q_f),Lambda_"install")$],
+    [$cal(F)_f="instantiateFlow"("flow"(C_f),pi_2,chi_2,Theta_2)$],
+    [$Delta'=Delta_1∪Delta_2∪Delta_f
+      quad epsilon'="eraseDemand"(Delta')$],
+    [$"AttachFlowEvidence"("callNode",cal(F)_f)$],
   ),
-  [$K;I;Phi;Omega@Theta_0 ⊢ e_1(e_2) ⇒ B @[pi_3] ! epsilon_1 ∪ epsilon_2 ∪ epsilon_f ▷ s_1 ⊔ s_2 ⊔ s_f;delta_1 ⊗ delta_2 ⊗ delta_f;chi_3 @Theta_3⊣Omega_3$],
+  [$K;I;Phi;Omega@Theta_0 ⊢ e_1(e_2) ⇒ B @[pi_3] ! epsilon';Delta' ▷ s_1 ⊔ s_2 ⊔ s_f;delta_1 ⊗ delta_2 ⊗ delta_f;chi_3 @Theta_3⊣Omega_3$],
 )
 
 #irule(
   [T-App-Abort],
   (
     [$C_f=⟨epsilon_f,bot,"NoReturn",s_f,delta_f,Pi_f,chi_f,u_f,bot,Phi_f,Q_f,Lambda_f⟩$],
-    [$K;I;Phi;Omega@Theta_0 ⊢ e_1 ⇒ A arrow.r.long^(C_f) B @[pi_1] ! epsilon_1 ▷ s_1;delta_1;chi_1 @Theta_1⊣Omega_1$],
-    [$K;I;Phi;Omega_1@Theta_1 ⊢ e_2 ⇐ A @[pi_2] ! epsilon_2 ▷ s_2;delta_2;chi_2 @Theta_2⊣Omega_2$],
+    [$"flow"(C_f)={"Aborts"}$],
+    [$K;I;Phi;Omega@Theta_0 ⊢ e_1 ⇒ A arrow.r.long^(C_f) B @[pi_1] ! epsilon_1;Delta_1 ▷ s_1;delta_1;chi_1 @Theta_1⊣Omega_1$],
+    [$K;I;Phi;Omega_1@Theta_1 ⊢ e_2 ⇐ A @[pi_2] ! epsilon_2;Delta_2 ▷ s_2;delta_2;chi_2 @Theta_2⊣Omega_2$],
     [$"PhaseAllows"(Phi,Phi_f) quad "applyUsage"(Omega_2,u_f)=Omega_3$],
     [$"Discharge"("instantiate"("stageCall"(Q_f),pi_2,chi_2,I,Theta_2))$],
-    [$Lambda'="instantiateLatentSites"(Lambda_f,Theta_2)
-      quad "PreserveUntilInstall"("stageHandlerInstall"(Q_f),Lambda')$],
+    [$(Delta_f,Lambda_"install")="instantiateLatentSites"(Lambda_f,Theta_2)$],
+    [$"PreserveUntilInstall"("stageHandlerInstall"(Q_f),Lambda_"install")$],
+    [$Delta'=Delta_1∪Delta_2∪Delta_f
+      quad epsilon'="eraseDemand"(Delta')$],
   ),
-  [$K;I;Phi;Omega@Theta_0 ⊢_"abort" e_1(e_2) ! epsilon_1∪epsilon_2∪epsilon_f ▷ s_1⊔s_2⊔s_f;delta_1⊗delta_2⊗delta_f ⊣Omega_3$],
+  [$K;I;Phi;Omega@Theta_0 ⊢_"abort" e_1(e_2) ! epsilon';Delta' ▷ s_1⊔s_2⊔s_f;delta_1⊗delta_2⊗delta_f ⊣Omega_3$],
+)
+
+#irule(
+  [T-App-Transfer],
+  (
+    [$C_f=⟨epsilon_f,bot,"NoReturn",s_f,delta_f,Pi_f,chi_f,u_f,bot,Phi_f,Q_f,Lambda_f⟩$],
+    [$"flow"(C_f)={"Transfers"(P_f)}$],
+    [$K;I;Phi;Omega@Theta_0 ⊢ e_1 ⇒
+      A arrow.r.long^(C_f) B @[pi_1] !
+      epsilon_1;Delta_1 ▷ s_1;delta_1;chi_1 @Theta_1⊣Omega_1$],
+    [$K;I;Phi;Omega_1@Theta_1 ⊢ e_2 ⇐
+      A @[pi_2] ! epsilon_2;Delta_2 ▷
+      s_2;delta_2;chi_2 @Theta_2⊣Omega_2$],
+    [$"Discharge"("instantiate"("stageCall"(Q_f),
+      pi_2,chi_2,I,Theta_2))$],
+    [$(Delta_f,Lambda_"install")=
+      "instantiateLatentSites"(Lambda_f,Theta_2)$],
+    [$"PreserveUntilInstall"(
+      "stageHandlerInstall"(Q_f),Lambda_"install")$],
+    [$P="instantiateParkContract"(P_f,pi_2,chi_2,Theta_2)$],
+    [$Delta'=Delta_1∪Delta_2∪Delta_f
+      quad epsilon'="eraseDemand"(Delta')$],
+  ),
+  [$K;I;Phi;Omega@Theta_0 ⊢_"transfer" e_1(e_2) ⇓
+    "Transfers"(P) ! epsilon';Delta' ▷
+    s_1⊔s_2⊔s_f;delta_1⊗delta_2⊗delta_f
+    @Theta_2⊣Omega_2$],
 )
 
 函数调用必须应用 contract 中的 temporal transformer；不能把
@@ -2082,6 +2158,8 @@ $bot$ 不是可以应用的 transformer。Function contract WF要求：
 ```text
 r_f = MayReturn  iff  ζ̂ ≠ ⊥ and R̂out ≠ ⊥
 r_f = NoReturn   iff  ζ̂ = ⊥ and R̂out = ⊥
+Returns(_) ∈ flow(C) iff r_f = MayReturn
+Aborts/Transfers entries remain independent of r_f
 ```
 
 Operation signature同理：`mode=abort` 当且仅当 normal transition为
@@ -2108,11 +2186,7 @@ pub effect FrameClock {
 ```
 
 `yield` 没有一条与 generic operation竞争的特殊 synthesis rule。它只是
-后文 T-Operation在下列 parameterized signature下的派生实例：
-
-$
-  d_"yield" in {"NoSuspend","MaySuspend"}
-$
+后文 T-Operation在下列 profile-fixed signature下的派生实例：
 
 $
   O_"yield" =
@@ -2120,26 +2194,27 @@ $
   @[
     "once",
     "next"(i),
-    d_"yield",
+    "MaySuspend",
     R_"unit",
     Phi_"yield"(i),
     {"RequiresTickWitness"(i),
-     "YieldSuspensionWitness"(i,d_"yield")}
+     "OwnerBoundParking"(i)}
   ]
 $
 
 其中 $R_"unit"()=("Stable",emptyset)$，
 $Phi_"yield"(i)$ 要求当前 $Phi$ 持有 named clock authority $i$。
 因此唯一结果是 row `{a}`、
-`request(a,d_yield)`、空 result capture以及
+`request(a,MaySuspend)`、空 result capture以及
 `pushLock(Θ,i)`；`delta_clock` 只在 sealed runner handler policy被安装后
 加入，而不是由 perform site凭空加入。
 
 只有 sealed clock runner 能 discharge `{a}` 并产生合法 next-world witness。
 定义 package 内的 handler 若在 current world 直接 `resume`，不满足
-operation contract refinement。若选择 `NoSuspend`，runner还必须证明宿主等待
-完全封装在 world transition中且不跨语言级 Owner/storage boundary；否则
-profile必须选择 `MaySuspend` 并 discharge `OwnerBoundParking`。
+operation contract refinement。`MaySuspend` 是 public declared maximum；
+具体 sealed runner只有在证明宿主等待完全封装于 world transition、且不跨
+语言级 Owner/storage boundary时，才可把 actual handler suspension收紧为
+`NoSuspend`。没有该 witness就必须 discharge `OwnerBoundParking`。
 
 == Handler 与 Next 不默认交换
 
@@ -2186,8 +2261,16 @@ $m$ 是最大 resumption mode，$zeta$ 是 successful resume transition，
 $d$ 是 suspension 上界，$R_o$ 是 argument summary到 result
 provenance/capture的 transformer，$Phi_o$ 是 invocation precondition，
 $P_o$ 是 suspension/parking obligation，且
-$Sigma_o=⟨epsilon_"secondary",s_"secondary",delta_"secondary"⟩$
+$Sigma_o=⟨Lambda_"secondary",s_"secondary",delta_"secondary"⟩$
 是 operation declaration 的 secondary effect/suspension/summary contract。
+每个 $Lambda_"secondary"$ entry都是带独立 stable site slot、receiver、
+operation和 route selector的 `SecondarySiteV1`；实例化后产生
+$Delta_"secondary"$，其 public row才是
+$"eraseDemand"(Delta_"secondary")$。
+`ElabSecondaryRow(R, operationOrigin)` 对 normalized row中的每个 entry生成
+synthetic site slot和 `AnyOperationOfEntry` selector；若以后有更精确 summary
+可收紧为 exact operation selector。每个 synthetic site仍独立执行
+route resolution，不能共享 primary prompt。
 Operation 自身不把 handler policy写入 family；
 policy 来自具体 handler instance。
 
@@ -2216,7 +2299,7 @@ temporal context：
 $
   K;I;Phi;Omega@Theta
   ⊢ bar(e) ⇐ bar(A)
-  ⊣ bar(pi_a);bar(chi_a);epsilon_a;s_a;delta_a@Theta_a⊣Omega_a
+  ⊣ bar(pi_a);bar(chi_a);epsilon_a;Delta_a;s_a;delta_a@Theta_a⊣Omega_a
 $
 
 以下 normal-returning rule只适用于 $m != "abort"$：
@@ -2228,17 +2311,20 @@ $
     [$m != "abort"$],
     [$sigma = "freshInstantiation"(bar(alpha))$],
     [$sigma(O)=(bar(A)_sigma)->B_sigma @[m,zeta_sigma,d_sigma,R_sigma,Phi_sigma,P_sigma,Sigma_sigma]$],
-    [$Sigma_sigma=⟨epsilon_"sec",s_"sec",delta_"sec"⟩$],
-    [$K;I;Phi;Omega@Theta ⊢ bar(e) ⇐ bar(A)_sigma ⊣ bar(pi_a);bar(chi_a);epsilon_a;s_a;delta_a@Theta_a⊣Omega_a$],
-    [$a = "entry"("receiver",F) quad r="resolveRoute"(a) quad zeta_a = "instantiateReceiver"(zeta_sigma,a)$],
+    [$Sigma_sigma=⟨Lambda_"sec",s_"sec",delta_"sec"⟩$],
+    [$K;I;Phi;Omega@Theta ⊢ bar(e) ⇐ bar(A)_sigma ⊣ bar(pi_a);bar(chi_a);epsilon_a;Delta_a;s_a;delta_a@Theta_a⊣Omega_a$],
+    [$a = "entry"("receiver",F) quad p="resolveRoute"(a) quad zeta_a = "instantiateReceiver"(zeta_sigma,a)$],
     [$zeta_a(Theta_a)=Theta'$],
     [$R_sigma(bar(pi_a),bar(chi_a))=(pi_B,chi_B)$],
-    [$epsilon_"call"=epsilon_a∪{a}∪epsilon_"sec"$],
+    [$d_0="Demand"(kappa,p,a,"op","Primary")$],
+    [$Delta_"sec"="instantiateSecondarySites"(Lambda_"sec",kappa,"promptStack")$],
+    [$Delta_"call"=Delta_a∪{d_0}∪Delta_"sec"
+      quad epsilon_"call"="eraseDemand"(Delta_"call")$],
     [$s'=s_a ⊔ "request"(a,d_sigma) ⊔ s_"sec" quad "PhaseAllows"(Phi,Phi_sigma)$],
     [$"Allowed"(Phi,epsilon_"call",s',delta_a⊗delta_"sec")$],
-    [$"RecordObligation"(a,P_sigma) quad "RecordDemand"(kappa,r,a,"op",epsilon_"sec")$],
+    [$"AttachSiteObligations"(kappa,a,P_sigma,Lambda_"sec")$],
   ),
-  [$K;I;Phi;Omega@Theta ⊢ "op"[a]("op",bar(e)) ⇒ B_sigma @[pi_B] ! epsilon_"call" ▷ s';delta_a⊗delta_"sec";chi_B @Theta'⊣Omega_a$],
+  [$K;I;Phi;Omega@Theta ⊢ "op"[a]("op",bar(e)) ⇒ B_sigma @[pi_B] ! epsilon_"call";Delta_"call" ▷ s';delta_a⊗delta_"sec";chi_B @Theta'⊣Omega_a$],
 )
 
 `abort` operation 没有 successful $Theta'$。为避免用任意 world伪造正常
@@ -2246,7 +2332,7 @@ $
 
 $
   K;I;Phi;Omega@Theta
-  ⊢_"abort" e ! epsilon ▷ s;delta ⊣ Omega'
+  ⊢_"abort" e ! epsilon;Delta ▷ s;delta ⊣ Omega'
 $
 
 #irule(
@@ -2255,22 +2341,25 @@ $
     [$K(F,"op")=O quad O=forall bar(alpha).(bar(A))->B @["abort",bot,d_o,R_o,Phi_o,P_o,Sigma_o]$],
     [$sigma="freshInstantiation"(bar(alpha))$],
     [$sigma(O)=(bar(A)_sigma)->B_sigma @["abort",bot,d_sigma,R_sigma,Phi_sigma,P_sigma,Sigma_sigma]$],
-    [$Sigma_sigma=⟨epsilon_"sec",s_"sec",delta_"sec"⟩$],
-    [$K;I;Phi;Omega@Theta ⊢ bar(e) ⇐ bar(A)_sigma ⊣ bar(pi_a);bar(chi_a);epsilon_a;s_a;delta_a@Theta_a⊣Omega_a$],
-    [$a="entry"("receiver",F) quad r="resolveRoute"(a)$],
-    [$epsilon_"call"=epsilon_a∪{a}∪epsilon_"sec"$],
+    [$Sigma_sigma=⟨Lambda_"sec",s_"sec",delta_"sec"⟩$],
+    [$K;I;Phi;Omega@Theta ⊢ bar(e) ⇐ bar(A)_sigma ⊣ bar(pi_a);bar(chi_a);epsilon_a;Delta_a;s_a;delta_a@Theta_a⊣Omega_a$],
+    [$a="entry"("receiver",F) quad p="resolveRoute"(a)$],
+    [$d_0="Demand"(kappa,p,a,"op","Primary")$],
+    [$Delta_"sec"="instantiateSecondarySites"(Lambda_"sec",kappa,"promptStack")$],
+    [$Delta_"call"=Delta_a∪{d_0}∪Delta_"sec"
+      quad epsilon_"call"="eraseDemand"(Delta_"call")$],
     [$s'=s_a ⊔ "request"(a,d_sigma) ⊔ s_"sec"$],
     [$"PhaseAllows"(Phi,Phi_sigma) quad "Allowed"(Phi,epsilon_"call",s',delta_a⊗delta_"sec")$],
-    [$"RecordObligation"(a,P_sigma) quad "RecordDemand"(kappa,r,a,"op",epsilon_"sec")$],
+    [$"AttachSiteObligations"(kappa,a,P_sigma,Lambda_"sec")$],
   ),
-  [$K;I;Phi;Omega@Theta ⊢_"abort" "op"[a]("op",bar(e)) ! epsilon_"call" ▷ s';delta_a⊗delta_"sec" ⊣Omega_a$],
+  [$K;I;Phi;Omega@Theta ⊢_"abort" "op"[a]("op",bar(e)) ! epsilon_"call";Delta_"call" ▷ s';delta_a⊗delta_"sec" ⊣Omega_a$],
 )
 
-Algorithmic `CheckResult.flow` 因而是 `Returns(Θ)`、`Aborts` 或
-`Transfers(ParkContract)`。Abortive flow
-可以在 expected type下使用，但不产生 normal output world；sequence不再
-检查其不可达 suffix，branch join也只合并 `Returns` 分支。若所有分支
-abort，整个 expression保持 abortive。这样 `abort` 既不是普通
+Algorithmic `CheckResult.flow` 因而是这些 outcome 的有限 path set。
+Abortive flow可以在 expected type下使用，但不产生 normal output world；
+sequence只把 `Returns` entries送入 suffix，并保留既有
+`Aborts/Transfers` entries；branch join取 set union并只对 Returns projection
+做 world/result join。这样 `abort` 既不是普通
 `Never → A` coercion，也不能贡献一个虚假的 clock lock。
 
 令 $E_s$ 是不跨越 `handle`、`delay`、`live` 或其他 runner delimiter 的
@@ -2280,16 +2369,18 @@ left-to-right strict evaluation context。`Prefix` 只总结到 hole之前已经
 $
   "Prefix"(E_s,Theta,Omega)
   =
-  ⟨Theta_h,Omega_h,epsilon_p,s_p,delta_p⟩
+  ⟨Theta_h,Omega_h,Delta_p,s_p,delta_p⟩
 $
 
 #irule(
   [T-Ctx-Abort],
   (
-    [$"Prefix"(E_s,Theta,Omega)=⟨Theta_h,Omega_h,epsilon_p,s_p,delta_p⟩$],
-    [$K;I;Phi;Omega_h@Theta_h ⊢_"abort" e ! epsilon_e ▷ s_e;delta_e ⊣Omega'$],
+    [$"Prefix"(E_s,Theta,Omega)=⟨Theta_h,Omega_h,Delta_p,s_p,delta_p⟩$],
+    [$K;I;Phi;Omega_h@Theta_h ⊢_"abort" e ! epsilon_e;Delta_e ▷ s_e;delta_e ⊣Omega'$],
+    [$Delta_o=Delta_p∪Delta_e
+      quad epsilon_o="eraseDemand"(Delta_o)$],
   ),
-  [$K;I;Phi;Omega@Theta ⊢_"abort" E_s[e] ! epsilon_p∪epsilon_e ▷ s_p⊔s_e;delta_p⊗delta_e ⊣Omega'$],
+  [$K;I;Phi;Omega@Theta ⊢_"abort" E_s[e] ! epsilon_o;Delta_o ▷ s_p⊔s_e;delta_p⊗delta_e ⊣Omega'$],
 )
 
 这一个 congruence rule覆盖 callee/argument、`let` initializer与 operation
@@ -2304,7 +2395,7 @@ body judgment处理。
 Core handler value：
 
 $
-  "Handler"[F,rho_h,A,B,epsilon_h,C_h,P_h]
+  "HandlerTemplate"[F,rho_h,A,B,epsilon_h,(p).C_h,P_h]
 $
 
 含义：
@@ -2313,7 +2404,8 @@ $
 - handled computation 正常返回 $A$；
 - handler action 返回 $B$；
 - clause 自身可能产生 residual row $epsilon_h$；
-- $C_h$ 保存 mode、site constraints、answer-world、suspension、
+- $(p).C_h$ 保存对 installation prompt抽象的 mode、site constraints、
+  answer-world、suspension、
   path-specific result-summary、handler environment evidence 与 parking
   contract；
 - $P_h$ 是具体 instance 的 semantic policy 与 trust origin。
@@ -2330,18 +2422,18 @@ Core先 A-normalize；安装 delimiter时，对 handled body做一次从右向�
 
 $
   K;I;Phi@Theta
-  ⊢ "sites"(e,a) ⇓ bar(kappa)
+  ⊢ "sites"(e,a,p) ⇓ bar(kappa)
 $
 
 每个 site contract：
 
 $
   kappa =
-  ⟨a,o_k,Theta_"entry",D_k,Pi_k,chi_k,u_k,
+  ⟨p,a,o_k,Theta_"entry",D_k,Pi_k,chi_k,u_k,
     Theta_"answer",Xi_k⟩
 $
 
-$D_k=⟨epsilon_k,w_k,s_k,delta_k,R_k,Phi_k,F_k⟩$ 是 captured continuation
+$D_k=⟨epsilon_k,Delta_k,w_k,s_k,delta_k,R_k,Phi_k,F_k⟩$ 是 captured continuation
 contract。$w_k$ 是从 operation site恢复到整个 handled computation answer 的*完整*
 world transformer：它包含 operation自己的 $zeta$ 和其后 suffix 的
 transformer；$chi_k$ 是 live-across-site capture；$u_k$ 是 suffix中的
@@ -2350,13 +2442,14 @@ latent usage；$R_k$ 给出 continuation answer的 result summary。$Xi_k$
 index、provenance与 result capture；它不保存任意 runtime value。对 deep
 handler，$epsilon_k$ 已按同一 delimiter消除递归出现的 handled entry。
 $o_k$ 是 resolved operation selector；它与 $a$ 一起唯一确定被哪一个
-clause schema处理。$Theta_"entry"$ 是 arguments求值完毕、operation
+clause schema处理；$p$ 唯一确定本次 installation route，同一 handler
+value的两次安装拥有不同 $p$。$Theta_"entry"$ 是 arguments求值完毕、operation
 transfer control给 clause时的 actual temporal world；ClauseSchema对它
 参数化，不能使用 handler定义点的 world代替。
 $Pi_k="provenanceLive"("suffix",Theta)$ 是每个
 live-across-site binder的
 type/provenance map；它与 $chi_k$ 分开保存，因为 borrow可以有空 capture。
-$F_k=⟨epsilon_k^"fin",zeta_k^"fin",s_k^"fin",delta_k^"fin"⟩$
+$F_k=⟨epsilon_k^"fin",Delta_k^"fin",zeta_k^"fin",s_k^"fin",delta_k^"fin"⟩$
 是丢弃该 continuation时必须执行一次的 cleanup contract；它同样来自 typed
 suffix，不能由 T-Finalize伪装成纯操作。
 
@@ -2432,9 +2525,9 @@ Return clause本身也是对安装点 normal-exit world参数化的 schema：
     [$Theta_h="ImportHandlerEnv"(Theta_"entry",H_h)$],
     [$(pi_x,xi_x)="freshRigidSummaryVars"(A)$],
     [$Theta_x="bind"(Theta_h,x:A @[pi_x] ▷ xi_x)$],
-    [$K;I;Phi_h;Omega_"sym"@Theta_x ⊢ "body"_B(e) ⇓ f_r ! epsilon_r;s_r;delta_r ⊣Omega_r$],
-    [$f_o="dropReturnBinder"(f_r,x)$],
-    [$"AbstractReturnContract"(Theta_"entry",pi_x,xi_x,f_o,epsilon_r,s_r,delta_r) ⇓ C_"ret"$],
+    [$K;I;Phi_h;Omega_"sym"@Theta_x ⊢ "body"_B(e) ⇓ cal(F)_r ! epsilon_r;Delta_r;s_r;delta_r ⊣Omega_r$],
+    [$cal(F)_o="dropReturnBinder"(cal(F)_r,x)$],
+    [$"AbstractReturnContract"(Theta_"entry",pi_x,xi_x,cal(F)_o,epsilon_r,Delta_r,s_r,delta_r) ⇓ C_"ret"$],
   ),
   [$"ReturnClauseOK"(K,I,Phi_h,H_h,"return"(x:A,e),A) ⇓ C_"ret"$],
 )
@@ -2462,7 +2555,9 @@ handler定义点 lock写进 contract。
     [$C_h="attachHandlerEnv"(C_1,Pi_h,chi_h)$],
     [$"returnContract"(C_h)=C_"ret" quad "clauseSummaries"(C_h)=S_h$],
   ),
-  [$K;I;Phi@Theta ⊢_v "handler"[F]{bar(c)} ⇒ "Handler"[F,rho_h,A,B,epsilon_h,C_h,P_h] @["Owner"(rho_h)] ▷ chi_h$],
+  [$K;I;Phi@Theta ⊢_v "handler"[F]{bar(c)} ⇒
+    "HandlerTemplate"[F,rho_h,A,B,epsilon_h,(p).C_h,P_h]
+    @["Owner"(rho_h)] ▷ chi_h$],
 )
 
 输入 T-Handler 前，Surface normalization 已为省略的 return 合成 identity
@@ -2481,12 +2576,16 @@ finite schema map $S_h$；`AggregateHandler` 把具体 return contract与这些
 schema的 residual row、suspension、summary、path-specific result
 transformer和 required phase逐项合并。它保留各 path，而不把 operation
 clause伪装成 return clause。
-因此 conclusion 中的 $epsilon_h$、$C_h$ 都由已检查 clause决定，而不是
+因此 conclusion 中的 $epsilon_h$、$(p).C_h$ 都由已检查 clause决定，而不是
 游离的 annotation。$Pi_h$ 进入 handler construction evidence；
 `EnvBoundarySafe` 成立后才允许把 value自身 provenance记为
 `Owner(ρ_h)`。`attachHandlerEnv` 把 $Pi_h/chi_h$ 封入 $C_h$ 的 sealed
 construction evidence并序列化到 interface；所以 handler经变量或模块传递
 后，`InstallOK` 仍可由 `handlerEnv(C_h)` 取得它们。
+
+Handler value只保存以 prompt slot $p$ 参数化的 template；它没有 concrete
+route。每次 `with` installation由 `freshprompt p` 实例化一次，所以同一个
+handler value嵌套安装会得到不同 prompt，site/secondary demand不会混层。
 
 `ClauseSchemaOK` 只产生/验证 site constraints。真正的
 `Duplicable(χ_k)`、cleanup replay、world answer与 Owner-bound parking
@@ -2497,13 +2596,13 @@ obligation在 T-Handle 的 `InstallOK` 中对每个实际 site discharge。
 #irule(
   [T-Resume],
   (
-    [$k:"Resume"[q,D_k,A,B,Pi_k,chi_k,rho] quad D_k=⟨epsilon_k,w_k,s_k,delta_k,R_k,Phi_k,F_k⟩$],
+    [$k:"Resume"[q,D_k,A,B,Pi_k,chi_k,rho] quad D_k=⟨epsilon_k,Delta_k,w_k,s_k,delta_k,R_k,Phi_k,F_k⟩$],
     [$Omega(k)="Open"(q) quad "PhaseAllows"(Phi,Phi_k)$],
     [$K;I;Phi@Theta ⊢_v v ⇐ A @[pi_v] ▷ chi_v$],
     [$w_k(Theta)=Theta' quad R_k(pi_v,chi_v)=(pi_B,chi_B)$],
     [$Omega'="resumeState"(Omega,k,q)$],
   ),
-  [$K;I;Phi;Omega@Theta ⊢ "resume"(k,v) ⇒ B @[pi_B] ! epsilon_k ▷ s_k;delta_k ⊗ delta_"resume";chi_B @Theta'⊣Omega'$],
+  [$K;I;Phi;Omega@Theta ⊢ "resume"(k,v) ⇒ B @[pi_B] ! epsilon_k;Delta_k ▷ s_k;delta_k ⊗ delta_"resume";chi_B @Theta'⊣Omega'$],
 )
 
 #irule(
@@ -2511,10 +2610,10 @@ obligation在 T-Handle 的 `InstallOK` 中对每个实际 site discharge。
   (
     [$k:"Resume"[q,D_k,A,B,Pi_k,chi_k,rho]$],
     [$Omega(k)="Open"(q)$],
-    [$"cleanup"(D_k)=F_k=⟨epsilon_f,zeta_f,s_f,delta_f⟩$],
+    [$"cleanup"(D_k)=F_k=⟨epsilon_f,Delta_f,zeta_f,s_f,delta_f⟩$],
     [$zeta_f(Theta)=Theta' quad "Allowed"(Phi,epsilon_f,s_f,delta_f)$],
   ),
-  [$K;I;Phi;Omega@Theta ⊢ "finalize"(k) ⇒ "Unit" @["Stable"] ! epsilon_f ▷ s_f;delta_f ⊗ delta_"finalize";emptyset @Theta'⊣Omega[k↦"Closed"]$],
+  [$K;I;Phi;Omega@Theta ⊢ "finalize"(k) ⇒ "Unit" @["Stable"] ! epsilon_f;Delta_f ▷ s_f;delta_f ⊗ delta_"finalize";emptyset @Theta'⊣Omega[k↦"Closed"]$],
 )
 
 TR₀ 不暴露 `discontinue(k,e)`：在没有把 error payload type、异常路径
@@ -2580,22 +2679,24 @@ $
 
 `ImportHandlerEnv(Θentry,Hh)` 只把 $Pi_h/chi_h$ 描述的 captured bindings
 导入 symbolic operation-site world；它不复制定义点的 lock。以下 judgment
-对 $Theta_"entry"$、operation skolems和 $kappa$ 普遍量化。
+对 $Theta_"entry"$、operation skolems、installation prompt $p$ 和
+$kappa$ 普遍量化；`AdmissibleSite` 必须证明 `route(κ)=p`，不能只按
+handler value或 family匹配。
 
 #irule(
   [T-Clause-Once-Ctl],
   (
     [$m_h in {"once","ctl"} quad q_"once"=1 quad q_"ctl"=omega$],
-    [$kappa=⟨a,o_k,Theta_"entry",D_k,Pi_k,chi_k,u_k,Theta_"answer",Xi_k⟩$],
+    [$kappa=⟨p,a,o_k,Theta_"entry",D_k,Pi_k,chi_k,u_k,Theta_"answer",Xi_k⟩$],
     [$sigma="freshInstantiation"("typeParams"(O)) quad "AdmissibleSite"(kappa,sigma(O),H_h)$],
     [$"clauseMode"=m_h quad m_h <= "mode"(sigma(O))$],
     [$Theta_h="ImportHandlerEnv"(Theta_"entry",H_h)$],
     [$Theta_k="bindArgs"(Theta_h,bar(x):"params"(sigma(O)),Xi_k)$],
     [$k:"Resume"[q_(m_h),D_k,"result"(sigma(O)),B,Pi_k,chi_k,rho_h]$],
-    [$K;I;Phi_h;Omega[k↦"Open"(q_(m_h))]@Theta_k ⊢ "body"_B(e) ⇓ f_c ! epsilon_c;s_c;delta_c ⊣Omega_c$],
-    [$"PathUsage"(f_c,k) <= q_(m_h)$],
-    [$"DispositionComplete"(m_h,k,f_c,Omega_c) ⇓ f_d$],
-    [$"ExtractClauseContract"(f_d,Xi_k) ⇓ H_c$],
+    [$K;I;Phi_h;Omega[k↦"Open"(q_(m_h))]@Theta_k ⊢ "body"_B(e) ⇓ cal(F)_c ! epsilon_c;Delta_c;s_c;delta_c ⊣Omega_c$],
+    [$"PathUsage"(cal(F)_c,k) <= q_(m_h)$],
+    [$"DispositionComplete"(m_h,k,cal(F)_c,Omega_c) ⇓ cal(F)_d$],
+    [$"ExtractClauseContract"(cal(F)_d,Delta_c,Xi_k) ⇓ H_c$],
   ),
   [$K;I;Phi_h;H_h ⊢ "resumptiveClause"(O,m_h,e) ⇓ "ResumeSchema"(kappa,H_c)$],
 )
@@ -2608,8 +2709,8 @@ summary与 usage都进入 $f_d$。
 #irule(
   [T-Clause-Fun],
   (
-    [$kappa=⟨a,o_k,Theta_"entry",D_k,Pi_k,chi_k,u_k,Theta_"answer",Xi_k⟩$],
-    [$D_k=⟨epsilon_k,w_k,s_k,delta_k,R_k,Phi_k,F_k⟩$],
+    [$kappa=⟨p,a,o_k,Theta_"entry",D_k,Pi_k,chi_k,u_k,Theta_"answer",Xi_k⟩$],
+    [$D_k=⟨epsilon_k,Delta_k,w_k,s_k,delta_k,R_k,Phi_k,F_k⟩$],
     [$sigma="freshInstantiation"("typeParams"(O))$],
     [$sigma(O)=(bar(A)_sigma)->R_sigma @[m,zeta_sigma,d_sigma,R_sigma^o,Phi_sigma,P_sigma]$],
     [$"AdmissibleSite"(kappa,sigma(O),H_h)$],
@@ -2617,9 +2718,9 @@ summary与 usage都进入 $f_d$。
     [$Theta_h="ImportHandlerEnv"(Theta_"entry",H_h)$],
     [$Theta_k="bindArgs"(Theta_h,bar(x):bar(A)_sigma,Xi_k)$],
     [$k:"Resume"[1,D_k,R_sigma,B,Pi_k,chi_k,rho_h]$],
-    [$K;I;Phi_h;Omega,k:"Open"(1)@Theta_k ⊢ e ⇐ R_sigma @[pi_R] ! epsilon_e ▷ s_e;delta_e;chi_R @Theta_R⊣Omega_R$],
+    [$K;I;Phi_h;Omega,k:"Open"(1)@Theta_k ⊢ e ⇐ R_sigma @[pi_R] ! epsilon_e;Delta_e ▷ s_e;delta_e;chi_R @Theta_R⊣Omega_R$],
     [$Theta_y="bind"(Theta_R,y:R_sigma @[pi_R] ▷ chi_R)$],
-    [$K;I;Phi_h;Omega_R@Theta_y ⊢ "resume"(k,y) ⇒ B @[pi_B] ! epsilon_k ▷ s_k;delta_k ⊗ delta_"resume";chi_B @Theta_r⊣Omega'$],
+    [$K;I;Phi_h;Omega_R@Theta_y ⊢ "resume"(k,y) ⇒ B @[pi_B] ! epsilon_k;Delta_k ▷ s_k;delta_k ⊗ delta_"resume";chi_B @Theta_r⊣Omega'$],
     [$"dropBinder"(Theta_r,y)=Theta_"answer"$],
     [$"TailOnly"("let" y=e;"resume"(k,y)) quad Omega'(k)="Closed"$],
     [$"ExtractClauseContract"("typedFunPath",Xi_k,pi_B,chi_B) ⇓ H_c$],
@@ -2630,19 +2731,19 @@ summary与 usage都进入 $f_d$。
 #irule(
   [T-Clause-Abort],
   (
-    [$kappa=⟨a,o_k,Theta_"entry",D_k,Pi_k,chi_k,u_k,Theta_"answer",Xi_k⟩$],
-    [$D_k=⟨epsilon_k,w_k,s_k,delta_k,R_k,Phi_k,F_k⟩$],
+    [$kappa=⟨p,a,o_k,Theta_"entry",D_k,Pi_k,chi_k,u_k,Theta_"answer",Xi_k⟩$],
+    [$D_k=⟨epsilon_k,Delta_k,w_k,s_k,delta_k,R_k,Phi_k,F_k⟩$],
     [$sigma="freshInstantiation"("typeParams"(O))$],
     [$sigma(O)=(bar(A)_sigma)->R_sigma @[m,zeta_sigma,d_sigma,R_sigma^o,Phi_sigma,P_sigma]$],
     [$"AdmissibleSite"(kappa,sigma(O),H_h)$],
-    [$F_k=⟨epsilon_f,zeta_f,s_f,delta_f⟩$],
+    [$F_k=⟨epsilon_f,Delta_f,zeta_f,s_f,delta_f⟩$],
     [$"clauseMode"="abort" quad "abort" <= m$],
     [$Theta_h="ImportHandlerEnv"(Theta_"entry",H_h)$],
     [$Theta_k="bindArgs"(Theta_h,bar(x):bar(A)_sigma,Xi_k)$],
     [$k_kappa:"Resume"[1,D_k,R_sigma,B,Pi_k,chi_k,rho_h] quad Omega_k=Omega[k_kappa↦"Open"(1)]$],
-    [$K;I;Phi_h;Omega_k@Theta_k ⊢ e ⇐ B @[pi_B] ! epsilon_e ▷ s_e;delta_e;chi_B @Theta_B⊣Omega_B$],
+    [$K;I;Phi_h;Omega_k@Theta_k ⊢ e ⇐ B @[pi_B] ! epsilon_e;Delta_e ▷ s_e;delta_e;chi_B @Theta_B⊣Omega_B$],
     [$Theta_y="bind"(Theta_B,y:B @[pi_B] ▷ chi_B)$],
-    [$K;I;Phi_h;Omega_B@Theta_y ⊢ "finalize"(k_kappa) ⇒ "Unit" @["Stable"] ! epsilon_f ▷ s_f;delta_f ⊗ delta_"finalize";emptyset @Theta_f⊣Omega'$],
+    [$K;I;Phi_h;Omega_B@Theta_y ⊢ "finalize"(k_kappa) ⇒ "Unit" @["Stable"] ! epsilon_f;Delta_f ▷ s_f;delta_f ⊗ delta_"finalize";emptyset @Theta_f⊣Omega'$],
     [$K;I;Phi_h@Theta_f ⊢_v y ⇒ B @[pi_o] ▷ chi_o$],
     [$"dropBinder"(Theta_f,y)=Theta_"answer" quad Omega'(k_kappa)="Closed"$],
     [$"ExtractClauseContract"("typedAbortPath",Xi_k,pi_o,chi_o) ⇓ H_c$],
@@ -2664,7 +2765,7 @@ answer-world premise。
 operation $zeta_sigma$、cleanup/answer world一致，并携带全部
 $P_sigma$ obligation；它不能只比较 selector。`ExtractClauseContract`
 从完整 typed `let/resume` 或 `let/finalize/return` derivation投影
-$H_c=⟨m_h,Q_"site",d_h,s_"res",delta_h,R_h,P_"park"⟩$，所以
+$H_c=⟨m_h,Q_"site",d_h,Delta_"res",s_"res",delta_h,R_h,P_"park"⟩$，所以
 actual argument与 handler environment的 provenance/capture transformer
 $R_h$ 不会丢失。
 
@@ -2675,10 +2776,10 @@ $R_h$ 不会丢失。
   [T-Clause-Path-Abort],
   (
     [$k:"Resume"[q,D_k,A_k,B,Pi_k,chi_k,rho_h] quad Omega(k)="Open"(q)$],
-    [$K;I;Phi_h;Omega@Theta_k ⊢_"abort" e ! epsilon_e ▷ s_e;delta_e ⊣Omega_e$],
+    [$K;I;Phi_h;Omega@Theta_k ⊢_"abort" e ! epsilon_e;Delta_e ▷ s_e;delta_e ⊣Omega_e$],
     [$(Omega_o,delta_o)="AbortClauseScopeExit"(k,D_k,Omega_e,delta_e)$],
     [$"NoOpenDisposition"(k,Omega_o)$],
-    [$"ExtractAbortPathContract"(epsilon_e,s_e,delta_o) ⇓ H_a$],
+    [$"ExtractAbortPathContract"(epsilon_e,Delta_e,s_e,delta_o) ⇓ H_a$],
   ),
   [$K;I;Phi_h;H_h ⊢ "clauseAbortPath"(k,e) ⇓ "Aborts"(H_a,Omega_o)$],
 )
@@ -2689,33 +2790,73 @@ suspension、semantic summary与 cleanup evidence。该 rule同样覆盖
 `fun` argument计算、`once/ctl` clause body以及 hidden abort-clause
 disposition的 abortive path。
 
-Handled body使用 path-aware辅助 judgment：
+Handled body使用 path-set辅助 judgment：
 
 $
-  f ::= "Aborts"
+  t ::= "Aborts"
     | "Returns"(pi,chi,Theta)
     | "Transfers"("ParkContract")
+  quad
+  cal(F) ::= {t_1,...,t_n}
 $
+
+$cal(F)$ 是 reachable outcomes 的有限非空集合，不是单一 tag；因此同一
+branching computation可以同时保存 `Returns`、`Aborts` 与一个或多个
+`Transfers(ParkContract)`。Normal return entries只有在 result type兼容且
+world可 join时合并；transfer contract不能被 join成 abort。
 
 $
   K;I;Phi;Omega@Theta
-  ⊢ "body"_A(e) ⇓ f ! epsilon;s;delta
+  ⊢ "body"_A(e) ⇓ cal(F) ! epsilon;Delta;s;delta
   ⊣ Omega'
 $
 
 它要求所有 normal path返回 $A$ 并 join其 provenance/capture/world；
-完全 abortive body得到 `Aborts`。`Transfers(ParkContract)` 是经过 T-Park
-验证的 terminal ownership transfer，不是 `Unit` result，也不能进入 sequence
-的 suffix。三类 flow都保留 typed Core、operation sites、row、suspension、
-summary 与 attributed demand。
+完全 abortive body得到 `${Aborts}`。`Transfers(ParkContract)` 是经过
+T-Park验证的 terminal ownership transfer，不是 `Unit` result，也不能进入
+sequence 的 suffix。三类 flow都保留 typed Core、operation sites、row、
+suspension、summary 与 attributed demand。
+
+#irule(
+  [T-Body-Return],
+  (
+    [$K;I;Phi;Omega@Theta ⊢ e ⇐ A @[pi] ! epsilon;Delta ▷ s;delta;chi @Theta'⊣Omega'$],
+  ),
+  [$K;I;Phi;Omega@Theta ⊢ "body"_A(e) ⇓
+    {"Returns"(pi,chi,Theta')} ! epsilon;Delta;s;delta ⊣Omega'$],
+)
+
+#irule(
+  [T-Body-Abort],
+  (
+    [$K;I;Phi;Omega@Theta ⊢_"abort" e ! epsilon;Delta ▷ s;delta ⊣Omega'$],
+  ),
+  [$K;I;Phi;Omega@Theta ⊢ "body"_A(e) ⇓
+    {"Aborts"} ! epsilon;Delta;s;delta ⊣Omega'$],
+)
+
+#irule(
+  [T-Body-Transfer],
+  (
+    [$K;I;Phi;Omega@Theta ⊢_"transfer" e ⇓
+      "Transfers"(P) ! epsilon;Delta ▷ s;delta @Theta'⊣Omega'$],
+  ),
+  [$K;I;Phi;Omega@Theta ⊢ "body"_A(e) ⇓
+    {"Transfers"(P)} ! epsilon;Delta;s;delta ⊣Omega'$],
+)
+
+`T-Body-Branch` 取各 branch 的 set union；`T-Body-Sequence` 只把
+`Returns` entry送入 suffix，并原样保留 prefix 的 `Aborts/Transfers`
+entries。这样 operation clause中的 `park`通过 T-Body-Transfer进入 clause
+schema，再经 handler congruence向外传播，不会被错误重标为 abort。
 
 Handler installation是一个有输出的 judgment：
 
 $
-  E_e=⟨f_e,epsilon_e,s_e,delta_e⟩
+  E_e=⟨cal(F)_e,epsilon_e,Delta_e,s_e,delta_e⟩
   quad
-  "InstallOK"(h,P_h,a,bar(kappa),E_e,C_h)
-  ⇓ ⟨f_o,delta_o⟩
+  "InstallOK"(p,h,P_h,a,bar(kappa),E_e,C_h)
+  ⇓ ⟨cal(F)_o,Delta_o,delta_o⟩
 $
 
 先令 $(Pi_"handler",chi_"handler")="handlerEnv"(C_h)$。其中
@@ -2726,7 +2867,7 @@ $
 HandleResultSummary =
   join(
     applyReturnContract(C_h, πe, χe, Θe).result
-      when f_e = Returns(πe, χe, Θe),
+      for each Returns(πe, χe, Θe) in ℱe,
     clauseSummary(C_h, operation(κ))(
       Ξκ, Πκ, χκ, Πhandler, χhandler)
       for each reachable κ whose clause has a normal exit,
@@ -2738,7 +2879,7 @@ answer-world集合。Semantic summary也按相同 reachable-path集合计算：
 
 $
   delta_o =
-  "handleSummary"(delta_e,a,C_h,P_h,bar(kappa),f_e)
+  "handleSummary"(delta_e,a,C_h,P_h,bar(kappa),cal(F)_e)
 $
 
 它保留 unhandled body summary，并加入实际可能执行的 return/clause
@@ -2746,9 +2887,11 @@ summary与 handler policy；不能用单独的 $P_h$ 替代 $C_h$。
 
 所以 abort clause从 actual argument（例如 `Raise.throw(err)` 的 `err`）带入
 结果的 provenance/capture不会从 normal body summary中消失。
-`InstallOK` 同时要求所有 normal exit产生同一个输出 $Theta_o$；若没有
-normal exit则 $f_o="NoReturn"$；transfer path必须携带并 discharge
-`ParkContract`。Clause可以通过 full $w_k$ resume到该 world，
+`InstallOK` 对 $cal(F)_e$ 逐 path映射：return path应用 return/clause
+contract，abort path保留 `Aborts`，transfer path保留同一个
+`Transfers(ParkContract)` 并验证该 installation不窃取 disposition。它同时
+要求所有 normal exit产生可 join 的输出 $Theta_o$；没有 normal exit时
+set中仍保留 abort/transfer而不是压成 `NoReturn`。Clause可以通过 full $w_k$ resume到该 world，
 也可执行等价 sealed transition；无 resume 的 abort path若 normal return
 却没有该 world evidence，就失败。`RequiresTickWitness`、
 `OwnerBoundParking` 等 $P_o$ obligation也在这里 discharge。
@@ -2756,35 +2899,38 @@ normal exit则 $f_o="NoReturn"$；transfer path必须携带并 discharge
 == Anonymous handling
 
 #irule(
-  [T-Handle-Anon],
+  [T-Handle-Anon-Paths],
   (
-    [$K;I;Phi@Theta ⊢_v h ⇒ "Handler"[F,rho_h,A,B,epsilon_h,C_h,P_h] @[pi_h] ▷ chi_h$],
-    [$K;I;Phi;Omega@Theta ⊢ "body"_A(e) ⇓ f_e ! epsilon_e;s_e;delta_e ⊣Omega_e$],
-    [$a="Anon"(F) quad K;I;Phi@Theta ⊢ "sites"(e,a) ⇓ bar(kappa)$],
-    [$E_e=⟨f_e,epsilon_e,s_e,delta_e⟩$],
-    [$"InstallOK"(h,P_h,a,bar(kappa),E_e,C_h) ⇓ ⟨"Returns"(pi_o,chi_o,Theta_o),delta_o⟩$],
+    [$K;I;Phi@Theta ⊢_v h ⇒
+      "HandlerTemplate"[F,rho_h,A,B,epsilon_h,(p).C_h,P_h]
+      @[pi_h] ▷ chi_h$],
+    [$a="Anon"(F) quad p ∉ "prompts"("promptStack")$],
+    [$S_p="pushPrompt"("promptStack",p,a)$],
+    [$K;I;Phi;Omega@Theta;S_p ⊢ "body"_A(e) ⇓
+      cal(F)_e ! epsilon_e;Delta_e;s_e;delta_e ⊣Omega_e$],
+    [$K;I;Phi@Theta;S_p ⊢ "sites"(e,a,p) ⇓ bar(kappa)$],
+    [$E_e=⟨cal(F)_e,epsilon_e,Delta_e,s_e,delta_e⟩$],
+    [$"InstallOK"(p,h,P_h,a,bar(kappa),E_e,C_h)
+      ⇓ ⟨cal(F)_o,Delta_i,delta_o⟩$],
     [$"PolicyOK"(P_h) quad "PhaseAllows"(Phi,"requiredPhase"(C_h))$],
-    [$epsilon_o="routeErase"(epsilon_e,bar(kappa),a,h) ∪ epsilon_h$],
+    [$"RowSplit"(Delta_i,p)=⟨Delta_"here",Delta_"out"⟩$],
+    [$Delta_h="instantiateHandlerResidual"(C_h,p)$],
+    [$Delta_o=Delta_"out"∪Delta_h
+      quad epsilon_o="eraseDemand"(Delta_o)$],
     [$s_o="handleSusp"(s_e,a,C_h)$],
   ),
-  [$K;I;Phi;Omega@Theta ⊢ "handle"[h,"anon"](e) ⇒ B @[pi_o] ! epsilon_o ▷ s_o;delta_o;chi_o @Theta_o⊣Omega_e$],
+  [$K;I;Phi;Omega@Theta ⊢ "body"_B(
+    "freshprompt" p " in " "handle"[p,h,"anon"](e))
+    ⇓ cal(F)_o ! epsilon_o;Delta_o;s_o;delta_o ⊣Omega_e$],
 )
 
-#irule(
-  [T-Handle-Anon-Abort],
-  (
-    [$K;I;Phi@Theta ⊢_v h ⇒ "Handler"[F,rho_h,A,B,epsilon_h,C_h,P_h] @[pi_h] ▷ chi_h$],
-    [$K;I;Phi;Omega@Theta ⊢ "body"_A(e) ⇓ f_e ! epsilon_e;s_e;delta_e ⊣Omega_e$],
-    [$a="Anon"(F) quad K;I;Phi@Theta ⊢ "sites"(e,a) ⇓ bar(kappa)$],
-    [$E_e=⟨f_e,epsilon_e,s_e,delta_e⟩$],
-    [$"InstallOK"(h,P_h,a,bar(kappa),E_e,C_h) ⇓ ⟨"NoReturn",delta_o⟩$],
-    [$"PolicyOK"(P_h) quad "PhaseAllows"(Phi,"requiredPhase"(C_h))$],
-    [$epsilon_o="routeErase"(epsilon_e,bar(kappa),a,h) ∪ epsilon_h quad s_o="handleSusp"(s_e,a,C_h)$],
-  ),
-  [$K;I;Phi;Omega@Theta ⊢_"abort" "handle"[h,"anon"](e) ! epsilon_o ▷ s_o;delta_o ⊣Omega_e$],
-)
+`RowSplit` 只消费 route恰为 fresh $p$ 的 demand；同 family outer demand、
+explicit forwarding 与每个独立路由的 secondary demand都留在
+$Delta_"out"$。`InstallOK` 的 path map逐项保留 transfer，因此这条 rule同时
+是 return、abort 与 T-Handle-Transfer congruence，不再用 “NoReturn ⇒
+Aborts” 的错误二分。
 
-Handler 消除 row entry，但 $P_h$ 仍进入 $delta$。所以：
+Handler 消除对应 prompt demand，但 $P_h$ 仍进入 $delta$。所以：
 
 ```text
 handled row becomes empty
@@ -2799,42 +2945,35 @@ computation is temporal-pure or replay-safe
 == Generative named handling
 
 #irule(
-  [T-Handle-Named],
+  [T-Handle-Named-Paths],
   (
-    [$K;I;Phi@Theta ⊢_v h ⇒ "Handler"[F,rho_h,A,B,epsilon_h,C_h,P_h] @[pi_h] ▷ chi_h$],
-    [$"HandlerOriginOK"(Phi,rho_h) quad i ∉ "dom"(I)$],
+    [$K;I;Phi@Theta ⊢_v h ⇒
+      "HandlerTemplate"[F,rho_h,A,B,epsilon_h,(p).C_h,P_h]
+      @[pi_h] ▷ chi_h$],
+    [$"HandlerOriginOK"(Phi,rho_h) quad i ∉ "dom"(I)
+      quad p ∉ "prompts"("promptStack")$],
     [$a="Named"(i,F) quad I'=I,i:F@rho_h quad Phi_i="addAuthority"(Phi,a)$],
-    [$K;I';Phi_i;Omega@Theta ⊢ "body"_A(e) ⇓ f_e ! epsilon_e;s_e;delta_e ⊣Omega_e$],
-    [$K;I';Phi_i@Theta ⊢ "sites"(e,a) ⇓ bar(kappa)$],
-    [$E_e=⟨f_e,epsilon_e,s_e,delta_e⟩$],
-    [$"InstallOK"(h,P_h,a,bar(kappa),E_e,C_h) ⇓ ⟨"Returns"(pi_o,chi_o,Theta_h),delta_o⟩$],
+    [$S_p="pushPrompt"("promptStack",p,a)$],
+    [$K;I';Phi_i;Omega@Theta;S_p ⊢ "body"_A(e) ⇓
+      cal(F)_e ! epsilon_e;Delta_e;s_e;delta_e ⊣Omega_e$],
+    [$K;I';Phi_i@Theta;S_p ⊢ "sites"(e,a,p) ⇓ bar(kappa)$],
+    [$E_e=⟨cal(F)_e,epsilon_e,Delta_e,s_e,delta_e⟩$],
+    [$"InstallOK"(p,h,P_h,a,bar(kappa),E_e,C_h)
+      ⇓ ⟨cal(F)_h,Delta_i,delta_o⟩$],
     [$"PolicyOK"(P_h) quad "PhaseAllows"(Phi_i,"requiredPhase"(C_h))$],
-    [$epsilon_o="routeErase"(epsilon_e,bar(kappa),a,h) ∪ epsilon_h$],
-    [$s_o="handleSusp"(s_e,a,C_h) quad Theta_o="hideIdentity"(Theta_h,i)$],
+    [$"RowSplit"(Delta_i,p)=⟨Delta_"here",Delta_"out"⟩$],
+    [$Delta_h="instantiateHandlerResidual"(C_h,p)
+      quad Delta_o=Delta_"out"∪Delta_h$],
+    [$epsilon_o="eraseDemand"(Delta_o)
+      quad cal(F)_o="hideIdentityFlow"(cal(F)_h,i)$],
+    [$s_o="handleSusp"(s_e,a,C_h)$],
     [$"NoOpenPrivateDisposition"(i,Omega_e)$],
     [$Omega_o="hideIdentityUsage"(Omega_e,i)$],
-    [$i ∉ "fv"(B,pi_o,epsilon_o,s_o,delta_o,chi_o,Omega_o)$],
+    [$i ∉ "fv"(B,cal(F)_o,epsilon_o,Delta_o,s_o,delta_o,Omega_o)$],
   ),
-  [$K;I;Phi;Omega@Theta ⊢ "handle"[h,i](e) ⇒ B @[pi_o] ! epsilon_o ▷ s_o;delta_o;chi_o @Theta_o⊣Omega_o$],
-)
-
-#irule(
-  [T-Handle-Named-Abort],
-  (
-    [$K;I;Phi@Theta ⊢_v h ⇒ "Handler"[F,rho_h,A,B,epsilon_h,C_h,P_h] @[pi_h] ▷ chi_h$],
-    [$"HandlerOriginOK"(Phi,rho_h) quad i ∉ "dom"(I)$],
-    [$a="Named"(i,F) quad I'=I,i:F@rho_h quad Phi_i="addAuthority"(Phi,a)$],
-    [$K;I';Phi_i;Omega@Theta ⊢ "body"_A(e) ⇓ f_e ! epsilon_e;s_e;delta_e ⊣Omega_e$],
-    [$K;I';Phi_i@Theta ⊢ "sites"(e,a) ⇓ bar(kappa)$],
-    [$E_e=⟨f_e,epsilon_e,s_e,delta_e⟩$],
-    [$"InstallOK"(h,P_h,a,bar(kappa),E_e,C_h) ⇓ ⟨"NoReturn",delta_o⟩$],
-    [$"PolicyOK"(P_h) quad "PhaseAllows"(Phi_i,"requiredPhase"(C_h))$],
-    [$epsilon_o="routeErase"(epsilon_e,bar(kappa),a,h) ∪ epsilon_h quad s_o="handleSusp"(s_e,a,C_h)$],
-    [$"NoOpenPrivateDisposition"(i,Omega_e)$],
-    [$Omega_o="hideIdentityUsage"(Omega_e,i)$],
-    [$i ∉ "fv"(epsilon_o,s_o,delta_o,Omega_o)$],
-  ),
-  [$K;I;Phi;Omega@Theta ⊢_"abort" "handle"[h,i](e) ! epsilon_o ▷ s_o;delta_o ⊣Omega_o$],
+  [$K;I;Phi;Omega@Theta ⊢ "body"_B(
+    "freshprompt" p " in " "handle"[p,h,i](e))
+    ⇓ cal(F)_o ! epsilon_o;Delta_o;s_o;delta_o ⊣Omega_o$],
 )
 
 最后一个 premise 同时检查：
@@ -2854,9 +2993,11 @@ Nested `with` 按 elaboration 后的普通 evaluation order和 T-Handle 规则
 right-fold：
 
 $
-  "handle"(h_1, "handle"(h_2,e))
+  "freshprompt" p_1."handle"[p_1](h_1,
+    "freshprompt" p_2."handle"[p_2](h_2,e))
   !=
-  "handle"(h_2, "handle"(h_1,e))
+  "freshprompt" p_2."handle"[p_2](h_2,
+    "freshprompt" p_1."handle"[p_1](h_1,e))
 $
 
 Typing 不对 handler stack 排序；optimizer 也不能仅凭 row set equality交换。
@@ -2907,7 +3048,8 @@ capture；它们的 temporal provenance 仍须另外检查。
   [T-Capture-Ctl],
   (
     [$"maxUses"(m)=omega$],
-    [$kappa in "sites"(e,a) quad "provenance"(kappa)=Pi_k quad "captures"(kappa)=chi_k$],
+    [$kappa in "sites"(e,a,p) quad "route"(kappa)=p
+      quad "provenance"(kappa)=Pi_k quad "captures"(kappa)=chi_k$],
     [$"DuplicableEnv"(Pi_k,chi_k)$],
     [$"EnvValidAt"(Pi_k,chi_k,"MultiShot")$],
     [$"ReplayableCleanup"("cleanup"(kappa),Pi_k,chi_k)$],
@@ -2957,7 +3099,10 @@ $omega$。
     [$"SealCompletion"("src",o,k) ⇓ ⟨g,c,"port"⟩$],
     [$P="ParkContract"(rho,g,c,"port",D_k,Pi_k,chi_k)$],
   ),
-  [$K;I;Phi;Omega@Theta ⊢_"transfer" "park"("src",o,k) ⇓ "Transfers"(P) ! emptyset ▷ "request"("Owner"(rho),"MaySuspend");delta_"park" @Theta⊣Omega[k↦"Transferred"(rho,g,c)]$],
+  [$K;I;Phi;Omega@Theta ⊢_"transfer" "park"("src",o,k) ⇓
+    "Transfers"(P) ! emptyset;emptyset ▷
+    "request"("Owner"(rho),"MaySuspend");delta_"park"
+    @Theta⊣Omega[k↦"Transferred"(rho,g,c)]$],
 )
 
 Surface 第一方协议把 `source.park(k, under = owner)` elaboration为
@@ -2966,6 +3111,21 @@ Surface 第一方协议把 `source.park(k, under = owner)` elaboration为
 generation-bound `CompletionPort[ρ,B]`，并对 resume/finalize承担唯一责任。
 Raw `Resume` 不会被普通 host callback捕获；只有 sealed completion source
 能构造 port 和 $P$。
+
+`examples/spec/accept/owner-park.cire` 的关键推导链是：
+
+```text
+Async::await site
+  → Demand(κ, p, Async, await, Primary)
+  → once clause owns k : Open(1)
+  → T-Park changes k to Transferred(ρ,g,c)
+  → T-Body-Transfer yields {Transfers(ParkContract)}
+  → T-Handle-*-Paths preserves that path
+  → RowSplit(Δ,p) removes the handled Async demand
+  → function body has declared_type Int, flow={Transfers}, row={}
+```
+
+这里没有任何一步把 transfer构造成 `Unit`、`Returns` 或 `Aborts`。
 
 TR₀ 只允许 park `once` resumption；
 `ctl` 必须在 clause内同步使用并最终 finalize。若未来要 transfer multi-shot
@@ -4164,7 +4324,8 @@ buffer隔离、Owner/generation checks和 publish linearization对应。
 ```text
 CheckResult {
   type
-  flow: Returns(temporal_context_out)
+  flow: nonempty set of
+      Returns(temporal_context_out, provenance, result_captures)
       | Aborts
       | Transfers(ParkContract)
   provenance
@@ -4180,13 +4341,17 @@ CheckResult {
 }
 ```
 
-`type`、`provenance` 与 `result_captures` 只在 `Returns` case有值；
-`Aborts` 与 `Transfers` 仍保存 row、attributed demand、suspension、summary、
-usage、typed Core与 site evidence，供最近 delimiter检查。`Transfers`
-额外保存 sealed `ParkContract`，且只能被拥有对应 completion source 的
-Owner-bound runner消解。`Returns` 表示“至少一个 normal path”，
-并不否认其他 path含 abortive operation；这些 path仍由 row/site evidence
-保留。只有不存在任何 normal path时才用 `Aborts`。
+`type` 是所有 `Returns` entries 的共同 supertype；provenance/capture/world
+保存在各 return entry并在需要单一 normal结果时 join。`Aborts` 与
+`Transfers` entries仍共享 row、attributed demand、suspension、summary、
+usage、typed Core与 site evidence。`Transfers` 额外保存 sealed
+`ParkContract`。集合可以同时包含 return/abort/transfer；只有 set中确实有
+`Returns` 才能读取 normal result，terminal entries永远不会被存在一个
+normal branch的事实抹掉。
+
+每个 `CheckResult` 还维持
+`residual_row == eraseDemand(attributed_demand)`；所有 row elimination都先
+partition demand，再重算 public row。
 
 `evidence` 保存：
 
@@ -4223,6 +4388,7 @@ install_handler(handler_contract, policy, handled_entry,
 
 ```text
 K, I, Φ, Ω, Θ
+prompt stack: fresh installation prompts with handled entry
 expected answer type
 current Owner is an explicit field of Φ
 constraint worklists
@@ -4234,16 +4400,23 @@ constraint worklists
 
 ```text
 strict?(result, typed_prefix):
-  if result.flow in {Aborts, Transfers(_)}:
+  if no Returns(_) in result.flow:
     return compose_terminal_prefix(typed_prefix, result)
-  return result as Returns
+  return {
+    normal = join_returns(result.flow),
+    side_flow = result.flow - Returns(_),
+    evidence = result
+  }
 ```
 
-因此只有 `strict?` 返回后才可读取 `type/π/χ/Θ_out`。Runner delimiter body
-不用这个 helper，而走各自的 path-aware normal/abort rule。
+因此只有 `strict?` 产生 `normal` 后才可读取 `type/π/χ/Θ_out`；其
+`side_flow` 在 sequence composition中原样 union回结果。Runner delimiter
+body不用这个 helper，而逐 path处理完整 set。
 `check_args` 是从左到右的有限 fold；每个 argument都立刻经过 `strict?`，
-首个 `Aborts` 立即返回已经执行的 argument prefix，后续 argument不再检查，
-所以 site node中的 $Xi_k$ 恰好只来自可达、已类型化的 actual argument。
+若某一步没有 return path就立即返回已经执行的 argument prefix；若同时有
+return与terminal path，只让 return entries继续检查后续 argument并保存
+terminal entries。所以 site node中的 $Xi_k$ 恰好只来自可达、已类型化的
+actual argument。
 
 ```text
 synth(ctx, e):
@@ -4266,38 +4439,52 @@ synth(ctx, e):
       u = latent_usage(symbolic.Ω, rb.Ω_out)
       Λ = abstract_sites(rb.typed_core, x)
       require many_call_safe(Πclosure, u, χclosure)
-      if rb.flow is Returns:
+      if has_returns(rb.flow):
+        normal = join_returns(rb.flow)
         (Q, Rresult) = abstract_parametric_summary(
-          symbolic.π, symbolic.χ, rb, x)
-        Θout = drop_binder(rb.Θ_out, x)
+          symbolic.π, symbolic.χ, normal, x)
+        Θout = drop_binder(normal.Θ_out, x)
         return value(function_contract(
           rb.row, abstract_locks(ctx.Θ, Θout), MayReturn,
           rb.suspension, rb.summary, Πclosure, χclosure,
-          u, Rresult, Φrequired, Q, Λ))
-      Q = abstract_parametric_abort_obligations(
-        symbolic.π, symbolic.χ, rb.abort_evidence, x)
+          u, Rresult, Φrequired, Q, Λ,
+          flow_summary = abstract_flow(rb.flow)))
+      Q = abstract_parametric_terminal_obligations(
+        symbolic.π, symbolic.χ, rb.flow, x)
       return value(function_contract(
         rb.row, bottom, NoReturn,
         rb.suspension, rb.summary, Πclosure, χclosure,
-        u, bottom, Φrequired, Q, Λ))
+        u, bottom, Φrequired, Q, Λ,
+        flow_summary = abstract_flow(rb.flow)))
 
     App(f, arg):
       rf = strict?(synth(ctx, f), empty_prefix)
       (A, contract, B) = instantiate_function(rf.type)
       ra = strict?(check(rf.ctx_out, arg, A), prefix(rf))
       require phase_allows(ctx.Φ, contract.required_phase)
-      discharge(instantiate(contract.obligations,
-                            ra.π, ra.χ, ctx.I, ra.Θ_out))
+      Qcall = instantiate(stageCall(contract.obligations),
+                          ra.normal.π, ra.normal.χ,
+                          ctx.I, ra.normal.Θ_out)
+      discharge(Qcall)
+      Qinstall = instantiate(stageHandlerInstall(contract.obligations),
+                             ra.normal.π, ra.normal.χ,
+                             ctx.I, ra.normal.Θ_out)
       Ω3 = apply_usage(ra.Ω_out, contract.latent_usage)
+      (Δcall, Λinstall) = instantiate_latent_sites(
+        contract.Λ, ra.normal,
+        current_prompt_stack = ctx.prompts)
+      preserve_until_install(Qinstall, Λinstall)
+      side = union(rf.side_flow, ra.side_flow,
+                   instantiate_flow(contract.flow_summary, ra.normal))
       if contract.returnability == NoReturn:
-        Λ3 = instantiate_latent_sites(
-          contract.Λ, ra,
-          aborting_call_entry_world = ra.Θ_out)
-        return compose_aborting_call(rf, ra, contract, Ω3, Λ3)
-      Θ3 = apply_transition(contract.world, ra.Θ_out)
-      (π3, χ3) = contract.result_summary(ra.π, ra.χ)
-      Λ3 = instantiate_latent_sites(contract.Λ, ra, Θ3)
-      return compose_call(rf, ra, contract, π3, χ3, Ω3, Θ3, Λ3)
+        return compose_terminal_call(
+          rf, ra, contract, Ω3, side, Δcall, Λinstall)
+      Θ3 = apply_transition(contract.world, ra.normal.Θ_out)
+      (π3, χ3) = contract.result_summary(
+        ra.normal.π, ra.normal.χ)
+      return compose_call(
+        rf, ra, contract, π3, χ3, Ω3, Θ3,
+        side, Δcall, Λinstall)
 
     Let(x, first, rest):
       r1 = strict?(synth(ctx, first), empty_prefix)
@@ -4311,8 +4498,8 @@ synth(ctx, e):
       ι = resolve_clock_identity(clock)
       Φsym = fresh_symbolic_required_phase()
       inner = synth(push_lock(ctx.with_phase(Φsym), ι), body)
-      require inner.flow == Returns
-        or diagnose "delay body has no normal payload"
+      require inner.flow == {Returns(_)}
+        or diagnose "delay body must have one normal payload and no terminal side path"
       require inner.Ω_out == ctx.Ω
       require inner.row == ∅
       require grade(inner.suspension) == NoSuspend
@@ -4330,9 +4517,10 @@ synth(ctx, e):
         inner.π, inner.χ, inner.summary, Φforce)
       return CheckResult(
         type = Next[ι, inner.type, L],
-        flow = Returns(ctx.Θ),
+        flow = {Returns(ctx.Θ, Stable, χdelay)},
         provenance = Stable,
         residual_row = ∅,
+        attributed_demand = ∅,
         attributed_suspension = direct(NoSuspend),
         semantic_summary = δ_alloc,
         result_captures = χdelay,
@@ -4350,9 +4538,10 @@ synth(ctx, e):
       require L.payload_captures ⊆ rv.χ
       return CheckResult(
         type = A,
-        flow = Returns(ctx.Θ),
+        flow = {Returns(ctx.Θ, L.payload_provenance, rv.χ)},
         provenance = L.payload_provenance,
         residual_row = ∅,
+        attributed_demand = ∅,
         attributed_suspension = direct(NoSuspend),
         semantic_summary = L.summary ⊗ δ_force,
         result_captures = rv.χ,
@@ -4364,56 +4553,92 @@ synth(ctx, e):
         check_args(ctx, args, sig.parameters), evaluated_arg_prefix)
       require phase_allows(ctx.Φ, sig.required_phase)
       a = row_entry(receiver)
-      s2 = join(ra.suspension, request(a, sig.suspension))
-      require Allowed(ctx.Φ, union(ra.row, {a}), s2, ra.summary)
+      p = resolve_route(ctx.prompts, a)
+      κ = fresh_site_slot()
+      primary = Demand(κ, p, a, sig.resolved_selector, Primary)
+      secondary = instantiate_secondary_sites(
+        sig.secondary_sites,
+        parent_site = κ,
+        prompt_stack = ctx.prompts)
+      Δ2 = union(ra.attributed_demand, {primary},
+                 secondary.attributed_demand)
+      ε2 = eraseDemand(Δ2)
+      s2 = join(ra.suspension,
+                request(a, sig.suspension),
+                secondary.suspension)
+      δ2 = ra.summary ⊗ secondary.semantic_summary
+      require Allowed(ctx.Φ, ε2, s2, δ2)
       record_site_node(
+        site_slot = κ,
+        route = p,
         entry = a,
         operation = sig.resolved_selector,
         instantiated_signature = sig,
+        secondary_sites = secondary.site_evidence,
         actual_argument_summaries = ra.argument_summaries,
-        obligations = sig.obligations)
+        call_obligations = stageCall(sig.obligations),
+        install_obligations = stageHandlerInstall(sig.obligations))
       if sig.mode == abort:
         require sig.world == abortive
-        return aborting_flow(ra, row = union(ra.row, {a}),
-                             suspension = s2)
+        return aborting_flow(
+          ra, flow = union(ra.side_flow, {Aborts}),
+          attributed_demand = Δ2, residual_row = ε2,
+          suspension = s2, summary = δ2)
       Θ2 = apply_transition(sig.world, ra.Θ_out)
       (πr, χr) = sig.result_summary(ra.πs, ra.χs)
-      return sig.result @πr captures χr
-             + row {a}
-             + suspension s2
+      return CheckResult(
+        type = sig.result,
+        flow = union(ra.side_flow, {Returns(Θ2, πr, χr)}),
+        provenance = πr,
+        residual_row = ε2,
+        attributed_demand = Δ2,
+        attributed_suspension = s2,
+        semantic_summary = δ2,
+        result_captures = χr,
+        usage_context_out = ra.Ω_out,
+        latent_site_evidence = {primary} ∪ secondary.site_evidence)
 
     Handle(handler, optional_cap, body):
       rh = check_value(ctx, handler)
       require rh.type has shape
-        Handler[F, ρh, A, B, εh, Ch, Ph]
+        HandlerTemplate[F, ρh, A, B, εh, (prompt).Ch, Ph]
+      p = fresh_prompt()
       if optional_cap:
         require handler_origin_ok(ctx.Φ, rh.origin_owner)
         ι = fresh_identity(rh.effect, rh.origin_owner)
         a = Named(ι, rh.effect)
         ctxι = ctx.extend_identity(ι).add_authority(a)
+                  .push_prompt(p, a)
         require phase_allows(ctxι.Φ, rh.required_phase)
         rb = check_body_flow(ctxι, body, rh.handled_input)
-        sites = analyze_sites(rb.typed_core, a, rb.answer_contract)
-        install = install_handler(rh, rh.policy, a, sites, rb)
+        sites = analyze_sites(
+          rb.typed_core, a, p, rb.answer_contract)
+        install = install_handler(
+          p, rh, rh.policy, a, sites, rb)
         result = eliminate_entry_with_contract(
-          rh, rb, a, sites, install)
+          p, rh, rb, a, sites, install)
         require no_open_private_disposition(ι, result.Ω_out)
         result.Ω_out = hide_identity_usage(result.Ω_out, ι)
         require no_escape_in_flow_evidence(
-          ι, result.row, result.suspension,
+          ι, result.row, result.attributed_demand, result.suspension,
           result.summary, result.Ω_out)
-        if result.flow is Returns:
-          require no_escape(ι, result.type, result.π,
-                            result.row, result.summary, result.χ)
-          result.Θ_out = hide_identity(result.Θ_out, ι)
+        for return in returns(result.flow):
+          require no_escape(
+            ι, result.type, return.π,
+            result.row, result.attributed_demand,
+            result.summary, return.χ)
+          return.Θ_out = hide_identity(return.Θ_out, ι)
       else:
         require phase_allows(ctx.Φ, rh.required_phase)
-        rb = check_body_flow(ctx, body, rh.handled_input)
         a = Anon(rh.effect)
-        sites = analyze_sites(rb.typed_core, a, rb.answer_contract)
-        install = install_handler(rh, rh.policy, a, sites, rb)
+        ctxp = ctx.push_prompt(p, a)
+        rb = check_body_flow(ctxp, body, rh.handled_input)
+        sites = analyze_sites(
+          rb.typed_core, a, p, rb.answer_contract)
+        install = install_handler(
+          p, rh, rh.policy, a, sites, rb)
         result = eliminate_entry_with_contract(
-          rh, rb, a, sites, install)
+          p, rh, rb, a, sites, install)
       return result
 
     Resume(k, value):
@@ -4425,9 +4650,10 @@ synth(ctx, e):
       (πB, χB) = continuation(k).answer_summary(rv)
       return CheckResult(
         type = continuation(k).answer_type,
-        flow = Returns(Θ2),
+        flow = {Returns(Θ2, πB, χB)},
         provenance = πB,
         residual_row = continuation(k).residual_row,
+        attributed_demand = continuation(k).attributed_demand,
         attributed_suspension = continuation(k).suspension,
         semantic_summary =
           continuation(k).summary ⊗ δ_resume,
@@ -4496,9 +4722,9 @@ check_handler(ctx, effect, clauses):
   P = resolve_sealed_handler_policy(effect, clauses)
   require PolicyOK(P) and Origin(P) == shape.owner
   return HandlerResult(
-    type = Handler[effect, shape.owner, A, B,
-                   C.residual_row, C, P],
-    contract = C,
+    type = HandlerTemplate[effect, shape.owner, A, B,
+                           C.residual_row, (prompt).C, P],
+    contract_template = (prompt).C,
     policy = P,
     provenance = Owner(shape.owner),
     captures = χenv,
@@ -4526,16 +4752,19 @@ check_clause_schema(ctx, handler_shape, op_sig, clause):
     fresh_rigid_argument_summaries(opσ.parameters)
   params = bind_parameters(opσ.parameters, arg_summaries)
   Θentry = fresh_symbolic_temporal_context()
+  p = fresh_symbolic_prompt_slot()
   clause_ctx = import_handler_env(
     ctx.with_phase(handler_shape.phase_symbol).with_Θ(Θentry),
     handler_shape.env_provenance,
     handler_shape.env_captures,
     handler_shape.owner)
   κ = fresh_abstract_site_contract(
+    installation_prompt = p,
     operation = opσ.resolved_selector,
     entry_world = Θentry,
     first_transition = opσ.resume_transition,
     obligations = opσ.site_obligations,
+    secondary_contract = opσ.secondary_contract,
     actual_arguments = arg_summaries,
   )
 
@@ -4574,25 +4803,31 @@ check_clause_schema(ctx, handler_shape, op_sig, clause):
     require every normal result world == κ.answer_world
 
   require clause_contract(result) refines opσ.contract
-  return schema universally quantified over skolems and κ
+  return schema universally quantified over skolems, p and κ
 
-install_handler(handler, policy, handled_entry, sites, body_flow):
+install_handler(prompt, handler, policy, handled_entry, sites, body_flow):
   normal_summaries = []
   answer_worlds = []
   semantic_paths = []
-  if body_flow.flow is Transfers(P):
-    require handler/policy discharges P at this Owner boundary
-    return sealed transfer evidence(P)
-  if body_flow.flow is Returns(Θ):
-    ret = apply_return_contract(
-      handler.return_contract,
-      body_flow.provenance, body_flow.result_captures, Θ)
-    normal_summaries += (ret.π, ret.χ)
-    answer_worlds += ret.Θ
-    semantic_paths += ret.summary
+  outcomes = {}
+  for path in body_flow.flow:
+    match path:
+      Returns(Θ, π, χ):
+        ret = apply_return_contract(
+          handler.return_contract, π, χ, Θ)
+        normal_summaries += (ret.π, ret.χ)
+        answer_worlds += ret.Θ
+        semantic_paths += ret.summary
+      Aborts:
+        outcomes += Aborts
+      Transfers(P):
+        require preserves_park_contract(prompt, handler, policy, P)
+        outcomes += Transfers(P)
   for κ in sites:
+    require κ.installation_prompt == prompt
+    require κ.route == prompt
     clause = instantiate matching clause schema with
-      operation skolems, κ.entry_world, κ
+      operation skolems, prompt, κ.entry_world, κ
     discharge imported handler environment is valid
       at κ.entry_world
     if κ.instantiated_operation.max_mode == ctl:
@@ -4600,54 +4835,59 @@ install_handler(handler, policy, handled_entry, sites, body_flow):
       discharge EnvValidAt(κ.Π, κ.χ, MultiShot)
       discharge ReplayableCleanup(κ.D.cleanup, κ.Π, κ.χ)
       discharge WorldForkSafe(κ.D.world)
-    discharge every instantiated site obligation using policy
+    discharge every stageHandlerInstall(κ.obligations) using policy
+    require stageCall(κ.obligations) was discharged at its call node
+    for secondary in κ.secondary_sites:
+      require secondary.route ==
+        resolve_route_at_installation(
+          secondary.route_selector, prompt, κ.prompt_stack)
+      preserve secondary unless secondary.route == prompt
     for Async.await:
       derive task region from κ.actual_arguments
       check install-await-site(κ, policy)
-    for each reachable normal exit in clause:
-      normal_summaries += clause.result_summary(
-        κ.actual_arguments, κ.Π, κ.χ,
-        handler.env_provenance, handler.captures)
-      answer_worlds += clause.answer_world
-      semantic_paths += clause.summary
+    for path in clause.flow:
+      match path:
+        Returns(_, π, χ):
+          normal_summaries += clause.result_summary(
+            κ.actual_arguments, κ.Π, κ.χ,
+            handler.env_provenance, handler.captures)
+          answer_worlds += clause.answer_world
+          semantic_paths += clause.summary
+        Aborts:
+          outcomes += Aborts
+        Transfers(P):
+          require clause owns the disposition recorded by P
+          outcomes += Transfers(P)
   require all answer_worlds are equal
-  outcome = NoReturn when normal_summaries is empty
-            else let (πo, χo) = join(normal_summaries)
-                 in Returns(πo, χo, the unique answer_world)
+  if normal_summaries is not empty:
+    (πo, χo) = join(normal_summaries)
+    outcomes += Returns(the unique answer_world, πo, χo)
   δout = handle_summary(
     body_flow.summary, handled_entry, handler.contract,
     policy, sites, body_flow.flow, semantic_paths)
-  return sealed evidence(outcome, δout)
+  return sealed evidence(outcomes, δout)
 
-eliminate_entry_with_contract(handler, body, entry, sites, install):
-  if install is transfer evidence(P):
-    return body with flow = Transfers(P)
-  εout = route_erase(body.row, body.attributed_demand,
-                     entry, handler.prompt, sites)
-         ∪ handler.residual_row
-  Δout = retain_unrouted_demand(body.attributed_demand,
-                                handler.prompt, sites)
+eliminate_entry_with_contract(
+  prompt, handler, body, entry, sites, install):
+  (Δhere, Δouter) =
+    partition(body.attributed_demand,
+              demand.route == prompt)
+  require every primary site in Δhere is in sites
+  Δhandler = instantiate_handler_residual(
+    handler.contract_template, prompt)
+  Δout = union(Δouter, Δhandler)
+  εout = eraseDemand(Δout)
   sout = handle_suspension(body.suspension, entry, handler.contract)
-  if install.outcome == NoReturn:
-    return CheckResult(
-      flow = Aborts,
-      residual_row = εout,
-      attributed_demand = Δout,
-      attributed_suspension = sout,
-      semantic_summary = install.δout,
-      usage_context_out = body.Ω_out,
-      latent_site_evidence = body.latent_site_evidence,
-      typed_core = handled_node(body.typed_core, handler))
-  Returns(πout, χout, Θout) = install.outcome
   return body with
     type = handler.answer_type
-    flow = Returns(Θout)
-    provenance = πout
-    result_captures = χout
+    flow = install.outcomes
     row = εout
     attributed_demand = Δout
     suspension = sout
     summary = install.δout
+    typed_core =
+      fresh_prompt_node(
+        prompt, handled_node(prompt, body.typed_core, handler))
 ```
 
 `analyze_sites` 对 local typed ANF结构递归；遇到 function call时读取并 compose
@@ -5014,13 +5254,14 @@ soundness statement有明确目标。
 #status(
   [Theorem T1 — algorithmic soundness],
   [
-    若 algorithm返回 `flow=Returns(Θ′)`，则擦除 normalization evidence
-    后存在对应的普通 declarative typing derivation；若返回
-    `flow=Aborts`，则存在对应
+    若 algorithm返回的 path set含 `Returns(Θ′,π,χ)`，则擦除
+    normalization evidence后存在对应的普通 declarative typing
+    derivation；每个 `Aborts` entry存在对应
     $K;I;Phi;Omega@Theta ⊢_"abort" e ! epsilon ▷ s;delta⊣Omega'$
-    derivation；若返回 `flow=Transfers(P)`，则存在唯一 T-Park derivation、
-    sealed completion source 与匹配的 $P$。后两者都没有
-    type/provenance/normal world output。三种 case不互相 coercion。
+    derivation；每个 `Transfers(P)` entry存在唯一 T-Park derivation、
+    sealed completion source 与匹配的 $P$。Terminal entries没有
+    type/provenance/normal world output；同一 set可同时包含三类 outcome，
+    但三类不互相 coercion。
   ],
 )
 
@@ -5028,12 +5269,13 @@ soundness statement有明确目标。
   [Theorem T2 — synthesis uniqueness],
   [
     在 resolver binding、kind evidence和 handler certificate固定时，
-    algorithm的 flow tag唯一。`Returns` case的 type、provenance、
-    normalized row、attributed demand、world transformer、attributed suspension、result
-    capture与finite latent-site summary modulo alpha-renaming唯一；
-    `Aborts` case只有 row/demand、suspension、summary、usage与site summary；
-    `Transfers` case还具有唯一 sealed `ParkContract`/claim identity。
-    后两者不声称不存在的 result/world唯一。这里声称的是 deterministic
+    algorithm的 normalized flow set唯一。每个 `Returns` entry的
+    type、provenance、world transformer、result capture与所有 entry共享的
+    normalized row、attributed demand、attributed suspension、finite
+    latent-site summary modulo alpha-renaming唯一；`Aborts` entry没有
+    result字段；每个 `Transfers` entry具有唯一 sealed
+    `ParkContract`/claim identity。Terminal entries不声称不存在的
+    result/world唯一。这里声称的是 deterministic
     algorithm，不是任意 declarative derivation的 principal-type theorem。
   ],
 )
@@ -5276,15 +5518,6 @@ reduction calculus。下一版必须固定：
 在这些规则完成前，`defer` 是 syntax baseline + semantic proof obligation，
 不能由未来 runtime的偶然 unwind行为定义。
 
-== `FrameClock.yield` 的 suspension grade
-
-本稿为了推导 T-Operation 暂把 sealed `FrameClock.yield` contract写成
-`NoSuspend`，但真实 frame runner通常需要等待宿主 callback。该选择只在
-runner把等待完全封装为 world transition、且不跨语言级 Owner/storage
-boundary时成立。否则 signature必须是 `MaySuspend` 并承担
-OwnerBoundParking。profile冻结前需用 operational semantics证明其中一个
-refinement；实现不得自行把 `MaySuspend` 擦成 `NoSuspend`。
-
 == Clock representation
 
 本文用 singleton capability identity。替代方案 fresh phantom type也可表达
@@ -5400,7 +5633,7 @@ affine Event payload
 == Portable handlers与 finalizer
 
 TR₀ 已冻结一点：continuation cleanup不是隐式 pure；其
-$F_k=⟨epsilon^"fin",zeta^"fin",s^"fin",delta^"fin"⟩$ 必须进入
+$F_k=⟨epsilon^"fin",Delta^"fin",zeta^"fin",s^"fin",delta^"fin"⟩$ 必须进入
 T-Finalize与 clause aggregation。仍未冻结的是：
 
 - portable/reentrant context的类型；
@@ -5464,7 +5697,7 @@ OperationSignature {
   parameters
   result
   resume_transition
-  secondary_row
+  secondary_sites
   secondary_suspension
   secondary_summary
   suspension_bound
@@ -5479,6 +5712,7 @@ FunctionContractV1 {
   effect_row
   world_transformer
   returnability
+  flow_summary
   suspension
   semantic_summary
   closure_provenance
@@ -5493,6 +5727,8 @@ FunctionContractV1 {
 HandlerEvidence {
   effect
   exact_entry
+  prompt_template_slot
+  installation_prompt
   actual_mode
   policy
   trust_origin

@@ -1,6 +1,7 @@
 // profile: Cire-TR₀/2026-07-31
 // expect: reject
 // rule: T-Advance — no matching clock lock
+// oracle: reject_at=advance(value); diagnostic=no-matching-clock-lock; world=current(frame)
 
 def![F : FrameClock] bad(
   frame : cap F,

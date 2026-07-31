@@ -1,6 +1,7 @@
 // profile: Cire-TR₀/2026-07-31
 // expect: accept
 // rule: T-Operation; T-Handler; T-Resume; T-Finalize
+// oracle: type=Array[Int]; row={}; world=same; captures={}; usage=all-resumptions-closed; owner=none
 
 pub(open) effect Workflow[A, E] {
   fun default() -> A

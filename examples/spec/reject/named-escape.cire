@@ -1,6 +1,7 @@
 // profile: Cire-TR₀/2026-07-31
 // expect: reject
 // rule: T-Handle / identity nonescape
+// oracle: reject_at=handler-result; diagnostic=named-capability-escapes; captures={state}
 
 ability Reader[A] {
   fun read() -> A

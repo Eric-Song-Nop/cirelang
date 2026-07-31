@@ -1,0 +1,101 @@
+{
+  "profile": "Cire-TR₀/2026-07-31",
+  "schema_version": 1,
+  "artifact": "FunctionContractV1",
+  "function": "library::choose_once",
+  "row": {
+    "kind": "Empty"
+  },
+  "transition": {
+    "kind": "SameWorld"
+  },
+  "flow_summary": [
+    {
+      "kind": "Returns",
+      "world": "same"
+    }
+  ],
+  "suspension": {
+    "kind": "NoSuspend"
+  },
+  "semantic_summary": {
+    "kind": "Pure"
+  },
+  "capture_slots": [
+    {
+      "slot": 0,
+      "type": {
+        "kind": "TypeParameter",
+        "slot": 0
+      },
+      "provenance": {
+        "kind": "Argument",
+        "slot": 0
+      },
+      "capture": {
+        "kind": "None"
+      }
+    }
+  ],
+  "usage": [
+    {
+      "slot": 0,
+      "kind": "Many"
+    }
+  ],
+  "result_transformer": {
+    "kind": "Identity"
+  },
+  "required_phase": {
+    "kind": "Any"
+  },
+  "ParametricObligations": [
+    {
+      "id": 0,
+      "kind": "BoundarySafeV1",
+      "stage": "Call",
+      "slots": [0],
+      "boundary": "CallArgument",
+      "origin": "library.cire:choose_once"
+    },
+    {
+      "id": 1,
+      "kind": "DuplicableEnvV1",
+      "stage": "HandlerInstall",
+      "slots": [0],
+      "site_slot": 0,
+      "origin": "library.cire:Choice.choose"
+    }
+  ],
+  "LatentSites": [
+    {
+      "site_slot": 0,
+      "stage": "HandlerInstall",
+      "receiver": {
+        "kind": "AnonymousFamily",
+        "family": "Choice"
+      },
+      "operation": {
+        "family": "Choice",
+        "name": "choose"
+      },
+      "route": {
+        "kind": "ResolveAtInstallation"
+      },
+      "argument_slots": [0],
+      "suffix": {
+        "max_mode": "ctl",
+        "flow": ["Returns"],
+        "world": "same"
+      },
+      "secondary_sites": [],
+      "obligation_ids": [1],
+      "origin": "library.cire:Choice.choose"
+    }
+  ],
+  "call_expectation": {
+    "discharge": [0],
+    "preserve_until_handler_install": [1],
+    "instantiate_latent_sites": [0]
+  }
+}

@@ -51,18 +51,19 @@ Parser、测试 fixture 或历史实现从不裁决语言设计。未来实现�
 | Handler 省略 `return` | Profile baseline | 先合成 identity，再做 exactly-one 检查 | 无实现 |
 | `k.resume` / `k.finalize` | Profile baseline | disposition、world、cleanup 都进入判断 | 无实现 |
 | `k.discontinue` | 不在本 profile | 等 error payload/world/cleanup contract 完整后再提案 | 无实现 |
-| `with h as app in e` | Profile baseline | 生成式 scoped handler application；精确 row removal | 无实现 |
+| `with h as app in e` | Profile baseline | 生成式 scoped handler application；每次 installation fresh prompt；按 route 精确 row removal | 无实现 |
 | 普通 `with h in e` | 工作语法 | `ScopedApply`；仅有 handler evidence 才降为 `handle` | 无实现 |
 | Labelled argument | Profile baseline | positional 在前、label 唯一、按源码顺序求值 | 无实现 |
 | Trailing lambda | Profile baseline | 附着到紧邻 call 的最后一个实参；换行不脱附 | 无实现 |
 | Block item/result | Profile baseline | maximal-expression item；最后一个未加 `;` 的表达式为结果 | 无实现 |
 | `defer` | 工作语法 + 证明义务 | LIFO intent 已定；capture/abort/park/close reduction calculus 尚未冻结 | 无实现 |
 | `Next/delay/advance` | Profile baseline | generative clock + Fitch lock；`Next` 纯且可共享 | 无实现 |
-| `FrameClock.yield` suspension | 参数化 | `NoSuspend` 必须由 sealed runner refinement 证明，否则为 `MaySuspend` + parking | 无实现 |
+| `FrameClock.yield` suspension | Profile baseline | 默认 `MaySuspend` + parking；只有 sealed runner refinement 可证明 `NoSuspend` | 无实现 |
 | Task / Live / Signal / Event | 第一方契约 | 四种不同协议，无隐式 coercion | 无实现 |
 | Owner transfer | Profile baseline + sealed source | `Transfers(ParkContract)`；generation-bound completion port + CAS + close-time finalize | 无实现 |
+| Flow | Profile baseline | reachable path set 同时保留 `Returns` / `Aborts` / `Transfers`；sequence 只推进 return path | 无实现 |
 | Operation secondary effects | Profile baseline | call row = argument row ∪ dispatch entry ∪ `SecondaryRow`；`Δ` 保留 site/route attribution | 无实现 |
-| Interface `Q/Λ` | Profile baseline | versioned `ParametricObligations` / `LatentSites`，stage 为 `Call` 或 `HandlerInstall` | 无实现 |
+| Interface `Q/Λ` | Profile baseline | versioned tagged V1 variants、alpha-normalized slots、独立 route；`Call` / `HandlerInstall` 两阶段 | 无实现 |
 | General affine user values | 不在本 profile | 只追踪 resumption/authority 的受限 usage | 无实现 |
 | 宏系统 | 不采用 | UI 使用普通调用、label 和 trailing lambda | 无实现 |
 
@@ -119,7 +120,7 @@ replacement 与 from-scratch consistency 都是**定理陈述或证明义务**�
 
 重新开始实现前必须具备：
 
-- [表面语法规范](surface-syntax.md)中的完整 grammar 与 elaboration；
+- [完整表面语法](surface-grammar.md)及其 elaboration；
 - `examples/spec/` 的正负 conformance corpus；
 - 每个 case 的 type、row、world、capture、usage、Owner obligation 或 rule id；
 - 能以 versioned `ParametricObligations` / `LatentSites` 序列化 `Q/Λ`、

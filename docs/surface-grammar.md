@@ -484,8 +484,13 @@ RecordFieldStart <- LowerIdent (COLON / COMMA / RBRACE) / DOTDOT
 RecordField      <- LowerIdent (COLON Expr)?
                   / DOTDOT Expr
 
-LambdaExpr       <- FN GenericClauses? ParamList Block
-LambdaPatternList <- Pattern (COMMA Pattern)* COMMA?
+LambdaExpr       <- FN GenericClauses? LambdaParamList Block
+LambdaParamList  <- LPAREN LambdaParameter
+                    (COMMA LambdaParameter)* COMMA? RPAREN
+                  / LPAREN RPAREN
+LambdaParameter  <- Pattern (COLON Type)?
+LambdaPatternList <- LambdaParameter
+                     (COMMA LambdaParameter)* COMMA?
 
 IfExpr           <- IF Expr Block (ELSE (IfExpr / Block))?
 MatchExpr        <- MATCH Expr LBRACE MatchArm* RBRACE
@@ -508,8 +513,10 @@ Assignment 左侧必须是 mutable place；这一点在 syntax validation/type c
 ArgList          <- LPAREN CallArguments? RPAREN
 CallArguments    <- PositionalArgs (COMMA LabelledArgs)? COMMA?
                   / LabelledArgs COMMA?
-PositionalArgs   <- Expr (COMMA Expr)*
+PositionalArgs   <- PositionalArg (COMMA PositionalArg)*
+PositionalArg    <- !LabelledArgStart Expr
 LabelledArgs     <- LabelledArg (COMMA LabelledArg)*
+LabelledArgStart <- LowerIdent (EQUAL / TILDE)
 LabelledArg      <- LowerIdent EQUAL Expr
                   / LowerIdent TILDE
 ```
@@ -520,6 +527,17 @@ LabelledArg      <- LowerIdent EQUAL Expr
 - callee、显式 argument 按源码从左到右求值，不能按 parameter 顺序重排；
 - 缺省 labelled parameter 在进入 callee 后按声明顺序求值；
 - generic argument 只属于后面紧邻的 call；index suffix 不会被猜成泛型调用。
+- `LowerIdent =` / `LowerIdent~` 在 argument 起点先判为 label；若确实要把赋值
+  作为 positional argument，必须加括号，例如 `f((slot = value))`。
+
+因此 corpus 中 `panel(make_title(), enabled=is_enabled(), gap=measure_gap())`
+产生一个 positional 与两个 labelled argument；`connect("host",
+secure=true, 443)` 在进入 labels 后遇到 positional token，必须拒绝。这里不
+依赖 PEG choice偶然先把 `enabled=is_enabled()` 吞成 assignment。
+
+同理，`fn(value) { ... }` 由 `LambdaParamList` 接受并推导 parameter type；
+`fn(value : Int) { ... }` 也合法。具名 `def` 仍使用必须标注类型的
+`ParamList`。
 
 ### 7.2 Trailing lambda
 

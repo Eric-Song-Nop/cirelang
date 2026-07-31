@@ -1,6 +1,7 @@
 // profile: Cire-TR₀/2026-07-31
 // expect: reject
 // rule: Surface grammar / CallArguments — positional arguments precede labels
+// oracle: reject_at=third-argument; diagnostic=positional-after-labelled; labels={secure}
 
 def connect(host : String, port~ : Int, secure~ : Bool) -> Connection {
   loop {}
