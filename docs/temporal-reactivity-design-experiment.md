@@ -1978,6 +1978,11 @@ acquire返回 `None`。raw frame与 exact Next只存在于 open block lexical sc
 Returns变成 `Some`；Aborts/Transfers在递归 nonescape gate后 release一次并
 保持 tag。此 delimiter还检查 row/Δ、sites、Q/Λ、cleanup/live binding与完整
 Park resumption，不能只看 result type。
+成功 open的每条 observer严格组合为 acquire/body/release；body若是 Park
+transfer，其 OwnerBound suspension、park summary、Owner authority/current Owner
+都保留。pack本身在所有 builder path前记录非 Pure allocation；Aborts/Transfers
+还在相同 terminal tag之前记录唯一 non-Pure child-close。三个状态动作与这两种
+pack动作都必须经过 `Allowed`，不能以 `NoSuspend` 推断成 `Pure`。
 
 该 API 使用普通 call/trailing-lambda CST，但只有解析到 sealed
 `@temporal` origin才有 privileged binder lowering。同名用户函数不能构造

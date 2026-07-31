@@ -29,13 +29,10 @@
           "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } },
           "source": null,
           "type": {
-            "kind": "LegacyTypeRefV2",
-            "value": {
-              "arguments": [],
-              "kind": "NominalTypeV1",
-              "module": ["library"],
-              "name": "ChooseOnceFunction"
-            }
+            "contract": { "artifact_hash": "sha256:9d1a221e029e2035ce2bc51e513ee2f8f2c9fd7c0c206003c53bec41d6e78af7", "kind": "ImportedFunctionRefV2", "module": ["library"], "name": "choose_once" },
+            "kind": "FunctionTypeV2",
+            "parameter": { "arguments": [{ "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }], "constructor": { "kind": "BuiltinConstructorV1", "name": "Array" }, "kind": "ApplyTypeV2" },
+            "result": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }
           },
           "usage": null
         },
@@ -91,13 +88,10 @@
           "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } },
           "source": null,
           "type": {
-            "kind": "LegacyTypeRefV2",
-            "value": {
-              "arguments": [],
-              "kind": "NominalTypeV1",
-              "module": ["library"],
-              "name": "ChooseOnceFunction"
-            }
+            "contract": { "artifact_hash": "sha256:9d1a221e029e2035ce2bc51e513ee2f8f2c9fd7c0c206003c53bec41d6e78af7", "kind": "ImportedFunctionRefV2", "module": ["library"], "name": "choose_once" },
+            "kind": "FunctionTypeV2",
+            "parameter": { "arguments": [{ "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }], "constructor": { "kind": "BuiltinConstructorV1", "name": "Array" }, "kind": "ApplyTypeV2" },
+            "result": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }
           },
           "usage": null
         },

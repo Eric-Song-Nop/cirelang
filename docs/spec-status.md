@@ -104,9 +104,16 @@ Parser、测试 fixture 或历史实现从不裁决语言设计。未来实现�
   或 rank-2 source syntax。`try_with_packed_next` 只在 lexical intrinsic body
   引入 private frame与 exact Next；Closing/Closed返回 `None`，所有成功打开的
   Returns/Aborts/Transfers path在完整 nonescape gate后 exactly-once release。
+  won observer逐字段保留 body，summary固定为 acquire/body/release；Park的
+  OwnerBound、δpark与 Owner phase不能丢失。pack的 allocation与 terminal
+  close同样是 sealed、NoSuspend但非 Pure observer。
 - 高阶 contract 不再逐字段独立 projection。V2 先建立含完整 actual summary/
   substitution的 `AppliedContractV2`，再用 `Invoke/PathBind/Join` computation
   派生 row/flow/result/suspension/summary/phase/usage/Q/Λ。
+- `HandlerContractV2` 自带 return/clause共享的 application ledger；
+  `DelegatesV2` 只在所属 clause disposition binder的 lexical scope合法。
+  V2 decoder穷尽 computation/outcome tag并线程 return/disposition context，
+  Function、Suffix和 handler return不得携带 outward Delegates。
 - Public effect row 是 attributed demand `Δ` 的擦除。Handler 只移除路由到
   自己 prompt 的 site；同 family forwarding、named identity 和 secondary row
   都不能用 raw set subtraction 近似。

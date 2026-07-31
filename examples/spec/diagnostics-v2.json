@@ -11,6 +11,7 @@
     { "id": "contract-parameter-inconsistent-instantiation", "stage": "ContractWF" },
     { "id": "contract-projection-escapes-scope", "stage": "Nonescape" },
     { "id": "contract-term-cycle", "stage": "ContractWF" },
+    { "id": "delegates-outside-handler-clause", "stage": "ContractWF" },
     { "id": "multi-shot-captures-one-shot-resumption", "stage": "Usage" },
     { "id": "named-capability-escapes", "stage": "Nonescape" },
     { "id": "no-matching-clock-lock", "stage": "TemporalWorld" },
@@ -25,6 +26,8 @@
     { "id": "return-projection-does-not-match-flow", "stage": "ContractWF" },
     { "id": "row-literal-has-multiple-tails", "stage": "RowWF" },
     { "id": "terminal-transfer-has-no-value", "stage": "Flow" },
+    { "id": "unknown-contract-computation-variant", "stage": "InterfaceImport" },
+    { "id": "unknown-path-outcome-v2", "stage": "InterfaceImport" },
     { "id": "unknown-resumption-primitive", "stage": "Resolve" },
     { "id": "unsupported-contract-schema-version", "stage": "InterfaceImport" }
   ]

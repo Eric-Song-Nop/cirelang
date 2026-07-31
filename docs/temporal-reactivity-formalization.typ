@@ -752,7 +752,7 @@ PathContractV2 {
   attributed_demand: [DemandV1]
   suspension: SuspensionV1
   semantic_summary: SummaryV1
-  usage: [UsageV1]
+  usage: [UsageExprV2]
   required_phase: PhaseRequirementV1
   ParametricObligations: [ObligationV2]
   LatentSites: [LatentSiteV2]
@@ -1307,6 +1307,7 @@ HandlerContractV2 {
   semantic_summary: SummaryV1
   required_phase: PhaseRequirementV1
   handler_environment: [EnvironmentBindingV2]
+  applications: [AppliedContractV2]
   return_computation: ContractComputationV2
   clause_computations: [ClauseComputationV2]
 }
@@ -1636,11 +1637,11 @@ LiveAcrossSiteV1 {
 }
 
 LiveAcrossSiteV2 {
-  slot: SlotRefV1              // SuffixLive namespace
+  slot: SlotRefV2              // SuffixLive or an in-scope return binder
   type: TypeRefV2
   provenance: ProvenanceExprV2
   capture: CaptureExprV2
-  usage: UsageV1
+  usage: UsageExprV2
 }
 
 CleanupContractV1 {
@@ -1728,9 +1729,46 @@ ObligationV1 =
 
 ObligationV2 =
     LegacyObligationV2 { value: ObligationV1 }
+  | BoundarySafeV2 {
+      id: u32, stage: StageV1, slots: [SlotRefV2],
+      boundary: BoundaryKindV1, origin: SourceOriginV2
+    }
   | StableAcrossV2 {
-      id: u32, stage: StageV1, slots: [SlotRefV1],
+      id: u32, stage: StageV1, slots: [SlotRefV2],
       clock_slot: SlotRefV1, worlds: [WorldExprV2],
+      origin: SourceOriginV2
+    }
+  | OutlivesV2 {
+      id: u32, stage: StageV1,
+      shorter: SlotRefV2, longer: SlotRefV2,
+      origin: SourceOriginV2
+    }
+  | PhaseAllowsV2 {
+      id: u32, stage: StageV1,
+      required_phase: PhaseRequirementV1,
+      origin: SourceOriginV2
+    }
+  | DuplicableEnvV2 {
+      id: u32, stage: StageV1, slots: [SlotRefV2],
+      site_slot: u32, origin: SourceOriginV2
+    }
+  | ReplayableCleanupV2 {
+      id: u32, stage: StageV1, site_slot: u32,
+      cleanup: CleanupContractV1, origin: SourceOriginV2
+    }
+  | TickWitnessV2 {
+      id: u32, stage: StageV1,
+      clock_slot: SlotRefV1, site_slot: u32,
+      origin: SourceOriginV2
+    }
+  | OwnerParkingV2 {
+      id: u32, stage: StageV1,
+      owner_slot: SlotRefV1, site_slot: u32,
+      origin: SourceOriginV2
+    }
+  | RowLacksV2 {
+      id: u32, stage: StageV1,
+      row_slot: SlotRefV1, entry: EffectEntrySelectorV1,
       origin: SourceOriginV2
     }
 
@@ -2123,6 +2161,15 @@ application slots及两套 alpha-refreshed site/Q ids，而不会共享 actual/w
 Clock substitution必须先把 imported declaration kind alpha-instantiate到 use-site
 binder kind；只写 contract hash而留空这些必需 nominal mapping不能通过
 `ContractWF`。
+`AppliedContractV2.callee_summary.type` 必须是
+`FunctionTypeV2(instantiated_parameter, instantiated_result,
+application.contract)`；nominal “function sentinel”不能替代这条 T-App premise。
+对 `PathBindV2(prefix,binder,continuation,PreserveTerminalV2)` 的实际求值先原样
+保留 prefix 的每个 Aborts/Transfers，只对每个 Returns建立 binder并求值一次
+continuation。因而一个具有 1 Returns、1 Aborts、2 Transfers 的 callback顺序
+调用两次时，结果严格为第一调用的 3 个 terminal bypass path，加上其唯一
+Returns进入第二调用得到的 4 个 path，共 7 个；不能用“两次调用”布尔字段代替
+这次 computation evaluation。
 
 `PathBindV2.return_binder` 同时声明 `ReturnSlotRefV2`、
 `ReturnWorldV2`、`ReturnProvenanceV2`、`ReturnCaptureV2` 与
@@ -2135,6 +2182,73 @@ expression偷偷绕过 return-binder substitution。
 经 exact application substitution后的 concrete projection，在 binder scope建立之前检查；
 它们不得反向引用自身 `return_slot`。只有 continuation subtree可以用
 `Return*V2(return_slot)` 引用这些已绑定的投影。
+因此 `PathContractV2.usage` 与 `LiveAcrossSiteV2.usage` 都使用
+`UsageExprV2`，`LiveAcrossSiteV2.slot` 与 V2 obligation 的 value-slot字段使用
+`SlotRefV2`；一个 return-bound `ResumeTypeRefV2` 才能在 continuation 的
+path usage、live-site usage与 $Q$ 中被引用。importer必须由同一个 lexical
+return-binder type environment验证这三类引用；普通返回值不能借
+`ReturnUsageV2` 伪造 disposition authority。
+
+`HandlerContractV2.applications` 是 return computation与全部 clause
+computations共享的原子 application ledger，application slot在整个 handler
+contract内唯一。`InvokeV2` 必须在该 ledger解析；clause disposition binder
+只扩展其所属 `ClauseComputationV2.computation` 的 lexical context，不扩展
+handler return或其他 clause。V2 serializer/importer不得把其中任何一段降级成
+`ClauseFlowSetV1`、`SuffixContractV1` 或从旧 flow字段重建。
+
+Normative V2 import is context-sensitive and exhaustive:
+
+```text
+import_contract_computation_v2(node, applications, returns, delegates):
+  match exact_variant(node):
+    LiteralPathsV2(paths):
+      require paths nonempty
+      return map(paths, p => import_path_v2(
+        p, applications, returns, delegates))
+    InvokeV2(slot):
+      require unique slot in applications
+      return Invoke(slot)
+    PathBindV2(prefix, binder, continuation, PreserveTerminalV2):
+      p = import_contract_computation_v2(
+        prefix, applications, returns, delegates)
+      require binder.slot not in returns
+      b = import_return_binder_v2(binder, returns)
+      c = import_contract_computation_v2(
+        continuation, applications, returns + {binder.slot -> b}, delegates)
+      return PathBind(p, b, c, PreserveTerminal)
+    JoinV2(members):
+      require members nonempty
+      return map(members, m => import_contract_computation_v2(
+        m, applications, returns, delegates))
+    otherwise:
+      diagnose unknown-contract-computation-variant
+
+import_path_outcome_v2(outcome, applications, returns, delegates):
+  match exact_variant(outcome):
+    ReturnsV2(transition, transformer):
+      return Returns(transition,
+        import_result_transformer_v2(transformer, returns))
+    AbortsV2(origin): return Aborts(origin)
+    TransfersV2(park):
+      return Transfers(import_park_contract_v2(park, applications, returns))
+    DelegatesV2(forward, evidence):
+      require delegates is HandlerClauseOnly(disposition_binder)
+        or diagnose delegates-outside-handler-clause
+      require evidence.inner_disposition ==
+        SlotRefV1(SuffixLive, disposition_binder.slot)
+      return Delegates(
+        import_forward_contract_v2(forward, applications, returns),
+        import_forward_disposition_v2(evidence, disposition_binder))
+    otherwise:
+      diagnose unknown-path-outcome-v2
+```
+
+Every recursive V2 expression importer receives the same `returns` map;
+`Return*V2(slot)` requires an exact entry and `ReturnUsageV2(slot)` additionally
+requires that entry's type be `ResumeTypeRefV2`. Root Function/Suffix and handler
+return calls pass `delegates=Forbidden`; only the corresponding clause call passes
+`HandlerClauseOnly`. Unknown tags and extra/missing variant fields are errors,
+never extension points for this frozen profile.
 
 `Call` obligation 在 T-App 实例化和 discharge；`HandlerInstall`
 obligation与对应 `LatentSiteV2` 原样保留到 fresh delimiter prompt存在时的
@@ -2148,7 +2262,10 @@ obligation与对应 `LatentSiteV2` 原样保留到 fresh delimiter prompt存在�
 `packed-next-builder-result-mismatch`；Park exactness区分
 `park-source-payload-mismatch` 与 `park-resumption-type-mismatch`；contract
 term区分 kind/instantiation/scope/cycle、terminal bind、return-flow、Q stage
-与 Lambda key错误。V1 decoder看到 V2 field/tag必须产生
+与 Lambda key错误；context/exhaustiveness另外区分
+`delegates-outside-handler-clause`、
+`unknown-contract-computation-variant` 与 `unknown-path-outcome-v2`。V1
+decoder看到 V2 field/tag必须产生
 `unsupported-contract-schema-version`，不能忽略或回填。
 
 与 hidden $L$ 相同，surface `(A) -> B ! ε` 先 elaboration为
@@ -3017,6 +3134,11 @@ trailing-lambda syntax; resolver creates dedicated contextual HIR nodes.
         i:"ClockView"(j)@rho_c$],
     [$"CreatePackedFrame"(o) ⇓
       ⟨o_c:"Owner"[rho_c],j,i,"runner",h,w_c,Theta_c⟩$],
+    [$delta_"alloc"="PackedAllocateSummaryV2"(
+        "HostObservable","NoSuspend")
+      quad delta_"close"="PackedTerminalCloseSummaryV2"(
+        "HostObservable","NoSuspend")$],
+    [$"Allowed"(Phi,emptyset,"direct"("NoSuspend"),delta_"alloc")$],
     [$w_c:"ChildOwnerWitnessV2"(rho,rho_c,"DirectChild")$],
     [$L="InferLaterContractV2"(i,A,e)
       quad "LaterContractWF"(L,i,A)$],
@@ -3026,6 +3148,9 @@ trailing-lambda syntax; resolver creates dedicated contextual HIR nodes.
       cal(F)_b ! epsilon_b;Delta_b;s_b;delta_b ⊣Omega_b$],
     [$forall t in cal(F)_b.
       "PackNextPathSafe"(rho_c,j,i,h,A,L,t,"evidence"(t))$],
+    [$forall t in cal(F)_b.
+      "Allowed"(Phi,"row"(t),"suspension"(t),
+        "PackObserverSummary"(delta_"alloc",delta_"close",t))$],
     [$"SealPackedSummary"(i,A,L,cal(F)_b) ⇓
       S_p:"ClockPackageSummary"(i,A)$],
     [$W_p="SerializePackedNextPackageV2"(
@@ -3053,6 +3178,7 @@ trailing-lambda syntax; resolver creates dedicated contextual HIR nodes.
     [$"ImportPackedNextPackageV2"(K;I,W_p)
       =exists rho_c,j,i,S_p."Next"[i,A,L]$],
     [$cal(F)_p="normalize"({"SealOrClosePackPath"(
+      delta_"alloc",delta_"close",
       o,o_c,rho_c,j,i,"runner",h,W_p,t) | t in cal(F)_b})$],
     [$forall t_p in cal(F)_p.
       rho_c,j,i,L,S_p ∉ "fvOutward"(t_p)$],
@@ -3073,6 +3199,16 @@ $rho_c,j,i,L,S_p,o_c$.
 On Aborts/Transfers it first rejects private-$i$ escape, then closes the new
 runner/child Owner exactly once and preserves the terminal tag. Allocation and
 close are empty-row/NoSuspend sealed summaries, but not `Pure`.
+Precisely, `PackObserverSummary(δalloc,δclose,t)` is
+`SequenceSummaryV1([δalloc, summary(t)])` when $t$ Returns and
+`SequenceSummaryV1([δalloc, summary(t), δclose])` when $t$ Aborts/Transfers.
+`SealOrClosePackPath` preserves every body row/demand/suspension/usage/phase/
+$Q/Lambda$ field, sequences exactly that summary, and on terminal paths records
+the unique close-before-same-tag transition. `PackedAllocateSummaryV2` and
+`PackedTerminalCloseSummaryV2` are sealed `CertificateV1` constructors with
+origins `cire.temporal:packed-allocate` and
+`cire.temporal:packed-terminal-close`; together with acquire/release/dispose
+they are the only first-party PackedNext state observers and none is `PureV1`.
 
 The shared cell is exactly:
 
@@ -3143,6 +3279,9 @@ not `Pure`.
     [$K_p;I_c;Phi;Omega@Theta_p;S ⊢ "body"_B(e) ⇓
       cal(F)_b ! epsilon_b;Delta_b;s_b;delta_b ⊣Omega_b$],
     [$forall t in cal(F)_b.
+      "Allowed"(Phi,"row"(t),"suspension"(t),
+        delta_a⊗"summary"(t)⊗delta_r)$],
+    [$forall t in cal(F)_b.
       "PackedNextOutwardSafe"(rho_c,j,i,L,S_p,B,t,"evidence"(t))$],
     [$cal(F)_w="normalize"({
       "AcquireReleaseMapSomePath"(
@@ -3167,6 +3306,16 @@ $rho_c$、$j$、$i$、$L$ 与 $S_p$. `AcquireLostNonePath` retains the non-Pure
 acquire-attempt summary and performs no release. The acquire-lost
 Returns(None) path is always reachable, so
 the outer intrinsic is `MayReturn` even when the open body has no Returns.
+For every won path, its residual row, attributed demand, usage, $Q$ and
+$Lambda$ are the body fields after the private-binder nonescape projection;
+its suspension is
+`join(direct(NoSuspend), body.suspension, direct(NoSuspend))`, its required
+phase is the intersection of Action with `body.required_phase` (including the
+body's authorities/current Owner), and its summary is exactly
+`SequenceSummaryV1([δacquire, body.semantic_summary, δrelease])`.
+In particular a body `TransfersV2(ParkContractV2)` keeps its
+`OwnerBoundV1(site,owner,MaySuspend)`, $delta_"park"$ and OwnerAuthority/current
+Owner observers; release evidence does not replace any of them.
 
 #irule(
   [T-Dispose-PackedNext],
@@ -5047,9 +5196,10 @@ actual argument与 handler environment的 provenance/capture transformer
 $R_h$ 不会丢失。
 `BindClauseDisposition(k,κ,type(k))` 为这个 clause schema建立唯一
 $b_k$：它把 internal resumption/discard token $k$ alpha-normalize成
-`ClauseDispositionBinderV1`，记录原 `κ.site_slot` 与完整 `ResumeTypeV1`，
+`ClauseDispositionBinderV2`，记录原 `κ.site_slot` 与完整
+`ResumeTypeRefV2 { value: ResumeTypeV2 }`，
 并让同一个 clause flow内每个 `Delegates` 的 `inner_disposition` 只能引用
-该 binder。$b_k$ 的 scope不越过所属 `ClauseFlowSetV1`，也不能从
+该 binder。$b_k$ 的 scope不越过所属 `ClauseComputationV2`，也不能从
 $D_k$、continuation或 live bindings重建。
 `PrepareClauseSite` 只是 T-Clause-Fun/Abort共同的 site admissibility、
 exact stored $O_k$ signature、environment/argument bind与 `Open(1)`
@@ -5094,7 +5244,8 @@ disposition的 abortive path。这里的 $b_k$ 是 enclosing clause schema已经
 建立的同一 binder；`ExistingClauseDisposition` 逐字段匹配 enclosing
 `BindClauseDisposition` 的结果并禁止为 abort path另建 slot。
 因此该 path在 `;Si` 与固定 HandlerInstall stage下产生的 residual route、
-cleanup以及 disposition evidence都并入同一个 `ClauseFlowSetV1`。
+cleanup以及 disposition evidence都并入同一个 `ClauseComputationV2`；
+其 `InvokeV2` 只从 enclosing `HandlerContractV2.applications` ledger解析。
 
 Handled body使用 path-set辅助 judgment：
 
@@ -6895,9 +7046,11 @@ check_body_flow(ctx, expr, expected_type) -> CheckResult
 check_args(ctx, args, parameter_types) -> CheckResult
 check_block(ctx, items) -> CheckResult
 check_handler(ctx, effect, clauses) -> HandlerResult
-check_return_clause_schema(ctx, handler_shape, clause) -> ReturnContract
-check_clause_schema(ctx, handler_shape, operation_signature, clause)
-  -> ClauseSchema
+check_return_clause_schema_v2(ctx, handler_shape, clause)
+  -> (ContractComputationV2, [AppliedContractV2])
+check_clause_schema_v2(
+  ctx, handler_shape, operation_signature, clause, application_slot_supply)
+  -> (ClauseComputationV2, [AppliedContractV2])
 analyze_sites(typed_core, delimiter_entry, installation_prompt,
               answer_contract) -> SiteContracts
 install_handler(prompt_stack, installation_prompt, handler_contract, policy,
@@ -7071,6 +7224,13 @@ synth(ctx, e):
     App(f, arg):
       return strict_bind(synth(ctx, f), empty_prefix, rf =>:
         (A, contract, B) = instantiate_function(rf.type)
+        require rf.type is FunctionTypeV2(
+          parameter = A, result = B, contract = contract.ref)
+        require resolve_contract_ref(contract.ref) has exact
+          FunctionContractKindV2(
+            parameter_type = A,
+            result_type = B,
+            visible_row = visible_row(contract))
         strict_bind(
           check(context_of(rf), arg, A), prefix(rf), ra =>:
             application = build_applied_contract_v2(
@@ -7080,6 +7240,8 @@ synth(ctx, e):
               substitution = solve_complete_substitution(contract, rf, ra),
               entry_world = ra.Θ_out,
               origin = source_origin(f))
+            require application.callee_summary.type ==
+              FunctionTypeV2(A, B, application.contract)
             require application is atomic and
               no_field_has_independent_actuals(application)
             invoked = InvokeV2(application.application_slot)
@@ -7242,14 +7404,14 @@ synth(ctx, e):
         require phase_allows(ctx.Φ, sig.required_phase)
         require Allowed(ctx.Φ, eraseDemand(Δf), sf, δf)
         Ωf = forward_disposition(r.Ω_out, k, κf)
-        require type(k) == ResumeTypeRefV2(
+        require type(k) == ResumeTypeRefV2(value = ResumeTypeV2(
           usage = quantity_for_mode(sig.mode),
           continuation = κf.continuation,
           argument = sig.result,
           answer = expected_clause_type,
           live_provenance = continuation_provenance(κf.continuation),
           live_capture = continuation_capture(κf.continuation),
-          owner = continuation_owner(κf.continuation))
+          owner = continuation_owner(κf.continuation)))
         forward_contract_v2 = ForwardContractV2(
           site_slot = κf.site_slot,
           route = InstallationPromptV1(outer_prompt),
@@ -7283,10 +7445,20 @@ synth(ctx, e):
           input_usage = r.Ω_out,
           output_usage = Ωf,
           continuation_transfer = ExclusiveToForwardContract)
-        forwarded_paths += DelegatesV2(
-          forward_contract = forward_contract_v2,
-          disposition_evidence = disposition_evidence,
-          usage = Ωf)
+        forwarded_paths += PathContractV2(
+          outcome = DelegatesV2(
+            forward_contract = forward_contract_v2,
+            disposition_evidence = disposition_evidence),
+          residual_row = eraseDemand(Δf),
+          attributed_demand = Δf,
+          suspension = sf,
+          semantic_summary = δf,
+          usage = usage_exprs_v2(Ωf),
+          required_phase = join_required_phase(
+            Action, sig.required_phase),
+          ParametricObligations =
+            obligations_v2(call_obligations, install_obligations),
+          LatentSites = latent_sites_v2(κf))
         forward_evidence +=
           (Δf, sf, δf, Ωf, {primary} ∪ secondary.site_evidence)
       flow = union(arg_paths.terminal_paths, forwarded_paths)
@@ -7472,6 +7644,10 @@ check_pack_next(ctx, owner_expr, builder):
     owner_authorized(ctx.Φ, owner, ρ)
   (ρc, owner_child, j, i, runner, handle, child_witness, Θc) =
     create_packed_frame(owner)
+  δallocate = PackedAllocateSummaryV2(HostObservable, NoSuspend)
+  δterminal_close =
+    PackedTerminalCloseSummaryV2(HostObservable, NoSuspend)
+  require Allowed(ctx.Φ, ∅, direct(NoSuspend), δallocate)
   require child_witness == ChildOwnerWitnessV2(
     parent = ρ, child = ρc, relation = DirectChild,
     sealed_origin = "cire.temporal:pack_next")
@@ -7487,6 +7663,14 @@ check_pack_next(ctx, owner_expr, builder):
     require pack_next_path_safe(
       ρc, j, i, handle, body.type.payload, L, path,
       path.evidence)
+    expected_summary =
+      if path is Returns then
+        SequenceSummaryV1(δallocate, path.summary)
+      else
+        SequenceSummaryV1(
+          δallocate, path.summary, δterminal_close)
+    require Allowed(
+      ctx.Φ, path.row, path.suspension, expected_summary)
   Sp = seal_packed_summary(i, body.type.payload, L, body.flow)
   wire = serialize_packed_next_package_v2(
     storage_owner = OwnerRef(ρ),
@@ -7512,7 +7696,26 @@ check_pack_next(ctx, owner_expr, builder):
       Next[i, body.type.payload, L]
   paths = map(body.flow, path =>
     seal_or_close_pack_path(
+      allocate_summary = δallocate,
+      terminal_close_summary = δterminal_close,
       owner, owner_child, ρc, j, i, runner, handle, wire, path))
+  require every paired (body_path, packed_path) satisfies
+    packed_path.tag == body_path.tag and
+    packed_path.row == hide_private(body_path.row) and
+    packed_path.attributed_demand ==
+      hide_private(body_path.attributed_demand) and
+    packed_path.suspension == body_path.suspension and
+    packed_path.usage == hide_private(body_path.usage) and
+    packed_path.required_phase == hide_private(body_path.required_phase) and
+    packed_path.Q == hide_private(body_path.Q) and
+    packed_path.Lambda == hide_private(body_path.Lambda) and
+    packed_path.summary ==
+      (if body_path is Returns then
+        SequenceSummaryV1(δallocate, body_path.summary)
+       else
+        SequenceSummaryV1(
+          δallocate, body_path.summary, δterminal_close)) and
+    (body_path is Returns or packed_path.close_action == CloseChildOnce)
   require no_free_outward(paths, {ρc, j, i, L, Sp, owner_child})
   return aggregate_check_result(
     normalize(paths), body.evidence,
@@ -7548,6 +7751,9 @@ check_try_open_packed_next(ctx, packed_expr, body):
     for path in checked.flow:
       require packed_next_outward_safe(
         ρc, j, i, L, Sp, checked.type, path, path.evidence)
+      require Allowed(
+        ctx.Φ, path.row, path.suspension,
+        SequenceSummaryV1(δacquire, path.summary, δrelease))
       won_paths += acquire_release_map_some_path(
         acquire_summary = δacquire,
         body_path = path,
@@ -7556,8 +7762,19 @@ check_try_open_packed_next(ctx, packed_expr, body):
         hidden = {ρc, j, i, L, Sp, owner_child})
   paths = normalize({lost} ∪ won_paths)
   require summary(lost) == δacquire and
-    every won path summary ==
-      SequenceSummaryV1(δacquire, body_summary, δrelease)
+    every paired (body_path, won_path) satisfies
+      won_path.tag == map_some_or_preserve_terminal(body_path.tag) and
+      won_path.row == hide_private(body_path.row) and
+      won_path.attributed_demand ==
+        hide_private(body_path.attributed_demand) and
+      won_path.suspension == body_path.suspension and
+      won_path.usage == hide_private(body_path.usage) and
+      won_path.required_phase ==
+        require_action_and_hide_private(body_path.required_phase) and
+      won_path.Q == hide_private(body_path.Q) and
+      won_path.Lambda == hide_private(body_path.Lambda) and
+      won_path.summary == SequenceSummaryV1(
+        δacquire, body_path.summary, δrelease)
   return aggregate_check_result(
     paths, packed.evidence,
     packed_acquire_release_evidence(paths))
@@ -7599,7 +7816,7 @@ TryOpenPackedNext            T-Try-With-PackedNext-Paths
 DisposePackedNext            T-Dispose-PackedNext
 OwnerAbs / OwnerApp          T-Owner-Intro / T-Owner-Elim
 FreshCap                     K-Fresh-Cap / K-Fresh-Cap-Abort
-HandlerValue                 T-Handler + check_clause_schema
+HandlerValue                 T-Handler + check_clause_schema_v2
 Forward                      T-Forward-Delegate / T-Forward-Paths
 Finalize                    T-Finalize + cleanup contract composition
 Park                         T-Park
@@ -7648,14 +7865,23 @@ check_handler(ctx, effect, clauses):
             installation_stack = Sinst,
             installation_prompt = pinst,
             handled_entry = ainst }
-  Creturn = check_return_clause_schema(
+  (Creturn, Areturn) = check_return_clause_schema_v2(
     schema_ctx, shape, return_clause)
   schemas = {}
+  application_ledger = Areturn
   for op in operations(effect):
     clause = operation_clause_map[op]
-    schemas[op] =
-      check_clause_schema(schema_ctx, shape, op.signature, clause)
-  C0 = aggregate_handler(Creturn, schemas)
+    (schemas[op], Aop) =
+      check_clause_schema_v2(
+        schema_ctx, shape, op.signature, clause,
+        fresh_application_slots_after(application_ledger))
+    require disjoint(application_slots(application_ledger),
+                     application_slots(Aop))
+    application_ledger += Aop
+  C0 = aggregate_handler_v2(
+    applications = application_ledger,
+    return_computation = Creturn,
+    clause_computations = schemas)
   C0.required_phase = solve_and_generalize_required_phase(
     Φsym, Creturn.constraints ∪ schemas.constraints)
   C = attach_handler_env(C0, Πenv, χenv)
@@ -7670,7 +7896,7 @@ check_handler(ctx, effect, clauses):
     captures = χenv,
     clause_schemas = schemas)
 
-check_return_clause_schema(ctx, handler_shape, clause):
+check_return_clause_schema_v2(ctx, handler_shape, clause):
   Θentry = fresh_symbolic_temporal_context()
   return_ctx = import_handler_env(
     ctx.with_phase(handler_shape.phase_symbol).with_Θ(Θentry),
@@ -7682,15 +7908,16 @@ check_return_clause_schema(ctx, handler_shape, clause):
     bind(return_ctx, clause.parameter,
          handler_shape.input, arg.π, arg.χ),
     clause.body, handler_shape.answer)
-  return abstract_return_contract(
+  return abstract_return_contract_v2(
     Θentry, arg, body,
-    unresolved_route_stage = HandlerInstall)
+    unresolved_route_stage = HandlerInstall), body.applications
     universally quantified over
       handler_shape.installation_stack,
       handler_shape.installation_prompt,
       handler_shape.handled_entry, Θentry and arg
 
-check_clause_schema(ctx, handler_shape, op_sig, clause):
+check_clause_schema_v2(
+    ctx, handler_shape, op_sig, clause, application_slot_supply):
   skolems = fresh_skolems(op_sig.type_parameters)
   opσ = instantiate(op_sig, skolems)
   arg_summaries =
@@ -7761,14 +7988,19 @@ check_clause_schema(ctx, handler_shape, op_sig, clause):
   require clause_contract(result) refines opσ.contract
   require every Delegates(κf) path in result carries exactly
     OpenToForwardedExclusive(k, κf.site_slot, κf.continuation)
-  wire_flow = serialize_clause_flow(
-    clause_contract(result).flow,
+  wire_computation = serialize_contract_computation_v2(
+    clause_contract(result),
     disposition_substitution = {
-      k -> SlotRefV1(SuffixLive, disposition_binder.slot) })
-  return ClauseSchema(
+      k -> LegacySlotRefV2(
+        SlotRefV1(SuffixLive, disposition_binder.slot)) },
+    allowed_delegates = OnlyThisHandlerClause,
+    application_ledger = result.applications)
+  require every InvokeV2 in wire_computation resolves uniquely in
+    result.applications
+  return ClauseComputationV2(
     operation = opσ.resolved_selector,
     disposition_binder = disposition_binder,
-    flow = wire_flow)
+    computation = wire_computation), result.applications
     universally quantified over
       handler_shape.installation_stack,
       handler_shape.handled_entry, skolems, p and κ
@@ -7831,7 +8063,7 @@ install_handler(
   for κ in sites:
     require κ.installation_prompt == prompt
     require κ.route == prompt
-    wire_clause = instantiate installed matching clause schema with
+    wire_clause = instantiate installed matching ClauseComputationV2 with
       operation skolems, prompt, κ.entry_world, κ
     internal_disposition = disposition_for(κ)
     clause_scope = resolve_clause_disposition_binder(
@@ -7844,11 +8076,16 @@ install_handler(
       SlotRefV1(SuffixLive,
         wire_clause.disposition_binder.slot)
         -> internal_disposition }
-    clause = import_clause_flow(
-      wire_clause, disposition_scope = clause_scope)
+    clause = import_contract_computation_v2(
+      wire_clause.computation,
+      application_scope = installed.applications,
+      return_scope = ∅,
+      delegates_scope =
+        HandlerClauseOnly(wire_clause.disposition_binder),
+      disposition_scope = clause_scope)
     require every clause-level disposition evidence/usage reference
       resolves uniquely in clause_scope and none escapes that
-      ClauseFlowSetV1; nested SuffixContractV1 live bindings use their
+      ClauseComputationV2; nested SuffixContractV2 live bindings use their
       own lexical scopes
     discharge imported handler environment is valid
       at κ.entry_world
@@ -7976,12 +8213,13 @@ site指向 $p_"inst"$，其余普通 return/clause residual site编码为
 在两种 outer stack安装会得到各自唯一的 residual routes。安装后才可消去
 这些 route selector，`install_handler` 拒绝仍含未解析 installation route
 或来自 definition stack的 concrete prompt。
-同一次 instantiation还必须消费每个 `ClauseFlowSetV1.disposition_binder`：
+同一次 instantiation还必须消费每个
+`ClauseComputationV2.disposition_binder`：
 `resolve_clause_disposition_binder` 逐字段检查 exact site/type与 lexical scope，
 只建立一个 `SuffixLive(binder.slot) → disposition_for(κ)` 映射，然后才导入
 flow/evidence/usage。后续 Delegates检查只能使用该 resolved token；再次独立
 调用 `disposition_for(κ)`、按 slot数字猜 token或让该 disposition ref跨
-clause scope逃逸都不是合法 importer实现；nested `SuffixContractV1` 的其他
+clause scope逃逸都不是合法 importer实现；nested `SuffixContractV2` 的其他
 live slot仍按各自 lexical scope独立验证。
 
 `analyze_sites` 对 local typed ANF结构递归；遇到 function call时读取并 compose

@@ -93,6 +93,46 @@
       "diagnostic": "contract-parameter-inconsistent-instantiation",
       "mutations": [{ "op": "replace", "path": "/contract/applications/1/substitution/type_arguments/0/value/value/name", "value": "String" }],
       "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/q-lambda-call-install.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "/contract",
+      "diagnostic": "unknown-path-outcome-v2",
+      "mutations": [{ "op": "replace", "path": "/contract/computation/continuation/continuation/paths/0/outcome/kind", "value": "UnknownOutcomeV2" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/choose-once-function-contract.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "",
+      "diagnostic": "contract-projection-escapes-scope",
+      "mutations": [{ "op": "replace", "path": "/computation/paths/0/outcome/result_transformer", "value": { "kind": "ReturnBoundResultV2", "return_slot": 999 } }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/handler-forward-contract.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "/outward_function_contract",
+      "diagnostic": "delegates-outside-handler-clause",
+      "mutations": [{ "from": "/handler_contract/clause_computations/0/computation/continuation/paths/0/outcome", "op": "copy", "path": "/outward_function_contract/computation/paths/0/outcome" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/handler-forward-contract.json",
+      "decoder": "HandlerContractV2",
+      "decoder_target": "/handler_contract",
+      "diagnostic": "delegates-outside-handler-clause",
+      "mutations": [{ "from": "/handler_contract/clause_computations/0/computation/continuation/paths/0/outcome", "op": "copy", "path": "/handler_contract/return_computation/continuation/paths/0/outcome" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/q-lambda-call-install.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "/contract",
+      "diagnostic": "contract-component-kind-mismatch",
+      "mutations": [{ "op": "replace", "path": "/contract/applications/0/callee_summary/type", "value": { "arguments": [], "kind": "NominalTypeV2", "module": ["library"], "name": "ChooseOnceFunction" } }],
+      "result": "reject"
     }
   ],
   "profile": "Cire-TR₀/2026-08-01",

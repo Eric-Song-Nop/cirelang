@@ -57,7 +57,9 @@ evidence artifact，不得只检查 parser 是否接受。
 `AppliedContractV2` 和一个有序 `PathBindV2` 固定同一 imported callback的
 两次调用：每次 Call Q在自己的 application处 discharge，HandlerInstall Q
 与 Lambda exact key以 `(application_slot,local_id)` 保留，两个 invocation
-site id不得 alias；prefix terminal path必须 byte-for-byte旁路第二次调用。
+site id不得 alias；每个 callee summary均为与同一 ImportedFunctionRef及其
+instantiated declaration kind一致的 `FunctionTypeV2`，prefix terminal path
+必须 byte-for-byte旁路第二次调用。
 `interfaces/mixed-next-callback-function-contract.json` 是可独立导入的
 `FunctionContractV2`：它有 exact `{Branch}` row、nonempty Call/HandlerInstall
 Q与 Lambda，并保存 Returns(`Next[...,L]`)/Aborts/两个 Transfers
@@ -69,6 +71,9 @@ path。`interfaces/hof-mixed-later.json` 则用同一
 callback value与指向 mixed-callback root contract的
 `ContractSubstitutionEntryV2`；runtime callback的 `FunctionTypeV2`也携带同一
 `ImportedFunctionRefV2`，不只是同 kind的本地 placeholder。
+validator实际求值 generic contract的两层 `PathBindV2`：第一次 callback的
+Aborts/两个 Transfers直接旁路，唯一 Returns进入第二次的四条 flow，规范化后
+严格得到 7 条 path；expectation不是“两次调用”的布尔断言。
 `interfaces/flow-abort-transfer-owner.json` 则逐 variant固定 `AbortsV2`、
 `TransfersV2(ParkContractV2)`、`OwnerBoundV1`、root route以及
 Owner/generation-CAS wire形状。它显式使用 `A=Int`、`B=Array[Int]`，要求
@@ -79,6 +84,16 @@ source/port/resumption argument三者一致，并保留完整 `ResumeTypeV2`、
 `LiteralPathsV2`，固定 child-Owner→Identity→Clock→Summary→Body binder顺序、
 lost-acquire `MayReturn`，以及实际 Returns/Aborts/两个完整
 `TransfersV2(ParkContractV2)` 的 exactly-once release与 tag preservation。
+它还把四条独立 `body_observers` 逐字段组合进 won paths；两个 Park path必须
+保留 `OwnerBoundV1`、`δpark`、OwnerAuthority/current Owner，并让 summary
+严格为 acquire/body/release。`pack_observers` 则固定每条 path先出现非 Pure
+allocation，且 Aborts/Transfers在相同 terminal tag前恰好追加一次非 Pure
+terminal-close。
+`interfaces/handler-forward-contract.json` 是正向
+`HandlerContractV2`/`DelegatesV2`/`ForwardContractV2` fixture：handler-level
+application ledger、clause disposition lexical scope、exclusive
+Open→Forwarded evidence，以及 return-bound Resume在 path usage、live-site
+usage和 V2 Q slot中的引用全部由同一 context-sensitive decoder检查。
 `runtime/packed-next-lease-runtime.json` 覆盖 dispose/acquire线性化、active
 acquire存活、两个同时 lease 的 Closing递减、幂等 dispose与 unique final close；
 `mutations/v1-rejects-v2-tags.json` 以 base file + JSON Patch operation和显式
@@ -97,7 +112,9 @@ python3 examples/spec/validate-oracles.py
 该 gate以 NFC validation后的 RFC 8785 JCS bytes重算所有 import
 SHA-256，不使用 pretty-file raw bytes；每个 mutation都先应用 JSON
 Patch，再把 `decoder_target` 指向的实际节点交给声明的 decoder，
-并校验精确 diagnostic id。
+并校验精确 diagnostic id。负测还把合法 `DelegatesV2` 拷到 Function及handler
+return context、注入未知 outcome、未绑定 return slot与 nominal callee sentinel，
+证明 decoder会穷尽 tag并线程 lexical context，而非只检查 fixture形状。
 
 `diagnostics-v2.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；
 新增或重命名 id需要新 registry version，不能让 parser recovery改变同一
