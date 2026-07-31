@@ -1443,8 +1443,16 @@ import_clock_package(clock_binder, summary_binder, body, scope):
   require alpha_equal(imported_body, weaken(A, L))
   return imported_body
 
-serialize_clock_package(i, c, L, A, body):
+serialize_clock_package(scope, i, c, L, A, body):
+  require i is a live Identity binding in scope
   require c is the paired Clock view of i
+  require exact_internal_contract_binding(L) ==
+    SealedClockPackageSummary(
+      identity = i, clock = c, payload_type = A,
+      binder_scope = scope + i + c,
+      binder_owner = this existential)
+  require well_formed(A, scope + i + c) and
+    well_formed(body, scope + i + c + L)
   emit clock_binder with identity_slot = slot(i),
     clock_refinement = { clock_slot: slot(c), identity: ref(i) },
     family = family(i), owner = owner(i)
@@ -1456,8 +1464,15 @@ serialize_clock_package(i, c, L, A, body):
 
 `OwnerIndexedTypeV1.payload=null` 当且仅当 constructor是
 `CommitTicket/CommitGate`；其余 owner-indexed constructors必须带 payload。
-每个 `ContractParameterV1.kind` 必须与对应 use site及
-`ContractBinderV1` variant一致。
+每个 `ContractParameterV1` 必须按 lexical scope解析到唯一 binder，再同时
+匹配 use site与 binder family。declaration table中的 `ContractBinderV1`
+只提供 Function/Later/Continuation/Handler；enclosing
+`QuantifiedContractBinderV1.kind` 只提供 Function/Later/ClockPackageSummary。
+`ClockPackageSummary` parameter只允许解析到后者的
+`ClockPackageSummaryKindV1`，不能要求或伪造一个不存在的 declaration
+variant；Function/Later可来自两类 binder，Continuation/Handler只来自
+declaration binder。shadowing按最内层 exact Contract slot处理，跨 family或
+跨 scope同 slot数字不匹配。
 
 `Call` obligation 在 T-App 实例化和 discharge；`HandlerInstall`
 obligation与对应 `LatentSiteV1` 原样保留到 fresh delimiter prompt存在时的
@@ -6109,25 +6124,22 @@ synth(ctx, e):
       u = latent_usage(symbolic.Ω, rb.Ω_out)
       Λ = abstract_sites(rb.typed_core, x)
       require many_call_safe(Πclosure, u, χclosure)
-      if has_returns(rb.flow):
-        return_paths = returns(rb.flow)
-        (Q, Rresult) = abstract_parametric_summary_paths(
-          symbolic.π, symbolic.χ, return_paths, x)
-        world_projection = abstract_locks_paths(
-          ctx.Θ,
-          map(return_paths, r => drop_binder(r.Θ_out, x)))
-        return value(function_contract(
-          rb.row, world_projection, MayReturn,
-          rb.suspension, rb.summary, Πclosure, χclosure,
-          u, Rresult, Φrequired, Q, Λ,
-          flow_summary = abstract_flow(rb.flow)))
-      Q = abstract_parametric_terminal_obligations(
-        symbolic.π, symbolic.χ, rb.flow, x)
+      Fabs = abstract_parametric_flow(
+        symbolic_call_stack = Scall,
+        argument_provenance = symbolic.π,
+        argument_capture = symbolic.χ,
+        definition_world = ctx.Θ,
+        parameter = x,
+        complete_flow = rb.flow)
+      require Fabs.flow_summary == abstract_flow(rb.flow)
+      require Fabs.obligations == normalized_union(
+        obligations_of_every_path(rb.flow))
       return value(function_contract(
-        rb.row, bottom, NoReturn,
+        rb.row, Fabs.world_projection, Fabs.returnability,
         rb.suspension, rb.summary, Πclosure, χclosure,
-        u, bottom, Φrequired, Q, Λ,
-        flow_summary = abstract_flow(rb.flow)))
+        u, Fabs.result_transformer, Φrequired,
+        Fabs.obligations, Λ,
+        flow_summary = Fabs.flow_summary))
 
     App(f, arg):
       return strict_bind(synth(ctx, f), empty_prefix, rf =>:
@@ -6816,6 +6828,11 @@ eliminate_entry_with_contract(
 `abstract_lambda_call_context` 随后把该 symbolic stack上的 route统一封成
 `ResolveAtCall` 并量化 $S_"call"$；任何来自 `ctx.prompts` 的 concrete prompt
 都会被拒绝。该步骤与 T-Lambda-Paths 的 $S_f$ 是同一算法，不是 optimizer。
+随后唯一一次 `abstract_parametric_flow` 遍历完整 flow：Returns paths共同产生
+normal world/result projection，Aborts/Transfers产生 bottom normal projection但
+仍贡献参数相关 BoundarySafe/StableAcross/Outlives obligation；最终 $Q$ 是所有
+path obligation的 normalized union。存在 Returns时也不得跳过 terminal paths，
+`abstract_flow` 只保存 path contract，不能替代这一步 obligation abstraction。
 
 Handler definition只捕获 `Πenv/χenv`，不捕获 definition-site prompt stack。
 `with_route_stage(HandlerInstall)` 令 schema内命中 symbolic handled entry的
