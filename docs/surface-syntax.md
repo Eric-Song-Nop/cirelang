@@ -332,7 +332,10 @@ Core 必须继续区分：
 
 `app` 是普通 term binder 产生的 singleton identity，不写进 generic list。
 普通 `Int` value 不能出现在 effect row。`with h as app in ...` 创建 fresh
-identity，并在 Kernel HIR 中建立 rank-2/generative boundary。
+identity，并在 Kernel HIR 中建立 rank-2/generative boundary；具体 lowering
+是 `freshprompt p in handle[p,h,ι](let app=capref(ι); body)`，所以 body的
+`app.read()` 有真实 lexical value binder，不是只向 identity/authority
+context添加一个不可引用的名字。
 
 四种常见 annotation：
 
@@ -879,7 +882,8 @@ def user_pane(user : Source[User]) -> View ! {Observe} {
 - 换行只是 trivia；block 由 maximal expression boundary 分项，最后一个未加
   `;` 的表达式才是结果；
 - handler clause 使用 `PatternList`，不是 declaration `ParamList`；
-- operation declaration 可以携带 secondary effect 与 temporal contract。
+- operation declaration 可以携带 closed secondary effect 与 temporal
+  contract；`TR₀` 不接受 open secondary row tail。
 
 ## 11. 当前仍需讨论
 

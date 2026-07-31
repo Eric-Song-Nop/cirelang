@@ -318,7 +318,8 @@ RowTail             <- DOTDOT RowReference
 - `|` 在 `RowExpr` 中左结合，优先级低于 literal/path；没有 surface row
   intersection 或 subtraction；
 - normalization 展开已知 projection/union、去除重复 entry、按稳定 identity
-  排序，并保留未知 tail；
+  排序，并保留所有 rigid row-variable union summand；“一个 tail”只约束
+  单个 literal 的 source spelling；
 - `{F, ..E}` 同时产生 `Lacks(E,F)`；若不能证明 tail 不含同 identity entry，
   extension 不能通过。TR₀ 只有 extension 与 union，没有 subtraction；
 - `{F}` 与 `{app}` 分别解析到 anonymous family 与 named identity，不能互换；
@@ -350,8 +351,10 @@ LabelledParameter  <- LowerIdent TILDE COLON Type
 
 Mode               <- ABORT / FUN / ONCE / CTL
 OperationDecl      <- Mode GenericClauses? LowerIdent ParamList
-                      ARROW Type EffectAnnotation?
+                      ARROW Type OperationSecondaryAnnotation?
                       OperationContractItem* SEMICOLON?
+OperationSecondaryAnnotation <- BANG ClosedRowLiteral
+ClosedRowLiteral   <- LBRACE (RowEntry (COMMA RowEntry)* COMMA?)? RBRACE
 OperationContractItem <- RESUMES NEXT / MAY_SUSPEND
 ```
 
@@ -361,6 +364,13 @@ Operation 的 secondary effect annotation 是 clause/handler 聚合的一部分�
 argument rows、operation dispatch entry 与该 annotation 的 union。Checker
 另存带 call-site/prompt route 的 attributed demand `Δ`，public row只是其
 擦除。
+
+`TR₀` 要求 operation 的 secondary row **closed**：允许 `! {}`、
+`! {Audit, Log}`，拒绝 `! E`、`! {Audit, ..E}` 与任何包含 rigid row
+variable的 union。一般 function/result effect annotation仍使用完整
+`RowExpr`；限制只作用于 `OperationSecondaryAnnotation`。这样 interface中的
+每个 secondary demand都能序列化成 finite `SecondarySiteV1`，不会把 open
+tail伪装成已经枚举完的 site set。
 
 `def` 是具名、可递归 declaration/generalization boundary；`fn` 只在
 `LambdaExpr` 和 `GenericFunctionType` 中出现；`fun` 仅是 operation mode。
@@ -635,7 +645,9 @@ chain 深度的下一 `with`、binder `as` 或最终 `in` 前停止。较早 ent
 `as` binder 对后续 operand 和 body 可见，不在自己的 operand 中可见。
 
 `with` 先保留有序 `ScopedApply`。只有 handler evidence 才允许 `as binder`
-并降为生成式 `handle[h,ι]`；普通 transformer 降为普通 thunk call。
+并降为
+`freshprompt p in handle[p,h,ι](let binder=capref(ι); body)`；匿名 handler
+省略 term binder但仍有 fresh prompt。普通 transformer降为普通 thunk call。
 
 ## 10. Temporal surface
 

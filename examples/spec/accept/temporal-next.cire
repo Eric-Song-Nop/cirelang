@@ -1,7 +1,7 @@
 // profile: Cire-TR₀/2026-07-31
 // expect: accept
 // rule: T-Delay; T-Operation(FrameClock.yield); T-Advance
-// oracle: type=Int; row={frame}; world=next(frame); suspension=MaySuspend; captures={}
+// oracle: subject=after_tick; ambient=FrameClock identity frame; type=Int; row={frame}; world=next(frame); suspension=MaySuspend; captures={}
 
 def![F : FrameClock] next_value(
   frame : cap F,

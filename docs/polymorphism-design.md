@@ -524,9 +524,9 @@ Operation 可以同时拥有普通参数和 effect 参数：
 
 ```moonbit
 ability Traversable[A] {
-  fun[B]![..E] traverse(
-    f : (A) -> B ! E,
-  ) -> Array[B] ! E
+  fun[B]![..E] capture(
+    body : () -> B ! E,
+  ) -> () -> B ! E
 }
 ```
 
@@ -534,8 +534,14 @@ ability Traversable[A] {
 
 ```text
 [B]    operation 的普通类型参数
-![..E] operation 的 effect row 参数
+![..E] operation generic 中的 effect row 参数
 ```
+
+这里 `E` 只出现在 callback/returned-function 的 latent function type中；
+它不是 operation 自己的 immediate secondary annotation。`TR₀` 要求后者为
+closed row，因此 `fun ... -> B ! E` 作为 operation signature会被
+`OperationSecondaryAnnotation` 拒绝。Open secondary row需要未来 wire
+schema支持 row-slot latent sites后才能加入。
 
 Polymorphic abort operation 仍然使用普通参数：
 

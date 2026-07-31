@@ -50,14 +50,18 @@
 
 - operation declaration、effect row、handler、`as k` 与 continuation disposition 采用 [表面语法设计说明](surface-syntax.md)中的写法；
 - Named capability 的源 row 写 `{app}`；`Read[app]` 仅用于诊断；
-- `with h in body` 降为 `h(fn() { body })`；
+- `with h in body` 先降为 `ScopedApply(h, none, thunk body)`；若 `h` 解析为
+  handler template，再降为 `freshprompt p in handle[p,h,anon](body)`；
+  只有普通 transformer才成为 `h(fn() { body })`；
 - 连续 `with h1 with h2 in body` 是有序 chain，第一项最外层，只在末尾写
   一个 `in`；
 - 每个 operand 先求值得到 transformer value，`with` 不把 action 偷偷追加
   成 operand 中某个 call 的普通最后参数；right-fold 保持内层 operand 的
   latent evaluation；
-- `with h as app in body` 降为 `h(fn(app) { body })`，其中 `app` 是生成式
-  identity，并对后续 entry 和 body 可见；
+- `with h as app in body` 先保留 binder-bearing `ScopedApply`；handler
+  evidence把它降为
+  `freshprompt p in handle[p,h,ι](let app=capref(ι); body)`，其中 `ι` 是
+  生成式 identity，`app` 是对应 term binder并对后续 entry 和 body可见；
 - `with h1 in with h2 in body` 仍可作为两个显式嵌套的单项 chain；
 - 整个构造是 expression，`in` 后接受任意 expression，不强制 block；
 - `callee(args) { body }` 与 `callee { value => body }` 是最后一个 lambda argument 的糖；

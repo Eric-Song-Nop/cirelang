@@ -450,13 +450,14 @@ Resume[
 ```
 
 普通 operation 在 successful resumption 时的 transition 是
-`same => same`；`abort` 没有 resume transition。若将来暴露 logical clock
-operation，可以研究以下工作注解：
+`same => same`；`abort` 没有 resume transition。`TR₀` 的 logical clock
+operation使用以下 profile-fixed annotation：
 
 ```cire
 pub effect FrameClock {
   once yield() -> Unit
     resumes next
+    may_suspend
 }
 ```
 

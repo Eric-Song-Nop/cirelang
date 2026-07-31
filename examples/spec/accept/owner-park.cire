@@ -1,7 +1,7 @@
 // profile: Cire-TR₀/2026-07-31
 // expect: accept
 // rule: T-Park — sealed source produces terminal Transfers(ParkContract)
-// oracle: declared_type=Int; flow={Transfers(ParkContract)}; row={}; usage=k:Transferred; owner=generation-CAS
+// oracle: subject=run_async; ambient=CompletionSource/Owner/Task prelude; declared_type=Int; flow={Transfers(ParkContract)}; row={}; usage=k:Transferred; owner=generation-CAS
 
 effect Async {
   once[A] await(task : Task[A]) -> A may_suspend

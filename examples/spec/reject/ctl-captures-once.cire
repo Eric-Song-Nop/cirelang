@@ -1,7 +1,7 @@
 // profile: Cire-TR₀/2026-07-31
 // expect: reject
 // rule: T-Capture-Ctl / DuplicableEnv
-// oracle: reject_at=Choice.choose; diagnostic=multi-shot-captures-one-shot-resumption; usage=k:Open(1)
+// oracle: subject=bad; ambient=OneShot/Choice handlers; reject_at=Choice.choose; diagnostic=multi-shot-captures-one-shot-resumption; usage=k:Open(1)
 
 effect OneShot {
   once obtain() -> Int

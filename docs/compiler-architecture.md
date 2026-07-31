@@ -427,8 +427,9 @@ Call
 Lambda
 Handler
 ScopedApply
+FreshPrompt / CapRef
 OperationCall
-Resume / Discontinue / Finalize
+Resume / Finalize / Park
 HandlerAction
 ```
 
@@ -436,15 +437,25 @@ HandlerAction
 
 ```text
 with h in body
-  → h(fn() { body })
+  → ScopedApply(h, none, thunk body)
 
 with h as app in body
-  → h(fn(app) { body })
+  → ScopedApply(h, binder app, thunk body)
 
 with h1
 with h2
 in body
-  → h1(fn() { h2(fn() { body }) })
+  → ScopedApply(h1, none,
+      thunk { ScopedApply(h2, none, thunk body) })
+
+resolver, when h : HandlerTemplate:
+  ScopedApply(h, binder app, thunk body)
+  → freshprompt p in
+      handle[p,h,ι](let app = capref(ι) in body)
+
+resolver, when h is an ordinary transformer:
+  ScopedApply(h, none, thunk body)
+  → h(fn() { body })
 
 f(args) { body }
   → f(args, fn() { body })

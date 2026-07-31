@@ -1,7 +1,7 @@
 // profile: Cire-TR₀/2026-07-31
 // expect: accept
 // rule: T-Operation — call row includes dispatch entry and SecondaryRow
-// oracle: type=Int; row={Store,Audit}; demand={primary(Store.load),secondary(Audit)}; routes=independent
+// oracle: subject=read; ambient=closed effects Audit/Store; type=Int; row={Store,Audit}; demand={primary(Store.load),secondary(Audit)}; routes=independent
 
 effect Audit {
   fun log(message : String) -> Unit

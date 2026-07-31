@@ -169,7 +169,7 @@ in {
 }
 ```
 
-近似于：
+若 `h` 是普通高阶 wrapper，近似于：
 
 ```moonbit
 h(fn() {
@@ -177,8 +177,9 @@ h(fn() {
 })
 ```
 
-这只是帮助理解的展开。编译器后续仍会在 HIR 中保存 handler、fresh
-capability 和 source origin，不能把它们当成完全普通的库调用。
+若 `h` 解析为 effect handler，则不是普通 call：它降为
+`freshprompt p in handle[p,h,...](body)`，并保存 fresh capability 与 source
+origin。
 
 连续 transformer 共用最后一个 `in`：
 

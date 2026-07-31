@@ -62,7 +62,7 @@ Parser、测试 fixture 或历史实现从不裁决语言设计。未来实现�
 | Task / Live / Signal / Event | 第一方契约 | 四种不同协议，无隐式 coercion | 无实现 |
 | Owner transfer | Profile baseline + sealed source | `Transfers(ParkContract)`；generation-bound completion port + CAS + close-time finalize | 无实现 |
 | Flow | Profile baseline | reachable path set 同时保留 `Returns` / `Aborts` / `Transfers`；sequence 只推进 return path | 无实现 |
-| Operation secondary effects | Profile baseline | call row = argument row ∪ dispatch entry ∪ `SecondaryRow`；`Δ` 保留 site/route attribution | 无实现 |
+| Operation secondary effects | Profile baseline | `SecondaryRow` 在 TR₀ 必须 closed；call row = argument row ∪ dispatch entry ∪ secondary sites；`Δ`/suspension 保留 site/route attribution | 无实现 |
 | Interface `Q/Λ` | Profile baseline | versioned tagged V1 variants、alpha-normalized slots、独立 route；`Call` / `HandlerInstall` 两阶段 | 无实现 |
 | General affine user values | 不在本 profile | 只追踪 resumption/authority 的受限 usage | 无实现 |
 | 宏系统 | 不采用 | UI 使用普通调用、label 和 trailing lambda | 无实现 |
@@ -88,7 +88,9 @@ Parser、测试 fixture 或历史实现从不裁决语言设计。未来实现�
   `once` 的每条路径必须 `resume`、`finalize` 或转交一次；`ctl` 还要满足
   duplicability、cleanup replay 和 world-fork 义务。
 - `with` 先保留有序 `ScopedApply`。只有 resolver/type checker 证明 operand
-  是 handler 后，才生成 `handle[h,ι]`、fresh identity 和精确 row removal。
+  是 handler 后，才生成
+  `freshprompt p in handle[p,h,ι](let cap=capref(ι); body)`（匿名形式不含
+  `cap` binder）、fresh identity 和按 prompt精确的 row/suspension removal。
 - `k.discontinue(error)` 不属于 `TR₀`。失败由显式 abort effect 表达；取消由
   Owner/finalize 协议表达。
 - Owner 转交只能通过 sealed completion source 产生

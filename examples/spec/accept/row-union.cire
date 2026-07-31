@@ -1,7 +1,7 @@
 // profile: Cire-TR₀/2026-07-31
 // expect: accept
 // rule: RowExpr kinding and union normalization
-// oracle: type=(A)->C!(E1|E2); row=E1|E2; constraints=kind(E1)=kind(E2)=EffectRow
+// oracle: subject=compose; ambient=rigid EffectRow E1/E2; type=(A)->C!(E1|E2); immediate_row={}; returned_function_latent_row=E1|E2; constraints=kind(E1)=kind(E2)=EffectRow
 
 def[A, B, C]![..E1, ..E2] compose(
   first : (A) -> B ! E1,

@@ -1,0 +1,10 @@
+// profile: Cire-TR₀/2026-07-31
+// interface-subject: library::choose_once
+
+effect Choice {
+  ctl[A] choose(options : Array[A]) -> A
+}
+
+def[A] choose_once(options : Array[A]) -> A ! {Choice} {
+  Choice::choose(options)
+}

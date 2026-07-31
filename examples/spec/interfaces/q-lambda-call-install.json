@@ -1,10 +1,19 @@
 {
+  "oracle_schema": "CireSpecInterfaceOracleV1",
+  "subject": "library::choose_once",
+  "source": "choose-once.cire",
+  "contract": {
   "profile": "Cire-TR₀/2026-07-31",
   "schema_version": 1,
   "artifact": "FunctionContractV1",
-  "function": "library::choose_once",
   "row": {
-    "kind": "Empty"
+    "kind": "Closed",
+    "entries": [
+      {
+        "kind": "AnonymousFamily",
+        "family": "Choice"
+      }
+    ]
   },
   "transition": {
     "kind": "SameWorld"
@@ -12,7 +21,13 @@
   "flow_summary": [
     {
       "kind": "Returns",
-      "world": "same"
+      "transition": {
+        "kind": "SameWorld"
+      },
+      "result_transformer": {
+        "kind": "ArrayElementOf",
+        "argument_slot": 0
+      }
     }
   ],
   "suspension": {
@@ -25,8 +40,14 @@
     {
       "slot": 0,
       "type": {
-        "kind": "TypeParameter",
-        "slot": 0
+        "kind": "Apply",
+        "constructor": "Array",
+        "arguments": [
+          {
+            "kind": "TypeParameter",
+            "slot": 0
+          }
+        ]
       },
       "provenance": {
         "kind": "Argument",
@@ -44,7 +65,8 @@
     }
   ],
   "result_transformer": {
-    "kind": "Identity"
+    "kind": "ArrayElementOf",
+    "argument_slot": 0
   },
   "required_phase": {
     "kind": "Any"
@@ -56,7 +78,7 @@
       "stage": "Call",
       "slots": [0],
       "boundary": "CallArgument",
-      "origin": "library.cire:choose_once"
+      "origin": "choose-once.cire:choose_once"
     },
     {
       "id": 1,
@@ -64,7 +86,7 @@
       "stage": "HandlerInstall",
       "slots": [0],
       "site_slot": 0,
-      "origin": "library.cire:Choice.choose"
+      "origin": "choose-once.cire:Choice.choose"
     }
   ],
   "LatentSites": [
@@ -88,12 +110,16 @@
         "flow": ["Returns"],
         "world": "same"
       },
-      "secondary_sites": [],
+      "secondary_sites": {
+        "kind": "Closed",
+        "sites": []
+      },
       "obligation_ids": [1],
-      "origin": "library.cire:Choice.choose"
+      "origin": "choose-once.cire:Choice.choose"
     }
-  ],
-  "call_expectation": {
+  ]
+  },
+  "expectation": {
     "discharge": [0],
     "preserve_until_handler_install": [1],
     "instantiate_latent_sites": [0]

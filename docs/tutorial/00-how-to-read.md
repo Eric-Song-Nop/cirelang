@@ -100,14 +100,17 @@ in {
 }
 ```
 
-是 scoped computation application 的糖；`h` 通常是 effect handler，也可以
-是接收 computation thunk 的普通高阶 wrapper。它近似展开成：
+是 scoped computation application 的糖；`h` 可以是 effect handler，也可以
+是接收 computation thunk 的普通高阶 wrapper。只有后一种近似展开成：
 
 ```cire
 h(fn() {
   work()
 })
 ```
+
+Effect handler则降为
+`freshprompt p in handle[p,h,...](work())`，不能当作普通 call。
 
 类似地，trailing lambda：
 
