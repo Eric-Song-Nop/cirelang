@@ -1,5 +1,8 @@
 # 编译器前端架构
 
+> **Future architecture:** [`Cire-TR₀/2026-07-31`](spec-status.md)。仓库当前
+> 没有编译器实现；本文规定未来实现怎样服从规范，而不是记录已完成代码。
+
 ## 1. 目标
 
 编译器前端从第一天起同时服务：
@@ -675,26 +678,27 @@ same CompilerSnapshot
   └─ LSP protocol objects
 ```
 
-## 11. Parser-first implementation plan
+## 11. Spec-first restart plan
 
-### 11.1 当前实现状态
+### 11.1 仓库状态与阶段门
 
-截至首个 parser implementation slice：
+仓库当前没有 compiler、runtime、标准库或 LSP implementation。历史代码已经
+删除；Git history 可供研究，但不具有 grammar 或架构权威。重新实现按以下
+阶段门推进：
 
-| 阶段 | 状态 | 已落地 | 仍缺 |
-|---|---|---|---|
-| P0 | baseline 完成 | revisioned source、UTF-16 span/edit、content fingerprint、validated JSON、diagnostic/fix、trace DTO | stable parse artifact adapter 与长期 schema migration test |
-| P1 | baseline 完成 | lossless lexer、invalid token、nested comment、UTF-16 range、revision-checked `relex` | token-window relex 与 Unicode identifier policy |
-| P2 | 部分完成 | handwritten PEG cursor、ordered choice/probe、rule-local cut、farthest failure、context stack、transactional recovery、forward-parent marker | selective memo cache、cancellation polling、parser trace emission |
-| P3 | 部分完成 | `effect`/operation、`fn` signature、旧单列表 type parameter/argument、function type、effect row、`{app}`、`..Eff`、`Read[app]` 定向修复；旧 `A`/`Fx : Effect`/`Eff : EffectRow` baseline 可保留为 CST | 目标双列表 `[...]![...]`、`ability`、`cap`、associated effect/row、row formula/predicate、generic kind/constraint validation、显式 effect generic call、`struct`/`enum`/普通 `trait`/`impl`、module/import |
-| P4 | 部分完成 | name/literal/block、call/method、labelled argument、trailing lambda、handler、旧的单项 `with` parser baseline、`as k` mode diagnostics | 多 entry `with ... in ...` chain、fixed precedence、`let`、`if`/`match`、完整 pattern、index/tuple/record/array expression |
-| P5 | 未开始 | CST 已保留 sugar boundary | typed CST、Surface/Kernel HIR 与 origin-preserving elaboration |
-| P6 | baseline 开始 | immutable `ParseSnapshot`、single-edit `reparse`、full-parse equivalence test | workspace/source DB、batch edit、reparse island、subtree reuse、LSP adapter |
+| 阶段 | 入口条件 | 交付物 |
+|---|---|---|
+| S0 profile | `spec-status`、完整 grammar、Core judgments 一致 | versioned profile 与开放参数 registry |
+| S1 conformance | surface/Core elaboration规则可引用 | `examples/spec` 正负 corpus + rule id |
+| I0 source/lexer | S0/S1 review 完成 | immutable snapshot、UTF-16 span、lossless token stream |
+| I1 parser | grammar 无未定义 nonterminal | lossless CST、recovery、from-scratch conformance |
+| I2 elaboration | n-ary/label/block/handler lowering已形式化 | Typed CST、Surface HIR、Kernel HIR、origin map |
+| I3 checker | versioned obligations/site schema已冻结 | kind/row/Δ/type/world/capture/usage/Owner checker |
+| I4 runtime | CBV + Owner/park CAS operational semantics可验证 | handler runtime、completion source/port、Wasm ABI |
+| I5 incremental/LSP | correctness oracle已存在 | reparse/query reuse、diagnostics、IDE adapters |
 
-这里的 “baseline 完成” 只表示接口和 correctness baseline 可继续扩展，不表示
-已经实现增量性能。当前 `relex`/`reparse` 在校验 revision 与 edit 后仍允许
-full fallback；任何 reuse 优化都必须继续满足 incremental result 与
-from-scratch result 等价。
+任何 reuse 优化都必须满足 incremental result 与 from-scratch result 等价；
+但在 I1 之前不预先承诺旧 parser 的节点形状或兼容行为。
 
 ### 11.2 多态与 named capability 的前端表示
 
@@ -734,10 +738,9 @@ ConstraintEvidence =
 - polymorphic operation 的普通 type parameter 在 handler clause 中以
   fresh skolem 打开，不能按名称与外层 binder 合并。
 
-当前 parser 尚未识别以上目标语法。已经存在的 `Fx : Effect` /
-`Eff : EffectRow` CST 测试只是旧实现 baseline，迁移时应保留 fixture 用于
-明确 migration diagnostic 或按兼容策略删除，不能把旧 shape 带入 typed
-HIR 作为最终设计。
+未来 parser 必须直接识别 canonical grammar。`Fx : Effect` /
+`Eff : EffectRow` 等历史 shape 不属于 `TR₀`；若要提供 migration
+diagnostic，必须作为明确的 reject fixture，不能进入 Typed HIR。
 
 Effect row 的 typed representation 至少区分：
 

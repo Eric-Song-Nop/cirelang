@@ -1,50 +1,53 @@
 # 设计文档索引
 
-这组文档记录了从代数效应、增量计算和响应式 UI 设计中反推出来的语言需求。
-[表面语法工作规范](surface-syntax.md)中的“已决定”是稳定设计约束，“工作形式”
-是可继续细化的目标语法，不保证当前 parser 已经支持。实现状态以
-[编译器前端架构](compiler-architecture.md)和简明进度文档为准；其他文档中的
-旧示例若与表面规范冲突，以该规范为准。
+这组文档共同实现版本化设计基线
+[`Cire-TR₀/2026-07-31`](spec-status.md)。先阅读状态矩阵：它规定文档权威层级、
+设计状态、证明状态和实现状态。仓库当前不包含实现；未来 parser、conformance
+test 和编译器必须服从规范，不能反向定义语言。
 
 第一次系统学习 Cire，请从分章节的
-[Cire 语言教程](tutorial/README.md)开始；只想快速了解当前方向和实现进度，
+[Cire 语言教程](tutorial/README.md)开始；只想快速了解当前方向和项目状态，
 可以看篇幅更短的 [Cire 简明文档](simple/README.md)。
-多态、effect ability 与 named capability 的新工作设计见
-[多态与 effect abstraction 工作设计](polymorphism-design.md)。该文档记录
-双泛型列表基线，也明确区分已接受方向、开放语法和尚未实现的部分。
+多态、effect ability 与 named capability 的规则见
+[多态与 effect abstraction 设计](polymorphism-design.md)。
 Temporal modality、world-indexed resumption 与增量 replacement 的研究设计见
 [语法实验和反例审查](temporal-reactivity-design-experiment.md)；对应的
-candidate calculus、PEG recognition rules 与算法化检查写在
-[Typst 形式化草案](temporal-reactivity-formalization.typ)中。两者都不是当前
-实现规范。
+versioned calculus、PEG recognition rules 与算法化检查写在
+[Typst 形式化](temporal-reactivity-formalization.typ)中。形式化是当前
+canonical semantic baseline，其中的开放参数和证明义务仍保持显式。
 
 ## 建议阅读顺序
 
-1. [Cire 语言教程](tutorial/README.md)
-2. [语言定位与特性总览](language-overview.md)
-3. [表面语法工作规范](surface-syntax.md)
-4. [多态与 effect abstraction 工作设计](polymorphism-design.md)
-5. [代数效应与恢复模式](effects-and-resumptions.md)
-6. [Named capability、Owner 与结构化清理](capabilities-and-finalization.md)
-7. [编译器前端架构](compiler-architecture.md)
-8. [第一方增量计算库](incremental-computation.md)
-9. [第一方响应式 UI 框架](reactive-ui.md)
-10. [Temporal modality、效应与增量计算：语法实验](temporal-reactivity-design-experiment.md)
-11. [Cire-TR₀ 候选类型形式化与 PEG 语法（Typst）](temporal-reactivity-formalization.typ)
-12. [WebAssembly 与宿主互操作](webassembly-and-host-interop.md)
-13. [Kokaine 案例研究](kokaine-case-study.md)
-14. [相关语言与设计先例](prior-art.md)
-15. [开放问题与原型验证计划](open-questions.md)
+1. [设计基线与状态矩阵](spec-status.md)
+2. [Cire 语言教程](tutorial/README.md)
+3. [语言定位与特性总览](language-overview.md)
+4. [完整、实现无关的 surface grammar](surface-grammar.md)
+5. [表面语法设计说明](surface-syntax.md)
+6. [多态与 effect abstraction 设计](polymorphism-design.md)
+7. [代数效应与恢复模式](effects-and-resumptions.md)
+8. [Named capability、Owner 与结构化清理](capabilities-and-finalization.md)
+9. [Cire-TR₀ 形式化与 PEG 语法（Typst）](temporal-reactivity-formalization.typ)
+10. [第一方增量计算库](incremental-computation.md)
+11. [第一方响应式 UI 框架](reactive-ui.md)
+12. [Temporal modality、效应与增量计算：设计实验](temporal-reactivity-design-experiment.md)
+13. [WebAssembly 与宿主互操作](webassembly-and-host-interop.md)
+14. [未来编译器前端架构](compiler-architecture.md)
+15. [Kokaine 案例研究](kokaine-case-study.md)
+16. [相关语言与设计先例](prior-art.md)
+17. [开放问题与验证计划](open-questions.md)
+
+首批正负规范例子在 [`examples/spec/`](../examples/spec/)。
 
 ## 结论状态
 
 文档使用以下标签：
 
-- **已决定**：当前讨论已经明确接受，后续设计应以此为约束。
-- **设计方向**：有充分理由采用，但仍需通过类型规则或运行时原型验证。
-- **工作形式**：可以先进入 parser、formatter 与测试，但在形成兼容性承诺前仍可调整。
+- **Profile baseline**：当前版本中下游可以依赖的设计。
+- **工作语法**：已有唯一 grammar/elaboration，拼写仍可调整。
+- **参数化**：语义边界固定，但 profile 保留有限候选。
 - **开放问题**：尚未决定，不能被下游设计当作事实。
-- **不采用**：讨论过但已明确排除，或不应成为语言核心。
+- **第一方契约**：由普通语言和 sealed protocol 提供，不是关键字。
+- **证明义务**：已经陈述待证明性质，不表示已有证明。
 
 ## 一句话词汇表
 

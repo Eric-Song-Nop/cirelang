@@ -1,5 +1,8 @@
 # 代数效应与恢复模式
 
+> **Normative companion:** [`Cire-TR₀/2026-07-31`](spec-status.md)。本文与
+> [完整表面语法](surface-grammar.md)和 TR₀ handler judgment 共同定义 effect。
+
 ## 1. 目标
 
 **已决定**
@@ -23,7 +26,7 @@ k(answer) = answer * 10
 
 - 错误不会继续执行它；
 - 环境读取会自动继续一次；
-- `await` 会保存它，并在未来至多继续一次；
+- `await` 会经 sealed completion source转交它，并在未来至多完成一次；
 - 搜索可能用不同答案继续多次。
 
 语言应直接表达这些差异。
@@ -32,10 +35,10 @@ k(answer) = answer * 10
 
 ### 2.1 Effect row
 
-**已决定 effect-row 语义；双列表是尚未实现的工作语法**
+**Profile baseline：effect-row 语义与双列表 grammar**
 
 ```moonbit
-fn[A, B]![..E] map_effectful(
+def[A, B]![..E] map_effectful(
   xs : Array[A],
   f : (A) -> B ! E,
 ) -> Array[B] ! E
@@ -46,7 +49,7 @@ Effect polymorphism 让效应能够穿过高阶函数、组合器与模块抽象
 Effect row 表达的是尚未被当前 handler 消除的操作集合：
 
 ```moonbit
-fn load(url : Url) -> Data
+def load(url : Url) -> Data
   ! {Network, Async, Error[HttpError]}
 ```
 
@@ -74,7 +77,7 @@ app : cap F             : capability term
 capability 所属 family 和具体 identity 同时多态：
 
 ```moonbit
-fn[A]![F : Reader[A], ..E] relay(
+def[A]![F : Reader[A], ..E] relay(
   app : cap F,
   body : () -> A ! {app, ..E},
 ) -> A ! {app, ..E} {
@@ -109,7 +112,7 @@ Read[preview]   // 只用于诊断展开
 源程序不写上面的诊断形式，而是直接绑定并使用 capability term：
 
 ```moonbit
-fn[A]![F : Reader[A], ..E] use_reader(
+def[A]![F : Reader[A], ..E] use_reader(
   app : cap F,
   body : () -> A ! {app, ..E},
 ) -> A ! {app, ..E} {
@@ -164,27 +167,27 @@ capability 后才能修改该实例。
 **已决定**
 
 ```text
-effect Error<E> {
-  abort raise<A>(error: E) -> A
+effect Error[E] {
+  abort[A] raise(error : E) -> A
 }
 
 effect Async {
-  once await<A>(task: Task<A>) -> A
+  once[A] await(task : Task[A]) -> A
 }
 
-effect Reader<R> {
+effect Reader[R] {
   fun ask() -> R
 }
 
 effect Choice {
-  ctl choose<A>(values: List<A>) -> A
+  ctl[A] choose(values : List[A]) -> A
 }
 ```
 
 | 关键词 | 是否显式得到 `k` | 恢复规则 | 典型用途 |
 |---|---:|---|---|
 | `abort` | 否 | 零次 | 错误、不可恢复的取消 |
-| `once` | 是 | 至多一次；可以保存到未来 | `await`、yield、一次性宿主完成 |
+| `once` | 是 | 至多一次；可经 sealed source 转交 | `await`、一次性宿主完成 |
 | `fun` | 否 | 恰好一次，且自动尾恢复 | Reader、动态绑定、普通函数式 operation |
 | `ctl` | 是 | 零次、一次或多次 | 搜索、回溯、协程、通用控制 |
 
@@ -239,7 +242,7 @@ resume k left ++ resume k right
 `once` 填补 Koka `fun` 与一般 `ctl` 之间的重要空档：
 
 - handler 显式得到恢复权；
-- 可以把它保存到异步 callback；
+- 可以把它转交给 sealed completion source；
 - 可以在非尾位置决定如何处置；
 - 但所有运行路径上至多处置一次。
 
@@ -247,18 +250,20 @@ resume k left ++ resume k right
 
 ```text
 once await(task; k) =>
-  park k under task.owner
+  task.source.park(k, under = task.owner)
 ```
 
 将来只能发生一种结局：
 
 ```text
 resume k value
-discontinue k error
 finalize k
+park source owner k
 ```
 
-三者都消耗同一项恢复权。
+三者都消耗同一项恢复权。Park 产生 `Transfers(ParkContract)` 并终止当前
+path；raw continuation 不会被 host callback捕获。异步失败作为 task 的
+`Result/Outcome` 正常 resume，或由显式 abort effect表达。
 
 ## 4. 模式之间的关系
 
@@ -324,7 +329,7 @@ ctl   = Mode(usage = 0..ω, position = arbitrary)
 普通 effect 声明只使用四个关键词。只有实现通用 handler 组合器时，才可能看到类似：
 
 ```text
-Resume<q, A, R>
+Resume[q, A, R]
 ```
 
 其中：
@@ -357,7 +362,7 @@ once op(k) =>
 once op(k) =>
   match result {
     Ok(value)  => resume k value
-    Err(error) => discontinue k error
+    Err(error) => resume k Err(error)
   }
 ```
 
@@ -375,7 +380,8 @@ let callback = fn(result) {
 
 编译器需要把 `k` 的使用预算传递到闭包调用能力中。一个 many-call callback 不能捕获 `once k`。
 
-具体闭包表面语法尚未决定；这里描述的是类型规则，不代表要公开 `fn[0..1]` 之类语法。
+匿名函数使用 `fn`；尚未决定的是 quantity-aware one-call function type，
+这里的规则不代表要公开 `fn[0..1]` 之类语法。
 
 ### 6.4 转交与 clause 退出
 
@@ -390,19 +396,21 @@ once op(k) =>
 // return fallback
 ```
 
-如果要在 clause 退出后保存 `k`，必须把处置责任交给受管理的 Owner：
+如果 completion 会在 clause 退出后发生，必须经 sealed source 把处置责任交给
+受管理的 Owner：
 
 ```text
-park k under owner
+source.park(k, under = owner)
 ```
 
 此后由 Owner 保证：
 
-- 正常完成时恢复；
-- 失败时 discontinue；
+- 完成（含 `Result/Outcome` 失败值）时经 completion port 恢复；
 - Owner 关闭时 finalize。
 
-`park/adopt` 的最终表面语法仍是开放问题，但“裸 one-shot 续体不能无主逃逸”是设计约束。
+该 spelling 是 first-party sealed protocol，不是普通可覆盖 method。它返回
+`Transfers(ParkContract)` 而非 `Unit`；“裸 one-shot 续体不能无主逃逸”是
+设计约束。
 
 ## 7. Multi-shot 与捕获环境
 
@@ -452,24 +460,17 @@ multi-shot continuation 与普通局部 `var` 的语义必须明确，不能留�
 | 动作 | 控制结果 | 清理结果 |
 |---|---|---|
 | `resume k v` | 在操作点返回 `v` 并继续 | 重新进入续体携带的动态清理段 |
-| `discontinue k e` | 在操作点抛出/注入 `e` | 正常展开该控制分支 |
 | `finalize k` | 永不继续该分支 | 展开该分支的 cleanup |
-| `park/adopt k owner` | 当前 clause 放弃直接处置权 | 清理责任转移给 Owner |
+| `source.park(k, under = owner)` | terminal `Transfers(ParkContract)` | 清理责任转移给 generation-bound completion port |
 
 对于 multi-shot，每次恢复造成的动态进入/退出必须与捕获环境的可重放性一致；含一次性 cleanup 的续体不能被无条件复制。
 
 完整规则见 [Named capability、Owner 与结构化清理](capabilities-and-finalization.md)。
 
-## 10. 尚未冻结的表面语法
+## 10. Profile 边界
 
-以下均未决定：
-
-- operation declaration 与 handler clause 的最终参数分隔形式；
-- `resume k value`、`resume(k, value)` 或其他调用形式；
-- `discontinue`、`finalize` 的正式名称；
-- `park/adopt` 的名称与所有权转交语法；
-- one-call/many-call closure 是否需要显式标记；
-- 高级 `Resume<q, A, R>` 是否向普通用户公开；
-- `val` 是否作为正式 operation 形式保留。
-
-已经冻结的是四种日常恢复模式的名字与核心含义，而不是整套具体语法。
+`Cire-TR₀/2026-07-31` 已冻结 `k.resume(value)`、`k.finalize()` 与 sealed
+`source.park(k, under = owner)`。`discontinue` 不在本 profile；只有在 error
+payload、abort/world transformer 与 cleanup contract完整后才能作为新
+profile 提案。仍开放的是一般 one-call closure、高级 `Resume` 是否公开和
+`val` 糖，而不是当前三种 disposition 的含义。

@@ -1,4 +1,0 @@
-import {
-  "Eric-Song-Nop/cirelang/compiler/source",
-  "moonbitlang/core/json",
-}

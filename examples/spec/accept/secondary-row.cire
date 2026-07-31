@@ -1,0 +1,15 @@
+// profile: Cire-TR₀/2026-07-31
+// expect: accept
+// rule: T-Operation — call row includes dispatch entry and SecondaryRow
+
+effect Audit {
+  fun log(message : String) -> Unit
+}
+
+effect Store {
+  once load() -> Int ! {Audit}
+}
+
+def read() -> Int ! {Store, Audit} {
+  Store::load()
+}

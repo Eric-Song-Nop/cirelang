@@ -1,0 +1,7 @@
+// profile: Cire-TR₀/2026-07-31
+// expect: reject
+// rule: Surface grammar / RowLiteralBody — at most one final tail
+
+def[A]![..E1, ..E2] bad(body : () -> A ! E1) -> A ! {..E1, ..E2} {
+  body()
+}

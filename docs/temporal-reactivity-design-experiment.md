@@ -2,7 +2,12 @@
 
 ## 0. 文档状态
 
-**研究草案；不是已经接受的语言规范。**
+> **Profile companion:** [`Cire-TR₀/2026-07-31`](spec-status.md)
+>
+> 本文保存 canonical profile 的设计动机、反例和取舍，不独立裁决语法或
+> Core rule。规范结论以[状态矩阵](spec-status.md)、
+> [完整表面语法](surface-grammar.md)和
+> [Cire-TR₀ 形式化](temporal-reactivity-formalization.typ)为准。
 
 本文在现有 Cire 设计上做一次小型语言设计实验，目标不是尽快实现
 `Signal` 或 reactive variable，而是回答：
@@ -20,16 +25,17 @@
 - [Named capability、Owner 与结构化清理](capabilities-and-finalization.md)；
 - [第一方增量计算库](incremental-computation.md)；
 - [第一方响应式 UI 框架](reactive-ui.md)；
-- [Cire 表面语法工作规范](surface-syntax.md)。
+- [Cire 表面语法设计说明](surface-syntax.md)。
 
 本文的规则化版本见
-[Cire Temporal、Effect 与 Incremental Core：Typst 形式化草案](temporal-reactivity-formalization.typ)。
-该草案把这里的直觉拆成 kinding、bidirectional typing、suffix-site
-analysis、Owner/Commit 协议和独立 incremental machine；它同样是候选模型，
-不改变本文的研究草案状态。
+[Cire Temporal、Effect 与 Incremental Core：Typst 形式化](temporal-reactivity-formalization.typ)。
+该文档把这里的直觉拆成 kinding、bidirectional typing、suffix-site
+analysis、Owner/Commit 协议和独立 incremental machine，是当前 canonical
+semantic baseline；显式参数与 theorem 仍分别保持“开放”和“证明义务”状态。
 
-下文所有 `Next`、`delay`、`advance`、`protocol checkpoint` 和 operation
-transition 写法都是**工作形式**；其中 checkpoint 目前只建议出现在 Kernel
+下文的 `Next`、`delay`、`advance` 和 operation transition 写法已由 profile
+grammar 收敛；`protocol checkpoint` 仍是参数化的 Core contract，其中
+checkpoint 目前只建议出现在 Kernel
 contract/dump，不是第五个 surface mode。例子中的 `live`、`resource`、
 `Event`、`Signal` 仍可只是第一方库 API 和 trailing-lambda 语法，不因此
 成为语言关键字。
@@ -220,7 +226,7 @@ Signal[frame, A]
 函数的 effect row 依赖 term binder：
 
 ```cire
-fn read_app(app : cap Read[Int]) -> Int ! {app}
+def read_app(app : cap Read[Int]) -> Int ! {app}
 ```
 
 让 `Next[frame, A]` 使用同一 identity 基础设施，比引入一般 dependent type
@@ -332,7 +338,7 @@ closure 或结果跨 world，其 interface artifact 必须序列化
 下面这个看似自然的类型是不完整的：
 
 ```cire
-fn hide_charge(
+def hide_charge(
   frame : cap FrameClock,
 ) -> Next[frame, Unit] {
   delay[frame] {
@@ -689,14 +695,14 @@ Commit
 表面可以继续只用 named capability：
 
 ```cire
-fn compute_view(
+def compute_view(
   observe : cap Observe,
   declare : cap Declare,
 ) -> ViewPlan ! {observe, declare} {
   ...
 }
 
-fn publish(
+def publish(
   commit : cap Commit,
   plan : ViewPlan,
 ) -> Unit ! {commit} {
@@ -713,7 +719,7 @@ checker 已静态证明 capability “最多消费一次”。
 可以使用 sealed、可复制但共享同一原子 claim 的 `CommitGate`：
 
 ```cire
-fn try_publish(
+def try_publish(
   gate : CommitGate,
   revision : RevisionId,
   plan : ViewPlan,
@@ -761,7 +767,7 @@ candidate。
 ### 5.1 非响应、无 effect
 
 ```cire
-fn square(x : Int) -> Int {
+def square(x : Int) -> Int {
   x * x
 }
 ```
@@ -771,7 +777,7 @@ fn square(x : Int) -> Int {
 ### 5.2 非响应、普通 effect
 
 ```cire
-fn report() -> Unit ! {WallClock, Console} {
+def report() -> Unit ! {WallClock, Console} {
   let now = WallClock::now()
   Console::print_line(now.to_string())
 }
@@ -792,7 +798,7 @@ in {
 ### 5.3 一个纯粹的下一时刻值
 
 ```cire
-fn next_double(
+def next_double(
   frame : cap FrameClock,
   value : Int,
 ) -> Next[frame, Int] {
@@ -807,7 +813,7 @@ fn next_double(
 过早打开：
 
 ```cire
-fn too_early(
+def too_early(
   frame : cap FrameClock,
   value : Next[frame, Int],
 ) -> Int {
@@ -825,7 +831,7 @@ the value becomes available after one `frame` tick
 在下一 world 中使用：
 
 ```cire
-fn after_one(
+def after_one(
   frame : cap FrameClock,
   value : Next[frame, Int],
 ) -> Next[frame, Int] {
@@ -933,7 +939,7 @@ Signal[frame, A]
 纯 `map`：
 
 ```cire
-fn[A, B] map_signal(
+def[A, B] map_signal(
   frame : cap FrameClock,
   input : Signal[frame, A],
   transform : (A) -> B,
@@ -996,7 +1002,7 @@ Host::on_event { event_ref =>
 可以用 sealed combinator 暴露 guarded fixed point：
 
 ```cire
-fn naturals(
+def naturals(
   frame : cap FrameClock,
 ) -> Signal[frame, Int] {
   @temporal.feedback(frame) { self =>
@@ -1021,7 +1027,7 @@ self : Next[frame, Signal[frame, Int]]
 也可以研究可选 certification：
 
 ```cire
-guarded[frame] fn from(n : Int) -> Signal[frame, Int] {
+guarded[frame] def from(n : Int) -> Signal[frame, Int] {
   Step(
     n,
     delay[frame] {
@@ -1034,7 +1040,7 @@ guarded[frame] fn from(n : Int) -> Signal[frame, Int] {
 但 Cire 是允许一般递归与 divergence 的通用语言：
 
 ```cire
-fn bad(
+def bad(
   frame : cap FrameClock,
 ) -> Signal[frame, Int] {
   bad(frame)
@@ -2237,7 +2243,7 @@ generative named clock
 
    其中目标 identity 来自 named call `frame.yield()`，不是匿名 `self` binder。
 
-6. `feedback` combinator 与可选 `guarded[frame] fn` 的关系。
+6. `feedback` combinator 与可选 `guarded[frame] def` 的关系。
 
 ### 9.3 现在不建议加入
 

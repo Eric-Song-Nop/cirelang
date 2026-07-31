@@ -58,10 +58,10 @@
   ]
 
   #v(5pt)
-  #text(size: 15pt)[候选类型形式化、算法化检查与 PEG 语法]
+  #text(size: 15pt)[版本化类型形式化、算法化检查与 PEG 语法]
 
   #v(14pt)
-  #text(fill: luma(90))[研究草案 · Candidate calculus $"Cire-TR"_0$]
+  #text(fill: luma(90))[Canonical design profile · $"Cire-TR"_0$ · 2026-07-31]
 ]
 
 #v(18pt)
@@ -69,12 +69,13 @@
 #status(
   [文档状态],
   [
-    本文是一份可执行设计之前的形式化工作模型，不是已经接受的语言规范，
-    也不声称当前编译器已经实现这些规则。它固定术语、judgment、规则边界、
-    PEG 识别形状和待证明性质；仍开放的选择被显式参数化。
+    本文是 `Cire-TR₀/2026-07-31` 的 canonical semantic baseline。它固定术语、
+    judgment、规则边界、PEG 识别形状和待证明性质；仍开放的选择被显式参数化。
+    其中的 theorem 是陈述或证明义务，不代表已经完成机械化证明。
 
-    当前 parser 与 conformance tests 仍是已实现 concrete syntax 的最终权威。
-    本文中的 temporal PEG 是目标 grammar delta，不能反向解释成实现状态。
+    仓库当前不包含编译器或 runtime。完整 concrete syntax 由
+    `surface-grammar.md` 定义；未来 parser 与 conformance tests必须服从规范，
+    不能反向定义语言。
   ],
 )
 
@@ -110,7 +111,7 @@
 - `Source`、`Live`、`Event`、`Signal`、`Task`、`Resource` 的第一方契约；
 - fixed-Epoch、continuation cut、candidate replacement 与 Commit gate；
 - 一个结构递归、双向、算法化的 type checker；
-- 与当前手写 PEG parser 兼容的目标 grammar delta。
+- 与 canonical surface grammar 兼容的 token-oriented PEG fragment。
 
 == 非目标
 
@@ -245,7 +246,7 @@ closure/checkpoint 真正保存 `cap` 时仍会被 boundary checker发现。
 
 == 识别关系
 
-当前 parser 是手写 token-oriented PEG。本文忽略 missing-token insertion
+未来 parser 采用手写 token-oriented PEG。本文忽略 missing-token insertion
 与 recovery，仅形式化正常 recognition language。令 token stream 为
 $sigma = t_0 ... t_n$，parser expression 为 $p$，则：
 
@@ -448,7 +449,7 @@ $
   "leaveRule"("fail"(j,X,c)) = "fail"(j,X,c)
 $
 
-失败保留 commit bit，成功则清零；这对应当前 parser 的 rule frame。若只想
+失败保留 commit bit，成功则清零；这对应规范要求的 rule frame。若只想
 内联一个 expression而不建立 rule frame，应写 expression本身而不是
 `PEG-Nonterminal`。
 
@@ -470,26 +471,32 @@ lookahead还丢弃内部 expectation。
   ],
 )
 
-= 当前 executable grammar 与目标 grammar delta
+= Canonical surface fragment 与 temporal delta
 
-== 当前正常识别骨架
+== Calculus 使用的普通语法 fragment
 
-下面是去掉 recovery 后与当前 parser 最接近的 PEG。它不是第二份实现规范；
-它用于说明 temporal delta 应插入哪里。
+下面是从 `surface-grammar.md` 抽出的 calculus fragment。它不是第二份完整
+grammar；普通 declaration、pattern、precedence、label 和 block 规则一律以
+该文档为准。
 
 ```peg
 File          <- Declaration* EOF
-Declaration   <- EffectDecl / FunctionDecl
+Declaration   <- AbilityDecl / EffectDecl / FunctionDecl
 
 Visibility    <- PUB (LPAREN OPEN RPAREN)?
 Mode          <- ABORT / ONCE / FUN / CTL
 Name          <- Identifier / LowerIdent / UpperIdent / UNDERSCORE
 LowerName     <- LowerIdent / Identifier
 
+GenericClauses <- TypeParams? EffectParams?
 TypeParams    <- LBRACKET
                  (TypeParam (COMMA TypeParam)* COMMA?)?
                  RBRACKET
 TypeParam     <- Name (COLON Type)?
+EffectParams  <- BANG LBRACKET
+                 (EffectParam (COMMA EffectParam)* COMMA?)?
+                 RBRACKET
+EffectParam   <- DOTDOT UpperIdent / UpperIdent TypeArgs?
 
 TypeArgs      <- LBRACKET
                  (Type (COMMA Type)* COMMA?)?
@@ -512,13 +519,15 @@ EffectRow        <- LBRACE
 RowItem          <- DOTDOT Type / LowerIdent / FamilyType
 FamilyType       <- QualifiedName TypeArgs?
 
-OperationDecl <- Mode TypeParams? Name ParamList
+OperationDecl <- Mode GenericClauses? Name ParamList
                  ARROW Type EffectAnnotation? SEMICOLON?
 
-EffectDecl    <- Visibility? EFFECT Name TypeParams?
+AbilityDecl   <- Visibility? ABILITY Name TypeParams?
+                 LBRACE OperationDecl* RBRACE
+EffectDecl    <- Visibility? EFFECT Name TypeParams? EffectConformance?
                  LBRACE OperationDecl* RBRACE
 
-FunctionDecl  <- Visibility? FN TypeParams? Name ParamList
+FunctionDecl  <- Visibility? DEF GenericClauses? Name ParamList
                  ARROW Type EffectAnnotation? Block
 
 Expr[allow]   <- Primary PostfixSuffix[allow]*
@@ -527,7 +536,7 @@ PostfixSuffix[allow]
                / ArgList TrailingLambda?
                / TrailingLambda
 
-Primary       <- WithExpr / HandlerExpr / Literal / NameExpr
+Primary       <- WithChain / HandlerExpr / Literal / NameExpr
                / LPAREN Expr[allow] RPAREN / Block
 
 HandlerExpr   <- HANDLER Type LBRACE HandlerMember* RBRACE
@@ -536,12 +545,12 @@ HandlerClause <- Mode LowerName ClausePatterns
                  ContinuationBinder? FAT_ARROW Expr[allow] SEMICOLON?
 ReturnClause  <- RETURN ClausePatterns FAT_ARROW Expr[allow] SEMICOLON?
 
-WithExpr      <- WITH Expr[stop] (AS LowerName)? Block
+WithChain     <- WithEntry+ IN Expr[allow]
+WithEntry     <- WITH Expr[with_operand] (AS LowerName)?
 ```
 
-这里的 current `allow` / `stop` 只控制 trailing block attachment；当前
-parser尚没有 target chain所需的专门 terminator flavor。上述 skeleton省略
-现有 rule-local `CUT`，所以只比较成功语言，不比较错误恢复边界。
+`allow` / `with_operand` 控制 trailing block 与 chain terminator；上述
+skeleton省略 rule-local `CUT`，所以只比较成功语言，不比较错误恢复边界。
 
 == 目标 temporal surface
 
@@ -560,7 +569,7 @@ NEXT_TYPE   := UpperIdent[text = "Next"]
 
 ```peg
 OperationDecl <-
-  Mode TypeParams? Name ParamList
+  Mode GenericClauses? Name ParamList
   ARROW Type EffectAnnotation?
   OperationContractItem*
   SEMICOLON?
@@ -606,17 +615,16 @@ scoped transformer 与 effect handler共享 chain shape，而不会把 inner
 operand提前求值。
 
 `delay` 只有在完整看到 `[CapabilityIdent]` 后紧跟 block时才进入 dedicated
-branch并 `CUT`；`delay[Int](x)` 不会被 temporal branch提交。等 expression
-type-argument suffix进入目标 grammar后，它可回退为普通 generic call；
-在当前尚无该 suffix 的 parser profile中，它仍会作为未支持语法报错。相应地，
-`delay[name] { ... }` 这一完整形状在 target profile中保留给 temporal form；
+branch并 `CUT`；`delay[Int](x)` 不会被 temporal branch提交，而按 canonical
+generic-call grammar处理。`delay[name] { ... }` 这一完整形状在本 profile中
+保留给 temporal form；
 若用户确实要调用同形普通函数，必须加括号或改名。把 `delay` 整词升为 keyword
 仍是更强、目前未采用的选择。
 
 `advance(e)` 保持普通 call grammar。Resolver 只在 callee 绑定到 sealed
 prelude intrinsic 时降为 Core `advance`；同名用户函数仍是普通函数。
 
-`Next[frame, A]` 在现有 PEG 中已经可被识别为普通 type application。
+`Next[frame, A]` 被识别为普通 type application。
 Kind/lowering 阶段只对 sealed `Next` constructor 把首个 lower-name argument
 重分类为 capability identity；这不是一般 dependent type。
 
@@ -624,14 +632,12 @@ Kind/lowering 阶段只对 sealed `Next` constructor 把首个 lower-name argume
 lowering 会创建 restricted singleton identity quantifier。`NEXT_TYPE` 只供
 resolver识别 sealed constructor，不另建 parser branch。
 
-== 版本差异
+== Profile boundary
 
 #warning([
-  当前 executable parser 仍使用单项
-  `with operand (as name)? { block }`，并且尚未实现 expression type arguments、
-  `CapabilityType`、typed HIR 与 temporal CST node。上面的 `WithChain` 和
-  temporal delta 是 target grammar，不是当前实现事实。Legacy 与 target
-  `with` 由 edition/profile选择；同一个 profile不同时接受两种顶层形状。
+  `Cire-TR₀/2026-07-31` 只接受 canonical `with ... in ...` chain，不接受历史
+  `with operand { block }` 形状。实现若需要迁移诊断，应把 legacy token
+  sequence作为拒绝 case，而不是并行的语言 profile。
 ])
 
 建议新增的 CST node：
@@ -654,13 +660,15 @@ WithEntry
 == Kinds
 
 $
-  kappa ::= "Type" | "Effect" | "EffectRow" | "ClockId"
+  kappa ::= "Type" | "Effect" | "EffectRow" | "CapId" | "ClockId"
           | "OwnerRegion" | "Phase" | "Evidence"
           | kappa_1 -> kappa_2
 $
 
-`ClockId` 是一个受限 singleton kind，只能由合法 `cap FrameClock` binder
-贡献。普通 term 不能出现在 type 中。
+`CapId(F,ρ)` 是一般、受限的生成式 capability identity kind；只有
+`freshcap`/handler application可以引入。`ClockId(ρ)` 是
+`CapId(F,ρ)` 连同 sealed `F : FrameClock` evidence 的 refinement，不是所有
+capability的共同 kind。普通 term 不能出现在 type 中。
 
 == Core types
 
@@ -672,9 +680,9 @@ $
 
 #align(center)[
   $A,B ::= alpha | "Unit" | "Never"
-    | forall i:"ClockId"(F,rho).A
+    | forall i:"CapId"(F,rho).A
     | forall p:P.A
-    | exists i:"ClockId"(F,rho),
+    | exists i:"CapId"(F,rho),
         S:"ClockPackageSummary"(i,A).A$ \
   $quad | forall rho:"OwnerRegion".A
     | A arrow.r.long^(C) B
@@ -688,7 +696,9 @@ $
     | "Resource"[rho,A,B]
     | "Plan"[A]
     | "Owner"[rho]$ \
-  $quad | "CommitTicket"[rho] | "CommitGate"[rho]
+  $quad | "CompletionSource"[rho,R]
+    | "CompletionPort"[rho,R]
+    | "CommitTicket"[rho] | "CommitGate"[rho]
     | "Resume"[q,D,A,B,Pi,chi,rho]
     | "Handler"[F,rho,A,B,epsilon,C,P]$
 ]
@@ -717,7 +727,27 @@ $Lambda$ 是跨 abstraction序列化的 latent operation-site/coeffect schemas�
 Surface function type 通常只显示 $epsilon$；其余字段必须写入 Typed HIR
 与 interface artifact。
 
-与 hidden $L$ 相同，surface `fn(A) -> B ! ε` 先 elaboration为
+跨模块 artifact 不以裸字母作为 wire format。第一版稳定 schema 为：
+
+```text
+FunctionContractV1 {
+  profile: "Cire-TR₀/2026-07-31"
+  schema_version: 1
+  ...
+  ParametricObligations: [ObligationV1]
+  LatentSites: [LatentSiteV1]
+}
+
+ObligationV1.stage = Call | HandlerInstall
+LatentSiteV1.stage = Call | HandlerInstall
+```
+
+本文内部仍用 $Q/Lambda$ 简写这两个字段。每个 obligation/site 都有稳定
+kind tag、nominal selector/identity、route、source origin 与 stage；未知
+version 必须拒绝，不能默默丢字段。`Call` 在 T-App 实例化和 discharge，
+`HandlerInstall` 随 site evidence 保留到具体 delimiter 的 `InstallOK`。
+
+与 hidden $L$ 相同，surface `(A) -> B ! ε` 先 elaboration为
 $A arrow.r.long^(?C) B$，不是把未显示字段填成 `pure/same`。有 initializer
 的 declaration求解 $?C$；高阶 input binder把未由 annotation约束的字段
 泛化为 rigid contract parameter，并把调用时用到的 row、world、phase、
@@ -738,7 +768,7 @@ quantity-aware function binder后再加入，不能靠局部优化证据偷偷�
 `frame : cap FrameClock` 的完整 Core binder不是普通 dependent term：
 
 $
-  forall i:"ClockId"("FrameClock",rho).
+  forall i:"CapId"("FrameClock",rho).
   "Cap"[i,"FrameClock"] arrow.r.long^C "Next"[i,A,L_f]
 $
 
@@ -806,6 +836,12 @@ $
 $
 
 $
+  Delta ::= emptyset
+    | {"Demand"(kappa,r,a,o,epsilon_"secondary")}
+    | Delta_1 ∪ Delta_2
+$
+
+$
   chi ::= emptyset
     | {i}
     | {"owner"(rho)}
@@ -825,6 +861,16 @@ $
 $
 
 Rows 按 entry identity 归一化；`Anon(F)` 与 `Named(ι,F)` 不相等。
+Row literal `{a | μ}` 生成约束 `"Lacks"(mu,a)`；union只合并 identity-aware
+set并传播 Lacks constraints，不能把同 family 的不同 identity 合并。
+$Delta$ 是 attributed demand：$kappa$ 是 call site，$r$ 是 prompt/handler
+route，$a/o$ 是 resolved entry/operation。Public row只是
+$"eraseDemand"(Delta)$；exact handling移除路由到该 delimiter 的 demand，
+不是对 family 名做 raw set subtraction。
+同 family forwarding 在 Surface 尚无冻结拼写；Kernel 必须显式产生
+`forward[r](a,o,args)`，把 demand route更新到 outer prompt并保留原
+identity/site。它不能用“先删 `{a}`、再加 `{a}`”模拟，否则 nested
+same-family handler 与 secondary demand会失去 attribution。
 空 residual row 只表示没有 operation 向外请求：
 
 $
@@ -836,20 +882,22 @@ $
 #align(center)[
   $e ::= x | lambda^[eta_f] x.e | e_1(e_2)
     | "let" x=e_1;e_2$ \
-  $quad | "ClockAbs"(i,v) | v[j]
+  $quad | "CapAbs"(i,v) | v[j]
     | "packClock"[j](v) " as "
-        (exists i:"ClockId"(F,rho),
+        (exists i:"CapId"(F,rho),
           S:"ClockPackageSummary"(i,A).A)$ \
   $quad | "unpackClock" [i,x]=p " in " e
     | "OwnerAbs"(rho,v) | v[rho]$ \
   $quad | "freshcap" i:F@rho " in " e
+    | "capref"(i)
     | "delay"_i(e) | "advance"(e)$ \
   $quad | "op"[a]("name",bar(e))
+    | "forward"[r](a,"name",bar(e))
     | "handler"[F]{bar(c)}
     | "handle"[h,i?](e)$ \
   $quad | "resume"(k,v)
     | "finalize"(k)
-    | "adopt"(o,k)$ \
+    | "park"("src",o,k)$ \
   $quad | "intrinsic"(n,bar(e))$
 ]
 
@@ -877,6 +925,31 @@ in e
       thunk { ScopedApply(elab(h2), none, thunk { elab(e) }) },
     )
 
+handler F { operation clauses }
+  ↦ handler F {
+      operation clauses
+      return(value) => value
+    }
+    when Surface omitted `return`;
+    this normalization runs before clause partition/exactness
+
+def f(p1, ..., pn) { e }
+  ↦ a named recursive binding whose value is one Core function over
+    an immutable n-ary argument tuple
+
+def f(...) { items; result }
+  ↦ ordinary named-function return of elab(result);
+    no hidden resumption is introduced
+
+fun op(...) => { items; result }
+  ↦ items; let value = elab(result) in resume(hidden_k, value)
+    on every normal exit; abortive exits run the hidden disposition cleanup
+
+f(a_source1, ..., a_sourcen)
+  ↦ let x1 = elab(a_source1) in ... let xn = elab(a_sourcen) in
+    f(tupleByParameterOrder(x1, ..., xn))
+    after labels are resolved; source evaluation order is unchanged
+
 resolver:
   ScopedApply(handlerValue : Handler[...], cap, bodyThunk)
     ↦ let h = handlerValue in handle[h, cap](bodyThunk())
@@ -897,6 +970,16 @@ inner thunk调用次数；resolver证明 operand具有 `Handler[...]` type后才
 Kernel `handle`。普通 scoped transformer仍是函数调用，不能被错误地赋予
 effect-row elimination。Kernel `handle[h,i]` 自己引入 generative identity，
 并在结果处执行 escape check。
+
+Synthetic identity return 强制 $B=A$，contract 为 same-world、empty row、
+`NoSuspend`、`Pure`，并把输入 summary逐字保留：
+
+$
+  R_"identity"(pi,chi)=(pi,chi)
+$
+
+它不能把结果洗成 `Stable/∅`。若 handler做 answer-type transformation，例如
+$A -> "Result"[A,E]$，则不能省略 return。
 
 = 静态域与代数
 
@@ -1100,12 +1183,13 @@ $
 状态为：
 
 $
-  Omega(k) ::= "Open"(q) | "Closed" | "Transferred"(rho)
+  Omega(k) ::= "Open"(q) | "Closed" | "Transferred"(rho,g,c)
 $
 
 `once` resume令 `Open(1) → Closed`；`ctl` resume令
 `Open(ω) → Open(ω)`；`finalize` 令任意 `Open(q) → Closed`；
-`adopt` 令其变为 `Transferred(ρ)`。因此 `finalize(ctl_k)` 后不能利用
+`park` 令其变为 `Transferred(ρ,g,c)`，其中 $c$ 是 sealed completion
+port identity。因此 `finalize(ctl_k)` 后不能利用
 $omega-1=omega$ 再次 resume。
 
 函数 contract保存 latent usage map $u_f$。构造 closure只分析、并不消费
@@ -1175,25 +1259,25 @@ $
   [$K; I ⊢ "Next"[i,A,L] : "Type"$],
 )
 
-只有 sealed `Next` constructor 接受 `ClockId` argument。一般 type constructor
-仍只能接受其声明 kind 的参数。
+只有 sealed `Next` constructor 接受带 `FrameClock` evidence 的
+`CapId` argument。一般 type constructor仍只能接受其声明 kind 的参数。
 
 下文使用 capture-avoiding abbreviation：
 
 $
   "ClockPkg"[F,rho,A]
-  = exists i:"ClockId"(F,rho),
+  = exists i:"CapId"(F,rho),
       S:"ClockPackageSummary"(i,A).A
 $
 
 #irule(
-  [K-Clock-All],
+  [K-Cap-All],
   (
     [$K ⊢ F:"Effect" quad K ⊢ rho:"OwnerRegion"$],
     [$i ∉ "dom"(I)$],
     [$K;I,i:F@rho ⊢ A:"Type"$],
   ),
-  [$K;I ⊢ (forall i:"ClockId"(F,rho).A):"Type"$],
+  [$K;I ⊢ (forall i:"CapId"(F,rho).A):"Type"$],
 )
 
 #irule(
@@ -1206,7 +1290,7 @@ $
 )
 
 #irule(
-  [K-Clock-Exists],
+  [K-Cap-Exists],
   (
     [$K ⊢ F:"Effect" quad K ⊢ rho:"OwnerRegion"$],
     [$i ∉ "dom"(I)$],
@@ -1229,20 +1313,20 @@ $P_"owner"$ 证明 shared child-Owner handle、lease acquire/release线性化和
 但必须把 $delta_"release"$ 组合进输出 summary。
 
 #irule(
-  [T-Clock-Intro],
+  [T-Cap-Intro],
   (
     [$K ⊢ F:"Effect" quad K ⊢ rho:"OwnerRegion"$],
     [$i ∉ "dom"(I)$],
     [$K;I,i:F@rho;Phi@Theta ⊢_v v ⇒ A @[pi] ▷ chi$],
     [$i ∉ "fv"(pi,chi)$],
   ),
-  [$K;I;Phi@Theta ⊢_v "ClockAbs"(i,v) ⇒ (forall i:"ClockId"(F,rho).A) @[pi] ▷ chi$],
+  [$K;I;Phi@Theta ⊢_v "CapAbs"(i,v) ⇒ (forall i:"CapId"(F,rho).A) @[pi] ▷ chi$],
 )
 
 #irule(
-  [T-Clock-Elim],
+  [T-Cap-Elim],
   (
-    [$K;I;Phi@Theta ⊢_v v ⇒ (forall i:"ClockId"(F,rho).A) @[pi] ▷ chi$],
+    [$K;I;Phi@Theta ⊢_v v ⇒ (forall i:"CapId"(F,rho).A) @[pi] ▷ chi$],
     [$I ⊢ j:F@rho$],
   ),
   [$K;I;Phi@Theta ⊢_v v[j] ⇒ A[j/i] @[pi] ▷ chi$],
@@ -1318,8 +1402,21 @@ $P_"owner"$ 证明 shared child-Owner handle、lease acquire/release线性化和
 )
 
 Surface `x : cap F` 参数同时引入 implicit $i$ 和
-`x:Cap[i,F]`，等价于 T-Clock-Intro 后再用 T-Lambda。调用以实参 capability
-identity应用 T-Clock-Elim。`ClockPackageSafe` 是 sealed predicate：它要求
+`x:Cap[i,F]`，等价于 T-Cap-Intro 后再用 T-Lambda。`freshcap` scope内，
+`capref(i)` 是唯一 value introduction：
+
+#irule(
+  [T-Cap-Ref],
+  (
+    [$I ⊢ i:F@rho$],
+    [$"AuthorityFor"(Phi,i)$],
+  ),
+  [$K;I;Phi@Theta ⊢_v "capref"(i) ⇒ "Cap"[i,F] @["Region"(rho)] ▷ {i}$],
+)
+
+调用以实参 capability identity应用 T-Cap-Elim。Named operation必须消费
+实际 `Cap[i,F]`/authority witness，不能仅凭 AST 中出现 `Named(i,F)` 伪造
+identity。`ClockPackageSafe` 是 sealed predicate：它要求
 package强拥有对应 runner、Owner与 dispose责任，并把 payload
 provenance/capture与 dispose contract写入 $S$；因此裸
 $exists i."Signal"[i,A]$ 不能仅靠 T-Clock-Pack 延长 clock lifetime。
@@ -1512,7 +1609,7 @@ identity，再把 flow交给外层；private site/row/summary/usage evidence不�
 Operation contract：
 
 $
-  O = ⟨m,bar(alpha),bar(A)->B,zeta,d,R_o,Phi_o,P_o⟩
+  O = ⟨m,bar(alpha),bar(A)->B,zeta,d,R_o,Phi_o,P_o,Sigma_o⟩
 $
 
 Handler clause contract：
@@ -1540,6 +1637,8 @@ $
 - handler semantic law 的 witness 具有允许的 trust origin；
 - operation 的每个 polymorphic type parameter在 clause 中 fresh skolemize。
 - `may_suspend` 的 $P_"park"$ 必须证明同步 resume或 Owner-bound transfer。
+- clause residual row、suspension与 summary 必须包含
+  $Sigma_o$ 的 secondary contract，不能因 exact family handling而擦除。
 
 == Shareability、duplicability 与 boundary safety
 
@@ -1568,8 +1667,12 @@ Shareable(A ->^C B)
   and its provenance passes the requested storage boundary
 ```
 
-`Cap`、`Owner`、`Resume`、`CommitTicket` 与 `CommitGate` 不因“机器上可以
-复制几个 bits”而成为 broadcast payload。`CommitGate` 的多个 handle可以
+`Cap`、`Owner`、`Resume`、`CompletionSource`、`CompletionPort`、
+`CommitTicket` 与 `CommitGate` 不因“机器上可以复制几个 bits”而成为
+broadcast payload。`CompletionSource` 是不可复制的 introduction
+authority；`CompletionPort` 的多个宿主 handle可共享同一 CAS claim，因而
+capture可满足 `Duplicable`，但它不是 `Shareable(R)` 的结果广播。
+`CommitGate` 的多个 handle可以
 共享同一原子 claim，所以相关 capture 可满足 `Duplicable`；它仍受
 generation boundary约束且不满足 `Shareable`。`CommitTicket` 也只允许交给
 sealed commit runner消费。第一方容器若要声明额外 `Shareable` instance，
@@ -1769,10 +1872,11 @@ $Q$；abortive body不能借“不产生结果”绕过实参相关的前缀安�
     [$K;I;Phi;Omega@Theta_0 ⊢ e_1 ⇒ A arrow.r.long^(C_f) B @[pi_1] ! epsilon_1 ▷ s_1;delta_1;chi_1 @Theta_1⊣Omega_1$],
     [$K;I;Phi;Omega_1@Theta_1 ⊢ e_2 ⇐ A @[pi_2] ! epsilon_2 ▷ s_2;delta_2;chi_2 @Theta_2⊣Omega_2$],
     [$"PhaseAllows"(Phi,Phi_f) quad "applyUsage"(Omega_2,u_f)=Omega_3$],
-    [$"Discharge"("instantiate"(Q_f,pi_2,chi_2,I,Theta_2))$],
+    [$"Discharge"("instantiate"("stageCall"(Q_f),pi_2,chi_2,I,Theta_2))$],
     [$zeta(Theta_2) = Theta_3$],
     [$R_f(pi_2,chi_2)=(pi_3,chi_3)$],
-    [$Lambda'="instantiateLatentSites"(Lambda_f,Theta_2)$],
+    [$Lambda'="instantiateLatentSites"(Lambda_f,Theta_2)
+      quad "PreserveUntilInstall"("stageHandlerInstall"(Q_f),Lambda')$],
   ),
   [$K;I;Phi;Omega@Theta_0 ⊢ e_1(e_2) ⇒ B @[pi_3] ! epsilon_1 ∪ epsilon_2 ∪ epsilon_f ▷ s_1 ⊔ s_2 ⊔ s_f;delta_1 ⊗ delta_2 ⊗ delta_f;chi_3 @Theta_3⊣Omega_3$],
 )
@@ -1784,8 +1888,9 @@ $Q$；abortive body不能借“不产生结果”绕过实参相关的前缀安�
     [$K;I;Phi;Omega@Theta_0 ⊢ e_1 ⇒ A arrow.r.long^(C_f) B @[pi_1] ! epsilon_1 ▷ s_1;delta_1;chi_1 @Theta_1⊣Omega_1$],
     [$K;I;Phi;Omega_1@Theta_1 ⊢ e_2 ⇐ A @[pi_2] ! epsilon_2 ▷ s_2;delta_2;chi_2 @Theta_2⊣Omega_2$],
     [$"PhaseAllows"(Phi,Phi_f) quad "applyUsage"(Omega_2,u_f)=Omega_3$],
-    [$"Discharge"("instantiate"(Q_f,pi_2,chi_2,I,Theta_2))$],
-    [$Lambda'="instantiateLatentSites"(Lambda_f,Theta_2)$],
+    [$"Discharge"("instantiate"("stageCall"(Q_f),pi_2,chi_2,I,Theta_2))$],
+    [$Lambda'="instantiateLatentSites"(Lambda_f,Theta_2)
+      quad "PreserveUntilInstall"("stageHandlerInstall"(Q_f),Lambda')$],
   ),
   [$K;I;Phi;Omega@Theta_0 ⊢_"abort" e_1(e_2) ! epsilon_1∪epsilon_2∪epsilon_f ▷ s_1⊔s_2⊔s_f;delta_1⊗delta_2⊗delta_f ⊣Omega_3$],
 )
@@ -2003,7 +2108,11 @@ pub effect FrameClock {
 ```
 
 `yield` 没有一条与 generic operation竞争的特殊 synthesis rule。它只是
-后文 T-Operation在下列 signature下的派生实例：
+后文 T-Operation在下列 parameterized signature下的派生实例：
+
+$
+  d_"yield" in {"NoSuspend","MaySuspend"}
+$
 
 $
   O_"yield" =
@@ -2011,23 +2120,26 @@ $
   @[
     "once",
     "next"(i),
-    "NoSuspend",
+    d_"yield",
     R_"unit",
     Phi_"yield"(i),
-    {"RequiresTickWitness"(i)}
+    {"RequiresTickWitness"(i),
+     "YieldSuspensionWitness"(i,d_"yield")}
   ]
 $
 
 其中 $R_"unit"()=("Stable",emptyset)$，
 $Phi_"yield"(i)$ 要求当前 $Phi$ 持有 named clock authority $i$。
 因此唯一结果是 row `{a}`、
-`request(a,NoSuspend)`、空 result capture以及
+`request(a,d_yield)`、空 result capture以及
 `pushLock(Θ,i)`；`delta_clock` 只在 sealed runner handler policy被安装后
 加入，而不是由 perform site凭空加入。
 
 只有 sealed clock runner 能 discharge `{a}` 并产生合法 next-world witness。
 定义 package 内的 handler 若在 current world 直接 `resume`，不满足
-operation contract refinement。
+operation contract refinement。若选择 `NoSuspend`，runner还必须证明宿主等待
+完全封装在 world transition中且不跨语言级 Owner/storage boundary；否则
+profile必须选择 `MaySuspend` 并 discharge `OwnerBoundParking`。
 
 == Handler 与 Next 不默认交换
 
@@ -2067,13 +2179,16 @@ $
   K(F, "op") =
   forall bar(alpha).
   (bar(A)) -> B
-  @[m, zeta, d, R_o, Phi_o, P_o]
+  @[m, zeta, d, R_o, Phi_o, P_o, Sigma_o]
 $
 
 $m$ 是最大 resumption mode，$zeta$ 是 successful resume transition，
 $d$ 是 suspension 上界，$R_o$ 是 argument summary到 result
 provenance/capture的 transformer，$Phi_o$ 是 invocation precondition，
-$P_o$ 是 suspension/parking obligation。Operation 自身不把 handler policy写入 family；
+$P_o$ 是 suspension/parking obligation，且
+$Sigma_o=⟨epsilon_"secondary",s_"secondary",delta_"secondary"⟩$
+是 operation declaration 的 secondary effect/suspension/summary contract。
+Operation 自身不把 handler policy写入 family；
 policy 来自具体 handler instance。
 
 对 $zeta="next"(i)$，$P_o$ 还包含不可伪造的
@@ -2109,18 +2224,21 @@ $
 #irule(
   [T-Operation],
   (
-    [$K(F,"op")=O quad O=forall bar(alpha).(bar(A))->B @[m,zeta,d_o,R_o,Phi_o,P_o]$],
+    [$K(F,"op")=O quad O=forall bar(alpha).(bar(A))->B @[m,zeta,d_o,R_o,Phi_o,P_o,Sigma_o]$],
     [$m != "abort"$],
     [$sigma = "freshInstantiation"(bar(alpha))$],
-    [$sigma(O)=(bar(A)_sigma)->B_sigma @[m,zeta_sigma,d_sigma,R_sigma,Phi_sigma,P_sigma]$],
+    [$sigma(O)=(bar(A)_sigma)->B_sigma @[m,zeta_sigma,d_sigma,R_sigma,Phi_sigma,P_sigma,Sigma_sigma]$],
+    [$Sigma_sigma=⟨epsilon_"sec",s_"sec",delta_"sec"⟩$],
     [$K;I;Phi;Omega@Theta ⊢ bar(e) ⇐ bar(A)_sigma ⊣ bar(pi_a);bar(chi_a);epsilon_a;s_a;delta_a@Theta_a⊣Omega_a$],
-    [$a = "entry"("receiver",F) quad zeta_a = "instantiateReceiver"(zeta_sigma,a)$],
+    [$a = "entry"("receiver",F) quad r="resolveRoute"(a) quad zeta_a = "instantiateReceiver"(zeta_sigma,a)$],
     [$zeta_a(Theta_a)=Theta'$],
     [$R_sigma(bar(pi_a),bar(chi_a))=(pi_B,chi_B)$],
-    [$s'=s_a ⊔ "request"(a,d_sigma) quad "PhaseAllows"(Phi,Phi_sigma)$],
-    [$"Allowed"(Phi,epsilon_a∪{a},s',delta_a) quad "RecordObligation"(a,P_sigma)$],
+    [$epsilon_"call"=epsilon_a∪{a}∪epsilon_"sec"$],
+    [$s'=s_a ⊔ "request"(a,d_sigma) ⊔ s_"sec" quad "PhaseAllows"(Phi,Phi_sigma)$],
+    [$"Allowed"(Phi,epsilon_"call",s',delta_a⊗delta_"sec")$],
+    [$"RecordObligation"(a,P_sigma) quad "RecordDemand"(kappa,r,a,"op",epsilon_"sec")$],
   ),
-  [$K;I;Phi;Omega@Theta ⊢ "op"[a]("op",bar(e)) ⇒ B_sigma @[pi_B] ! epsilon_a ∪ {a} ▷ s';delta_a;chi_B @Theta'⊣Omega_a$],
+  [$K;I;Phi;Omega@Theta ⊢ "op"[a]("op",bar(e)) ⇒ B_sigma @[pi_B] ! epsilon_"call" ▷ s';delta_a⊗delta_"sec";chi_B @Theta'⊣Omega_a$],
 )
 
 `abort` operation 没有 successful $Theta'$。为避免用任意 world伪造正常
@@ -2134,18 +2252,22 @@ $
 #irule(
   [T-Operation-Abort],
   (
-    [$K(F,"op")=O quad O=forall bar(alpha).(bar(A))->B @["abort",bot,d_o,R_o,Phi_o,P_o]$],
+    [$K(F,"op")=O quad O=forall bar(alpha).(bar(A))->B @["abort",bot,d_o,R_o,Phi_o,P_o,Sigma_o]$],
     [$sigma="freshInstantiation"(bar(alpha))$],
-    [$sigma(O)=(bar(A)_sigma)->B_sigma @["abort",bot,d_sigma,R_sigma,Phi_sigma,P_sigma]$],
+    [$sigma(O)=(bar(A)_sigma)->B_sigma @["abort",bot,d_sigma,R_sigma,Phi_sigma,P_sigma,Sigma_sigma]$],
+    [$Sigma_sigma=⟨epsilon_"sec",s_"sec",delta_"sec"⟩$],
     [$K;I;Phi;Omega@Theta ⊢ bar(e) ⇐ bar(A)_sigma ⊣ bar(pi_a);bar(chi_a);epsilon_a;s_a;delta_a@Theta_a⊣Omega_a$],
-    [$a="entry"("receiver",F) quad s'=s_a ⊔ "request"(a,d_sigma)$],
-    [$"PhaseAllows"(Phi,Phi_sigma) quad "Allowed"(Phi,epsilon_a∪{a},s',delta_a)$],
-    [$"RecordObligation"(a,P_sigma)$],
+    [$a="entry"("receiver",F) quad r="resolveRoute"(a)$],
+    [$epsilon_"call"=epsilon_a∪{a}∪epsilon_"sec"$],
+    [$s'=s_a ⊔ "request"(a,d_sigma) ⊔ s_"sec"$],
+    [$"PhaseAllows"(Phi,Phi_sigma) quad "Allowed"(Phi,epsilon_"call",s',delta_a⊗delta_"sec")$],
+    [$"RecordObligation"(a,P_sigma) quad "RecordDemand"(kappa,r,a,"op",epsilon_"sec")$],
   ),
-  [$K;I;Phi;Omega@Theta ⊢_"abort" "op"[a]("op",bar(e)) ! epsilon_a∪{a} ▷ s';delta_a ⊣Omega_a$],
+  [$K;I;Phi;Omega@Theta ⊢_"abort" "op"[a]("op",bar(e)) ! epsilon_"call" ▷ s';delta_a⊗delta_"sec" ⊣Omega_a$],
 )
 
-Algorithmic `CheckResult.flow` 因而是 `Returns(Θ)` 或 `Aborts`。Abortive flow
+Algorithmic `CheckResult.flow` 因而是 `Returns(Θ)`、`Aborts` 或
+`Transfers(ParkContract)`。Abortive flow
 可以在 expected type下使用，但不产生 normal output world；sequence不再
 检查其不可达 suffix，branch join也只合并 `Returns` 分支。若所有分支
 abort，整个 expression保持 abortive。这样 `abort` 既不是普通
@@ -2343,7 +2465,9 @@ handler定义点 lock写进 contract。
   [$K;I;Phi@Theta ⊢_v "handler"[F]{bar(c)} ⇒ "Handler"[F,rho_h,A,B,epsilon_h,C_h,P_h] @["Owner"(rho_h)] ▷ chi_h$],
 )
 
-`PartitionClauses` 同时保证恰好一个 return clause、每个
+输入 T-Handler 前，Surface normalization 已为省略的 return 合成 identity
+clause；显式写多个 return 仍是错误。`PartitionClauses` 同时保证恰好一个
+return clause、每个
 $O in "ops"(F)$ 恰好一个 operation clause，且没有 duplicate或 extra
 clause。`ReturnClauseOK` 对具体 $c_"ret"$ 的 parameter、body type、row、
 attributed suspension、semantic summary、world transformer、result
@@ -2403,9 +2527,9 @@ resumeState(Ω, k, 1) = Ω[k ↦ Closed]
 resumeState(Ω, k, ω) = Ω[k ↦ Open(ω)]
 ```
 
-若 clause正常退出且 $k$ 仍 `Open`、也未被 adopt，elaboration在该路径插入
+若 clause正常退出且 $k$ 仍 `Open`、也未被 park，elaboration在该路径插入
 `finalize(k)`。因此每条运行路径最终只有一个 disposition owner；`ctl`
-可以 resume多次，但一旦 finalize/adopt就不能再 resume。
+可以 resume多次，但一旦 finalize/park就不能再 resume。
 自动插入的 finalizer参与 clause contract聚合，所以 Atomic/Delay会看到真实
 cleanup effect与 suspension，而不会获得虚假的 `NoSuspend`。
 
@@ -2477,8 +2601,8 @@ $
 )
 
 `DispositionComplete` 对 `once` 的每个 exit插入/验证 resume、finalize或显式
-Owner-bound adopt恰好一个；对 `ctl` 可有多次 resume，但 exit前只能
-finalize，T-Adopt不接受 `Resume[ω,…]`。插入动作的 row、suspension、
+Owner-bound park恰好一个；对 `ctl` 可有多次 resume，但 exit前只能
+finalize，T-Park不接受 `Resume[ω,…]`。插入动作的 row、suspension、
 summary与 usage都进入 $f_d$。
 
 #irule(
@@ -2568,7 +2692,9 @@ disposition的 abortive path。
 Handled body使用 path-aware辅助 judgment：
 
 $
-  f ::= "NoReturn" | "Returns"(pi,chi,Theta)
+  f ::= "Aborts"
+    | "Returns"(pi,chi,Theta)
+    | "Transfers"("ParkContract")
 $
 
 $
@@ -2578,8 +2704,10 @@ $
 $
 
 它要求所有 normal path返回 $A$ 并 join其 provenance/capture/world；
-完全 abortive body得到 `NoReturn`。两类 flow都保留 typed Core、operation
-sites、row、suspension与 summary。
+完全 abortive body得到 `Aborts`。`Transfers(ParkContract)` 是经过 T-Park
+验证的 terminal ownership transfer，不是 `Unit` result，也不能进入 sequence
+的 suffix。三类 flow都保留 typed Core、operation sites、row、suspension、
+summary 与 attributed demand。
 
 Handler installation是一个有输出的 judgment：
 
@@ -2619,7 +2747,8 @@ summary与 handler policy；不能用单独的 $P_h$ 替代 $C_h$。
 所以 abort clause从 actual argument（例如 `Raise.throw(err)` 的 `err`）带入
 结果的 provenance/capture不会从 normal body summary中消失。
 `InstallOK` 同时要求所有 normal exit产生同一个输出 $Theta_o$；若没有
-normal exit则 $f_o="NoReturn"$。Clause可以通过 full $w_k$ resume到该 world，
+normal exit则 $f_o="NoReturn"$；transfer path必须携带并 discharge
+`ParkContract`。Clause可以通过 full $w_k$ resume到该 world，
 也可执行等价 sealed transition；无 resume 的 abort path若 normal return
 却没有该 world evidence，就失败。`RequiresTickWitness`、
 `OwnerBoundParking` 等 $P_o$ obligation也在这里 discharge。
@@ -2635,7 +2764,7 @@ normal exit则 $f_o="NoReturn"$。Clause可以通过 full $w_k$ resume到该 wor
     [$E_e=⟨f_e,epsilon_e,s_e,delta_e⟩$],
     [$"InstallOK"(h,P_h,a,bar(kappa),E_e,C_h) ⇓ ⟨"Returns"(pi_o,chi_o,Theta_o),delta_o⟩$],
     [$"PolicyOK"(P_h) quad "PhaseAllows"(Phi,"requiredPhase"(C_h))$],
-    [$epsilon_o=(epsilon_e-{a}) ∪ epsilon_h$],
+    [$epsilon_o="routeErase"(epsilon_e,bar(kappa),a,h) ∪ epsilon_h$],
     [$s_o="handleSusp"(s_e,a,C_h)$],
   ),
   [$K;I;Phi;Omega@Theta ⊢ "handle"[h,"anon"](e) ⇒ B @[pi_o] ! epsilon_o ▷ s_o;delta_o;chi_o @Theta_o⊣Omega_e$],
@@ -2650,7 +2779,7 @@ normal exit则 $f_o="NoReturn"$。Clause可以通过 full $w_k$ resume到该 wor
     [$E_e=⟨f_e,epsilon_e,s_e,delta_e⟩$],
     [$"InstallOK"(h,P_h,a,bar(kappa),E_e,C_h) ⇓ ⟨"NoReturn",delta_o⟩$],
     [$"PolicyOK"(P_h) quad "PhaseAllows"(Phi,"requiredPhase"(C_h))$],
-    [$epsilon_o=(epsilon_e-{a}) ∪ epsilon_h quad s_o="handleSusp"(s_e,a,C_h)$],
+    [$epsilon_o="routeErase"(epsilon_e,bar(kappa),a,h) ∪ epsilon_h quad s_o="handleSusp"(s_e,a,C_h)$],
   ),
   [$K;I;Phi;Omega@Theta ⊢_"abort" "handle"[h,"anon"](e) ! epsilon_o ▷ s_o;delta_o ⊣Omega_e$],
 )
@@ -2680,7 +2809,7 @@ computation is temporal-pure or replay-safe
     [$E_e=⟨f_e,epsilon_e,s_e,delta_e⟩$],
     [$"InstallOK"(h,P_h,a,bar(kappa),E_e,C_h) ⇓ ⟨"Returns"(pi_o,chi_o,Theta_h),delta_o⟩$],
     [$"PolicyOK"(P_h) quad "PhaseAllows"(Phi_i,"requiredPhase"(C_h))$],
-    [$epsilon_o=(epsilon_e-{a}) ∪ epsilon_h$],
+    [$epsilon_o="routeErase"(epsilon_e,bar(kappa),a,h) ∪ epsilon_h$],
     [$s_o="handleSusp"(s_e,a,C_h) quad Theta_o="hideIdentity"(Theta_h,i)$],
     [$"NoOpenPrivateDisposition"(i,Omega_e)$],
     [$Omega_o="hideIdentityUsage"(Omega_e,i)$],
@@ -2700,7 +2829,7 @@ computation is temporal-pure or replay-safe
     [$E_e=⟨f_e,epsilon_e,s_e,delta_e⟩$],
     [$"InstallOK"(h,P_h,a,bar(kappa),E_e,C_h) ⇓ ⟨"NoReturn",delta_o⟩$],
     [$"PolicyOK"(P_h) quad "PhaseAllows"(Phi_i,"requiredPhase"(C_h))$],
-    [$epsilon_o=(epsilon_e-{a}) ∪ epsilon_h quad s_o="handleSusp"(s_e,a,C_h)$],
+    [$epsilon_o="routeErase"(epsilon_e,bar(kappa),a,h) ∪ epsilon_h quad s_o="handleSusp"(s_e,a,C_h)$],
     [$"NoOpenPrivateDisposition"(i,Omega_e)$],
     [$Omega_o="hideIdentityUsage"(Omega_e,i)$],
     [$i ∉ "fv"(epsilon_o,s_o,delta_o,Omega_o)$],
@@ -2814,22 +2943,31 @@ let bad = handler OneShot {
 `Choice` 的 multi-shot suffix 捕获 `once k`，使其 usage 从 $1$ 提升到
 $omega$。
 
-== Owner adoption
+== Owner-bound parking
 
 #irule(
-  [T-Adopt],
+  [T-Park],
   (
+    [$"src":"CompletionSource"[rho,B] in Theta$],
     [$o:"Owner"[rho] in Theta$],
     [$k:"Resume"[1,D_k,A,B,Pi_k,chi_k,rho_k] quad Omega(k)="Open"(1)$],
     [$"Outlives"(rho,rho_k)$],
     [$"SuspensionStable"(rho,"summary"(D_k),Pi_k,chi_k)$],
     [$"OwnerBoundParking"(rho,D_k)$],
+    [$"SealCompletion"("src",o,k) ⇓ ⟨g,c,"port"⟩$],
+    [$P="ParkContract"(rho,g,c,"port",D_k,Pi_k,chi_k)$],
   ),
-  [$K;I;Phi;Omega@Theta ⊢ "adopt"(o,k) ⇒ "Unit" @["Stable"] ! emptyset ▷ "direct"("NoSuspend");delta_"adopt";emptyset @Theta⊣Omega[k↦"Transferred"(rho)]$],
+  [$K;I;Phi;Omega@Theta ⊢_"transfer" "park"("src",o,k) ⇓ "Transfers"(P) ! emptyset ▷ "request"("Owner"(rho),"MaySuspend");delta_"park" @Theta⊣Omega[k↦"Transferred"(rho,g,c)]$],
 )
 
-Adopt 消耗 clause 当前 disposition ownership。Owner runtime随后对
-resume、finalize承担唯一责任。TR₀ 只允许 adopt `once` resumption；
+Surface 第一方协议把 `source.park(k, under = owner)` elaboration为
+`park(src,o,k)`。它消耗 clause 当前 disposition ownership并终止当前 path；
+因此不能伪装成 `Unit` 后继续执行 suffix。Owner runtime随后只向宿主暴露
+generation-bound `CompletionPort[ρ,B]`，并对 resume/finalize承担唯一责任。
+Raw `Resume` 不会被普通 host callback捕获；只有 sealed completion source
+能构造 port 和 $P$。
+
+TR₀ 只允许 park `once` resumption；
 `ctl` 必须在 clause内同步使用并最终 finalize。若未来要 transfer multi-shot
 continuation，Owner machine必须另加 q-indexed `CtlOpen/CtlClosed` protocol。
 
@@ -2844,17 +2982,20 @@ $
 One-shot disposition：
 
 $
-  d ::= "Unclaimed" | "Resumed" | "Finalized"
+  d ::= "Unclaimed" | "Completed" | "Finalized"
 $
 
 合法 transition：
 
 ```text
-claim-resume:
-  Open × Unclaimed → Open × Resumed
+port-complete:
+  Open(ρ,g) × Unclaimed(c) → Open(ρ,g) × Completed(c)
 
 claim-finalize:
   (Open | Closing) × Unclaimed → state × Finalized
+
+stale/duplicate completion:
+  any nonmatching generation or claimed c → no state change
 
 close:
   Open → Closing
@@ -2863,6 +3004,12 @@ close:
   child-first cleanup; per-owner LIFO
   Closing → Closed
 ```
+
+`CompletionPort.complete(outcome)` 与 Owner close/cancel 对同一 $c$ 做 CAS；
+胜者执行 captured continuation 或 cleanup，败者只得到
+`Stale | AlreadyCompleted | OwnerClosed`。Port 不是 `Shareable(R)` 的广播
+容器，也没有复制 continuation 的 API；可复制的 `Task` completion handle
+建立在这个 sealed source之上，而不是反过来。
 
 所有 callback、resume 和 commit 在使用前验证：
 
@@ -2885,8 +3032,8 @@ resume k
 finalize k
   unwind that segment exactly once
 
-adopt owner k
-  move final disposition responsibility to owner
+park source owner k
+  seal a generation-bound completion port and transfer final disposition
 ```
 
 GC 只回收不可达内存，不决定网络取消、listener 移除或 continuation cleanup
@@ -3280,7 +3427,7 @@ $
 要求 `Shareable(A)`。纯 map：
 
 ```cire
-fn[A, B] map_signal(
+def[A, B] map_signal(
   frame : cap FrameClock,
   input : Signal[frame, A],
   transform : (A) -> B,
@@ -3341,7 +3488,7 @@ $"ProvenanceValid"(E arrow.r "Unit",pi_"listener",Theta,
 "OwnerStorage"(rho))$ 与
 $K;I ⊢ chi_"listener" " valid-at " "OwnerStorage"(rho)$；
 结果 `Subscription[ρ]` capture当前 Owner。`on_async` 使用同一 callback
-检查，但把每次 invocation产生的 Task adopt到 $rho$，并把 policy写入
+检查，但把每次 invocation产生的 Task register到 $rho$，并把 policy写入
 $delta$。这组 premise是第一方 intrinsic contract的一部分，不能由普通
 function type中被省略的字段猜测。
 
@@ -3381,7 +3528,7 @@ $
 ```text
 Shareable(K)
 loader runs in Action phase
-task is adopted by Owner ρ
+task is registered with Owner ρ
 completion validates key-generation and owner-generation
 policy explicitly defines replacement/concurrency
 ```
@@ -3542,7 +3689,7 @@ $
   [$E$], [$(e_"cur",Sigma)$：当前 epoch 与仍被 candidate pin住的 immutable snapshots],
   [$T$], [committed value/Trace forest；强拥有 Cut、continuation template 与 cleanup],
   [$Q$], [dirty cut到最新 invalidation token/epoch 的 map],
-  [$O$], [Owner state、generation、children、tasks、adopted resumptions],
+  [$O$], [Owner state、generation、children、tasks、parked resumptions],
   [$C$], [完整 candidate state及其 candidate-local buffer],
   [$G$], [分槽的 committed-cut、candidate、Owner 与 revision generation table],
   [$H$], [$⟨J,L⟩$：Commit claim table与已接受 publication log],
@@ -3928,7 +4075,7 @@ revoke:
 
 cleanup:
   close children first
-  finalize adopted resumptions
+  finalize parked resumptions
   abort owned candidates
   cancel tasks/resources
   run per-owner cleanup in LIFO order
@@ -4017,9 +4164,12 @@ buffer隔离、Owner/generation checks和 publish linearization对应。
 ```text
 CheckResult {
   type
-  flow: Returns(temporal_context_out) | Aborts
+  flow: Returns(temporal_context_out)
+      | Aborts
+      | Transfers(ParkContract)
   provenance
   residual_row
+  attributed_demand
   attributed_suspension
   semantic_summary
   result_captures
@@ -4031,8 +4181,10 @@ CheckResult {
 ```
 
 `type`、`provenance` 与 `result_captures` 只在 `Returns` case有值；
-`Aborts` 仍保存 row、suspension、summary、usage、typed Core与 site
-evidence，供最近 delimiter检查。`Returns` 表示“至少一个 normal path”，
+`Aborts` 与 `Transfers` 仍保存 row、attributed demand、suspension、summary、
+usage、typed Core与 site evidence，供最近 delimiter检查。`Transfers`
+额外保存 sealed `ParkContract`，且只能被拥有对应 completion source 的
+Owner-bound runner消解。`Returns` 表示“至少一个 normal path”，
 并不否认其他 path含 abortive operation；这些 path仍由 row/site evidence
 保留。只有不存在任何 normal path时才用 `Aborts`。
 
@@ -4044,7 +4196,7 @@ evidence，供最近 delimiter检查。`Returns` 表示“至少一个 normal pa
 - sealed/trusted policy witness；
 - generative identity scope；
 - phase gate；
-- inserted finalize/adopt disposition；
+- inserted finalize/park disposition；
 - surface-to-Core origin。
 
 == 互递归入口
@@ -4082,8 +4234,8 @@ constraint worklists
 
 ```text
 strict?(result, typed_prefix):
-  if result.flow == Aborts:
-    return compose_abort_prefix(typed_prefix, result)  // T-Ctx-Abort
+  if result.flow in {Aborts, Transfers(_)}:
+    return compose_terminal_prefix(typed_prefix, result)
   return result as Returns
 ```
 
@@ -4291,14 +4443,15 @@ synth(ctx, e):
 对应具名规则的 syntax-directed transcription：
 
 ```text
-ClockAbs / ClockApp          T-Clock-Intro / T-Clock-Elim
+CapAbs / CapApp              T-Cap-Intro / T-Cap-Elim
+capref                       T-Cap-Ref
 ClockPack                    T-Clock-Pack
 ClockUnpack                  T-Clock-Unpack / T-Clock-Unpack-Abort
 OwnerAbs / OwnerApp          T-Owner-Intro / T-Owner-Elim
 FreshCap                     K-Fresh-Cap / K-Fresh-Cap-Abort
 HandlerValue                 T-Handler + check_clause_schema
 Finalize                    T-Finalize + cleanup contract composition
-Adopt                        T-Adopt
+Park                         T-Park
 Atomic                       T-Atomic / T-Atomic-Abort
 Batch                        T-Batch / T-Batch-Abort
 CommitRun                    T-Commit-Run / T-Commit-Run-Abort
@@ -4396,7 +4549,7 @@ check_clause_schema(ctx, handler_shape, op_sig, clause):
     require path_sensitive_usage(result, k) <= q
     if clause.mode == once:
       result =
-        close_or_explicitly_adopt_on_every_exit(result, k)
+        close_or_explicitly_park_on_every_exit(result, k)
     else:
       result =
         synchronous_resume_or_finalize_on_every_exit(result, k)
@@ -4427,6 +4580,9 @@ install_handler(handler, policy, handled_entry, sites, body_flow):
   normal_summaries = []
   answer_worlds = []
   semantic_paths = []
+  if body_flow.flow is Transfers(P):
+    require handler/policy discharges P at this Owner boundary
+    return sealed transfer evidence(P)
   if body_flow.flow is Returns(Θ):
     ret = apply_return_contract(
       handler.return_contract,
@@ -4464,12 +4620,19 @@ install_handler(handler, policy, handled_entry, sites, body_flow):
   return sealed evidence(outcome, δout)
 
 eliminate_entry_with_contract(handler, body, entry, sites, install):
-  εout = (body.row - {entry}) ∪ handler.residual_row
+  if install is transfer evidence(P):
+    return body with flow = Transfers(P)
+  εout = route_erase(body.row, body.attributed_demand,
+                     entry, handler.prompt, sites)
+         ∪ handler.residual_row
+  Δout = retain_unrouted_demand(body.attributed_demand,
+                                handler.prompt, sites)
   sout = handle_suspension(body.suspension, entry, handler.contract)
   if install.outcome == NoReturn:
     return CheckResult(
       flow = Aborts,
       residual_row = εout,
+      attributed_demand = Δout,
       attributed_suspension = sout,
       semantic_summary = install.δout,
       usage_context_out = body.Ω_out,
@@ -4482,6 +4645,7 @@ eliminate_entry_with_contract(handler, body, entry, sites, install):
     provenance = πout
     result_captures = χout
     row = εout
+    attributed_demand = Δout
     suspension = sout
     summary = install.δout
 ```
@@ -4559,7 +4723,7 @@ Owner/outlives constraints
 程序：
 
 ```cire
-fn next_double(
+def next_double(
   frame : cap FrameClock,
   value : Int,
 ) -> Next[frame, Int] {
@@ -4609,7 +4773,7 @@ $
 == 过早 Advance
 
 ```cire
-fn too_early(
+def too_early(
   frame : cap FrameClock,
   value : Next[frame, Int],
 ) -> Int {
@@ -4854,8 +5018,9 @@ soundness statement有明确目标。
     后存在对应的普通 declarative typing derivation；若返回
     `flow=Aborts`，则存在对应
     $K;I;Phi;Omega@Theta ⊢_"abort" e ! epsilon ▷ s;delta⊣Omega'$
-    derivation，且没有 type/provenance/normal world output。两种 case不互相
-    coercion。
+    derivation；若返回 `flow=Transfers(P)`，则存在唯一 T-Park derivation、
+    sealed completion source 与匹配的 $P$。后两者都没有
+    type/provenance/normal world output。三种 case不互相 coercion。
   ],
 )
 
@@ -4864,10 +5029,11 @@ soundness statement有明确目标。
   [
     在 resolver binding、kind evidence和 handler certificate固定时，
     algorithm的 flow tag唯一。`Returns` case的 type、provenance、
-    normalized row、world transformer、attributed suspension、result
+    normalized row、attributed demand、world transformer、attributed suspension、result
     capture与finite latent-site summary modulo alpha-renaming唯一；
-    `Aborts` case只有 row、suspension、summary、usage与site summary，
-    不声称不存在的 result/world唯一。这里声称的是 deterministic
+    `Aborts` case只有 row/demand、suspension、summary、usage与site summary；
+    `Transfers` case还具有唯一 sealed `ParkContract`/claim identity。
+    后两者不声称不存在的 result/world唯一。这里声称的是 deterministic
     algorithm，不是任意 declarative derivation的 principal-type theorem。
   ],
 )
@@ -4923,8 +5089,9 @@ soundness statement有明确目标。
   [Theorem E2 — one-shot disposition],
   [
     对每个 `once` resumption，任何运行路径至多一个 resume、finalize或
-    adopt成功 claim。证明结合路径敏感 usage algebra与 runtime
-    atomic claim。
+    park成功 claim；park后 completion、close/cancel再竞争同一个
+    generation-bound atomic claim。证明结合路径敏感 usage algebra与
+    runtime CAS。
   ],
 )
 
@@ -5068,7 +5235,9 @@ Abort/error留下 dirty/error marker，因此“旧值但 Q 已清空”的状�
 建议 mechanization不要试图一次证明“大一统 soundness”，而按依赖分层：
 
 ```text
-PEG determinism/progress
+Surface grammar + elaboration preservation
+        ↓
+CBV Core operational semantics + evaluation-context determinism
         ↓
 kinding + row normalization
         ↓
@@ -5085,7 +5254,36 @@ incremental machine invariants
 conditional FSC + Commit safety
 ```
 
+Surface 层先证明 n-ary `def`/labelled call、block final expression、隐式
+`return` 与 `fun` hidden tail-resume 的 elaboration preservation；随后在
+CBV Core中给出 `defer`、handler delimiter、resume/finalize/park、Owner
+close与 generation CAS 的小步语义。没有这两层，后续 preservation
+只能算规则草图。
+
 = 尚未冻结的 formal parameters
+
+== `defer` reduction calculus
+
+Surface grammar已经保留 `defer`，但 TR₀ 尚未给出足以证明 preservation 的
+reduction calculus。下一版必须固定：
+
+- defer stack的 push/pop 与 lexical block顺序；
+- normal return、abort、resume、finalize、park、Owner close各自触发哪些
+  segment；
+- continuation capture时 cleanup segment是移动、复制还是被拒绝；
+- cleanup自身 abort/suspend时 flow、row、world与 disposition如何组合。
+
+在这些规则完成前，`defer` 是 syntax baseline + semantic proof obligation，
+不能由未来 runtime的偶然 unwind行为定义。
+
+== `FrameClock.yield` 的 suspension grade
+
+本稿为了推导 T-Operation 暂把 sealed `FrameClock.yield` contract写成
+`NoSuspend`，但真实 frame runner通常需要等待宿主 callback。该选择只在
+runner把等待完全封装为 world transition、且不跨语言级 Owner/storage
+boundary时成立。否则 signature必须是 `MaySuspend` 并承担
+OwnerBoundParking。profile冻结前需用 operational semantics证明其中一个
+refinement；实现不得自行把 `MaySuspend` 擦成 `NoSuspend`。
 
 == Clock representation
 
@@ -5211,32 +5409,32 @@ T-Finalize与 clause aggregation。仍未冻结的是：
 - finalizer trap后的聚合保证；
 - Wasm ABI中的context representation。
 
-= 与当前编译器的映射
+= 与未来编译器的映射
 
-== 当前状态
+== 仓库状态
 
-当前仓库已经有：
+当前仓库只有：
 
 ```text
-lossless lexer
-token snapshot
-handwritten transactional PEG
-lossless green/red CST
-effect/function/handler/current-with parser baseline
+versioned design profile
+canonical surface grammar
+formal Core judgments
+spec-level conformance corpus
 ```
 
-尚未有：
+当前没有：
 
 ```text
+lexer / parser / lossless CST
 typed CST
 Surface HIR
 Kernel HIR
 resolver/type/effect/capture checker
-temporal tokens/nodes
-target multi-entry with...in parser
+runtime / Wasm backend / LSP
 ```
 
-所以本文只提供未来 lowering/checking contract。
+所以本文只提供未来 lowering/checking contract。历史实现不能作为 grammar
+或静态语义的权威。
 
 == 建议 HIR 字段
 
@@ -5246,6 +5444,7 @@ TypedExpr {
   flow
   provenance
   normalized_effect_row
+  attributed_demand
   world_in
   world_out
   suspension
@@ -5265,10 +5464,30 @@ OperationSignature {
   parameters
   result
   resume_transition
+  secondary_row
+  secondary_suspension
+  secondary_summary
   suspension_bound
   result_summary_transformer
   required_phase
   site_obligations
+}
+
+FunctionContractV1 {
+  profile
+  schema_version
+  effect_row
+  world_transformer
+  returnability
+  suspension
+  semantic_summary
+  closure_provenance
+  closure_captures
+  latent_usage
+  result_summary_transformer
+  required_phase
+  ParametricObligations
+  LatentSites
 }
 
 HandlerEvidence {
@@ -5315,8 +5534,8 @@ with h1 as c1
 with h2
 in { body }
 
-current old single-item with syntax
-                                  remains versioned until migration
+old single-item with syntax
+                                  rejects with profile migration diagnostic
 ```
 
 PEG不负责判断：

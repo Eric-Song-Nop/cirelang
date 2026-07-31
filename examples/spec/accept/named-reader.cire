@@ -1,0 +1,22 @@
+// profile: Cire-TR₀/2026-07-31
+// expect: accept
+// rule: Ability/Effect kinds; T-Handler; identity return synthesis; identity nonescape
+
+pub(open) ability Reader[A] {
+  fun read() -> A
+}
+
+pub(open) effect State[A] : Reader[A] {}
+
+def[A]![F : Reader[A]] read_from(app : cap F) -> A ! {app} {
+  app.read()
+}
+
+def demo() -> Int {
+  with handler State[Int] {
+    fun read() => 42
+  } as state
+  in {
+    read_from(state)
+  }
+}

@@ -1,5 +1,8 @@
 # WebAssembly 与宿主互操作
 
+> **ABI design:** [`Cire-TR₀/2026-07-31`](spec-status.md)。本文给未来 runtime
+> 和 Wasm lowering 设约束；仓库当前没有 backend 或 adapter。
+
 ## 1. WebAssembly 是首要目标
 
 **已决定**
@@ -62,8 +65,8 @@ ABI 至少需要处理：
 DOM node 和普通 JS object 不应被伪装成 Wasm 线性内存中的裸地址。运行时需要不透明 handle：
 
 ```text
-HostRef<T>
-DomRef<Element>
+HostRef[T]
+DomRef[Element]
 ```
 
 概念上，handle table 记录：
@@ -99,10 +102,12 @@ many callback
 
 ### 5.1 Once callback
 
-`once` continuation 被交给宿主时，宿主本身不受 Cire 数量类型约束，可能重复调用 callback。因此 ABI adapter 需要运行时 one-shot slot：
+Raw `once` continuation 不直接交给宿主。Sealed completion source建立
+generation-bound completion port；宿主不受 Cire 数量规则约束，可能重复调用，
+所以 port 内部使用 CAS slot：
 
 ```text
-first completion  → claim 成功，resume/discontinue
+first completion  → claim 成功，以 Result/Outcome 恢复
 later completion  → AlreadyUsed
 owner revoked     → Revoked
 ```
@@ -114,7 +119,7 @@ owner revoked     → Revoked
 DOM listener 可以被调用多次并同步重入，但 Owner 关闭后必须失效：
 
 ```text
-HostCallback<many, Event>
+HostCallback[many, Event]
 ```
 
 Owner 关闭时：

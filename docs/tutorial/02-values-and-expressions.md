@@ -1,5 +1,7 @@
 # 02　值、绑定与表达式
 
+> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) 教程基线。
+
 ## 1. 常用基础类型
 
 教程使用以下基础类型：
@@ -24,7 +26,7 @@
 `let` 给一个值命名：
 
 ```cire
-fn area(width : Int, height : Int) -> Int {
+def area(width : Int, height : Int) -> Int {
   let result = width * height
   result
 }
@@ -44,7 +46,7 @@ let result : Int = width * height
 确实需要逐步更新时使用 `let mut`：
 
 ```cire
-fn sum(values : Array[Int]) -> Int {
+def sum(values : Array[Int]) -> Int {
   let mut total = 0
 
   for value in values {
@@ -67,7 +69,7 @@ multi-shot 周围的 mutation 更保守。
 block 按从上到下的确定顺序求值，最后一个表达式成为结果：
 
 ```cire
-fn discount(price : Int, member : Bool) -> Int {
+def discount(price : Int, member : Bool) -> Int {
   let rate = if member { 20 } else { 5 }
 
   {
@@ -82,7 +84,7 @@ fn discount(price : Int, member : Bool) -> Int {
 如果最后写 `()`，block 的结果就是 `Unit`：
 
 ```cire
-fn ignore_result(value : Int) -> Unit {
+def ignore_result(value : Int) -> Unit {
   let doubled = value * 2
   ()
 }
@@ -93,7 +95,7 @@ fn ignore_result(value : Int) -> Unit {
 内层绑定可以暂时遮蔽外层同名绑定：
 
 ```cire
-fn normalize(input : String) -> String {
+def normalize(input : String) -> String {
   let text = input.trim()
 
   if text == "" {
@@ -136,7 +138,7 @@ let first = scores[0]
 参数较多或容易混淆时，可以给参数加 label：
 
 ```cire
-fn connect(
+def connect(
   host : String,
   port~ : Int,
   secure~ : Bool,
@@ -176,7 +178,8 @@ effect operation 和语法糖展开都必须一致；否则加入日志或 handl
 
 ## 当前状态
 
-基础 type shape 和 block 已有 parser 基线。完整 `let`、`let mut`、tuple、
-array、index、赋值、labelled parameter 默认值和运算符语义尚未完成。
+Type shape、block、`let`、`let mut`、tuple、array、index、赋值、labelled
+parameter 与 operator precedence 都由 profile grammar定义。仓库当前没有
+parser/checker；default parameter的求值契约仍需未来实现验证。
 
 上一章：[第一个程序](01-first-program.md)　下一章：[函数与控制流](03-functions-and-control-flow.md)

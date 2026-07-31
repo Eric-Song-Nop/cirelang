@@ -1,5 +1,7 @@
 # 10　四种恢复模式
 
+> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) 教程基线。
+
 ## 1. Operation 之后还有什么
 
 看一段代码：
@@ -42,7 +44,7 @@ effect Choice {
 |---|---:|---|
 | `abort` | 否 | 不继续 |
 | `fun` | 否 | 自动、恰好一次、尾恢复 |
-| `once` | 是 | 零次或一次，可以保存 |
+| `once` | 是 | 零次或一次；只能经 sealed source 转交 |
 | `ctl` | 是 | 零次、一次或多次 |
 
 这四个词描述的是 handler 对后续计算拥有的最大权力。
@@ -89,27 +91,28 @@ Reader、Logger、Clock 这类不改变控制形状的 operation 优先使用 `f
 ```cire
 handler Async {
   once await(task) as k => {
-    task.owner.adopt(k)
+    task.completion_source.park(k, under = task.owner)
   }
 }
 ```
 
-`once` 显式拿到 `k`，可以把它保存到异步完成时再使用。但最终只能选择一次：
+`once` 显式拿到 `k`，最终只能选择一条 terminal path：
 
 ```cire
 k.resume(value)
-k.discontinue(error)
 k.finalize()
+source.park(k, under = owner)
 ```
 
 三者都会消耗同一份处置权：
 
 - `resume` 以一个 operation 结果继续；
-- `discontinue` 向后续计算注入失败并展开；
 - `finalize` 放弃后续计算并执行相应清理。
+- `park` 产生 `Transfers(ParkContract)`，由 generation-bound completion
+  port 接管。
 
-把 `k` 交给 Owner 时，`owner.adopt(k)` 转移最终处置责任；当前 clause 不能再
-使用它。
+`park` 终止当前 path且不返回 `Unit`。Raw `k` 不会被 host callback捕获；
+失败用 `Result/Outcome` 值正常恢复，或由显式 abort effect表达。
 
 ## 6. `ctl`：一般控制
 
@@ -171,10 +174,9 @@ once await(task) as k => {
 
 ```cire
 once await(task) as k => {
-  if task.succeeded() {
-    k.resume(task.value())
-  } else {
-    k.discontinue(task.error())
+  match task.outcome() {
+    Ok(value) => k.resume(Ok(value))
+    Err(error) => k.resume(Err(error))
   }
 }
 ```
@@ -182,16 +184,12 @@ once await(task) as k => {
 如果 lambda 捕获 `k`，lambda 自身也不能被无限次调用：
 
 ```cire
-once await(task) as k => {
-  let complete = fn(value) {
-    k.resume(value)
-  }
-  register_once(complete)
-}
+once await(task) as k =>
+  task.completion_source.park(k, under = task.owner)
 ```
 
-把 `complete` 交给 many-callback API 应被拒绝，除非 adapter 使用一个受检查
-的 one-shot slot。
+自行构造捕获 raw `k` 的 callback 应被拒绝。Sealed completion source
+内部建立 CAS one-shot slot，宿主只拿到 completion port。
 
 ## 9. Multi-shot 与 replay safety
 
@@ -219,8 +217,8 @@ Cire 第一版只对 resumption disposition、capability capture 和相关 autho
 
 ## 当前状态
 
-四种 mode、`as k` 和三个 disposition 的表面形状已确定；声明与 clause 已有
-parser baseline。Usage checking、mode weakening、replay safety、Owner
-adoption 和 continuation runtime 尚未实现。
+四种 mode、`as k`、resume/finalize 与 sealed park 的 profile 已确定。
+仓库没有 parser、checker 或 continuation runtime；usage checking、mode
+weakening、replay safety 与 Owner CAS 都是未来实现和证明义务。
 
 上一章：[具名 capability](09-named-capabilities.md)　下一章：[清理、Owner 与并发](11-cleanup-owner-and-concurrency.md)

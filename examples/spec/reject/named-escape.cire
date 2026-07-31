@@ -1,0 +1,18 @@
+// profile: Cire-TR₀/2026-07-31
+// expect: reject
+// rule: T-Handle / identity nonescape
+
+ability Reader[A] {
+  fun read() -> A
+}
+
+effect State[A] : Reader[A] {}
+
+def bad() -> () -> Int {
+  with handler State[Int] {
+    fun read() => 42
+  } as state
+  in {
+    fn() { state.read() }
+  }
+}

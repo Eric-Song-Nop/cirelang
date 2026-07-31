@@ -1,11 +1,13 @@
 # 05　泛型、trait 与包
 
+> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) 教程基线。
+
 ## 1. 参数多态
 
 一个函数不关心元素的具体类型时，用普通类型参数：
 
 ```cire
-fn[A] first_or(
+def[A] first_or(
   values : Array[A],
   fallback : A,
 ) -> A {
@@ -37,7 +39,7 @@ first_or[String]([], "unknown")
 `map` 同时抽象输入类型、输出类型和转换函数：
 
 ```cire
-fn[A, B] map(
+def[A, B] map(
   values : Array[A],
   transform : (A) -> B,
 ) -> Array[B] {
@@ -53,7 +55,7 @@ fn[A, B] map(
 函数确实需要某种行为时，用 trait 约束：
 
 ```cire
-fn[A : Eq] contains(
+def[A : Eq] contains(
   values : Array[A],
   expected : A,
 ) -> Bool {
@@ -69,7 +71,7 @@ fn[A : Eq] contains(
 `A : Eq` 表示 `A` 必须有一致的相等比较实现。多个 constraint 使用 `+`：
 
 ```cire
-fn[A : Eq + Show] explain_equal(left : A, right : A) -> String {
+def[A : Eq + Show] explain_equal(left : A, right : A) -> String {
   if left == right {
     left.to_string() + " equals " + right.to_string()
   } else {
@@ -84,15 +86,17 @@ fn[A : Eq + Show] explain_equal(left : A, right : A) -> String {
 
 ```cire
 pub(open) trait Show {
-  to_string(Self) -> String
+  def to_string(self : Self) -> String
 }
 ```
 
 `Self` 表示实现 trait 的类型。为 `User` 实现：
 
 ```cire
-pub impl Show for User with to_string(self) {
-  "User(" + self.name + ")"
+pub impl Show for User {
+  def to_string(self : User) -> String {
+    "User(" + self.name + ")"
+  }
 }
 ```
 
@@ -118,9 +122,9 @@ Coherence 要保证同一个 `Type : Trait` 组合不会在程序里同时出现
 三种写法表面相似，但抽象程度不同：
 
 ```cire
-fn parse(text : String) -> User
-fn User::display_name(self : User) -> String
-fn[A : Show] render(value : A) -> View
+def parse(text : String) -> User
+def User::display_name(self : User) -> String
+def[A : Show] render(value : A) -> View
 ```
 
 - 普通函数由 package 名称选择；
@@ -155,7 +159,7 @@ struct UserId {
   raw : Int
 }
 
-pub fn UserId::parse(text : String) -> Option[UserId] {
+pub def UserId::parse(text : String) -> Option[UserId] {
   ...
 }
 ```
@@ -166,16 +170,16 @@ package 作者明确选择。
 
 ## 8. 两套泛型列表的预告
 
-到目前为止，`[A]` 只量化普通类型。Effect 系统还需要量化：
+到目前为止，`[A]` 只绑定普通类型形参。Effect 系统还需要绑定：
 
 - 一个 effect family；
 - 一个 effect constructor；
-- 一整行 effect。
+- 一整行 effect 的形参。
 
 Cire 不把它们混进同一个列表，而是使用相邻的第二个列表：
 
 ```cire
-fn[A]![F, ..E] example(...) -> A ! {F, ..E} {
+def[A]![F, ..E] example(...) -> A ! {F, ..E} {
   ...
 }
 ```
@@ -189,8 +193,8 @@ fn[A]![F, ..E] example(...) -> A ! {F, ..E} {
 
 ## 当前状态
 
-普通泛型已有 parser baseline；完整 trait、`impl`、package、visibility、
-name resolution 和 type checking 尚未实现。本章的普通 trait 写法以
-MoonBit 风格为教学基线；effect ability 的独立工作设计见第 7 章。
+普通/effect 形参、trait、`impl` 与 visibility 已进入 profile grammar；
+package identity由 manifest负责。仓库没有 parser、resolver 或 checker；
+effect ability 契约见第 7 章。
 
 上一章：[数据与模式匹配](04-data-and-patterns.md)　下一章：[第一个 effect](06-effects.md)

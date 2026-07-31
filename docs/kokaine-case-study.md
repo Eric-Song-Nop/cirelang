@@ -1,5 +1,8 @@
 # Kokaine 案例研究
 
+> **Rationale:** 本文是 [`Cire-TR₀/2026-07-31`](spec-status.md) 的案例依据，
+> 不独立定义语法或 Core rule。
+
 ## 1. 目的与范围
 
 这份记录来自 2026-07-26 对独立 Kokaine 仓库的源码、架构文档、测试与提交历史的调研。数字是当时快照的近似值，后续仓库变化不会自动更新本页。
@@ -222,11 +225,11 @@ Kokaine 的 Resource 与 Fetch 需要手工维护：
 资源本身不必成为语言特殊对象；真正需要保证的是唯一清理责任的转移：
 
 ```text
-Lease<request, AbortController>
+Lease[request, AbortController]
   --promote-->
-Lease<response, AbortController>
+Lease[response, AbortController]
   --promote-->
-Lease<body_task, AbortController>
+Lease[body_task, AbortController]
 ```
 
 如果以后引入通用 affine user type，`promote` 应消费旧 ownership capability。第一版也可以先由受信任标准库在 Owner 协议内部封装这一规则。
@@ -265,7 +268,7 @@ EventControl   preventDefault / stopPropagation
 Kokaine 大量 `finally` 不是偶然样板，而是在补以下语义：
 
 - capture 后 cleanup 归谁；
-- resume/discontinue 时如何展开；
+- resume/finalize/park 时如何展开或转交；
 - final control 如何触发 rollback；
 - Owner close 时先撤销还是先调用宿主 disposer；
 - 一个 finalizer 抛错后如何继续清理兄弟；

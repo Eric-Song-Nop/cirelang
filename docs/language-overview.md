@@ -1,5 +1,8 @@
 # 语言定位与特性总览
 
+> **Explanatory overview:** [`Cire-TR₀/2026-07-31`](spec-status.md)。本文用于
+> 导览；精确 grammar 与 judgment 以 canonical profile 为准。
+
 ## 1. 定位
 
 **已决定**
@@ -50,8 +53,8 @@ Cire 是通用编程语言，不是 UI DSL：
 函数类型记录未被处理的效应：
 
 ```text
-fn load(url: Url) -> Data
-  ! {Async, Network, Error<HttpError>}
+def load(url: Url) -> Data
+  ! {Async, Network, Error[HttpError]}
 ```
 
 需要支持：
@@ -161,11 +164,11 @@ capture，并检查保存、返回和抽象包装没有把 capability 带出 han
 resume
   → 重新进入该动态清理作用域
 
-discontinue / finalize
+finalize
   → 展开并执行该分支的 cleanup
 
-park / adopt 到 Owner
-  → Owner 接管未来的处置责任
+sealed source.park 到 Owner
+  → 产生 terminal Transfers(ParkContract)，Owner completion port 接管未来处置
 ```
 
 未被恢复、终止或转交的 `once` 恢复权在 clause 离开时自动 finalize。
@@ -209,8 +212,8 @@ macro 扩展；Cire 不设计宏系统。
 语言核心不认识 `Signal`。第一方库使用代数效应与续体实现：
 
 ```text
-Source<A>
-Live<A>
+Source[A]
+Live[A]
 source / read / write / live / batch
 ```
 

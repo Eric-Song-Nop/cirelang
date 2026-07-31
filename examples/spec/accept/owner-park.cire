@@ -1,0 +1,22 @@
+// profile: Cire-TR₀/2026-07-31
+// expect: accept
+// rule: T-Park — sealed source produces terminal Transfers(ParkContract)
+
+effect Async {
+  once[A] await(task : Task[A]) -> A may_suspend
+}
+
+def run_async(
+  task : Task[Int],
+  source : CompletionSource[Int],
+  owner : Owner,
+) -> Int {
+  with handler Async {
+    once await(_task) as k =>
+      source.park(k, under = owner)
+    return(value) => value
+  }
+  in {
+    Async::await(task)
+  }
+}

@@ -1,5 +1,7 @@
 # 15　完整示例：可测试的 Profile 加载器
 
+> 本章按 [`Cire-TR₀/2026-07-31`](../spec-status.md) 组合规范级构造。
+
 这一章把普通数据、trait 式 effect abstraction、具名 capability、异步
 operation、错误、handler 和 UI 外观放进同一个小例子。它展示目标设计，
 不是当前可运行程序。
@@ -65,7 +67,7 @@ pub(open) effect Error[E] {
 ## 4. 核心业务函数
 
 ```cire
-fn![S : Reader[Settings]] load_current(
+def![S : Reader[Settings]] load_current(
   settings : cap S,
 ) -> Profile
   ! {
@@ -109,21 +111,23 @@ let browser_api = handler ProfileApi {
   once load(id) as k => {
     let request = js_fetch(profile_url(id))
 
-    request.owner.adopt(k)
+    request.completion_source.park(k, under = request.owner)
   }
 }
 ```
 
-实际 adapter 还要把 Promise completion 转成安全 one-shot slot：
+Sealed completion source把 Promise completion 转成 generation-bound
+completion port 与安全 CAS slot：
 
 ```text
-fulfilled → k.resume(Ok(profile))
-rejected  → k.resume(Err(mapped_error))
-cancelled → k.discontinue(cancelled)
-close     → k.finalize()
+fulfilled → port.complete(Ok(profile))
+rejected  → port.complete(Err(mapped_error))
+cancelled → cancel/close claim 胜者 finalize
+close     → Owner close claim 胜者 finalize
 ```
 
-示例省略了 adapter 细节，不能把裸 `k` 交给不受 Cire 规则约束的 JavaScript。
+Park 产生 `Transfers(ParkContract)` 并终止 clause path。示例省略了 adapter
+细节；裸 `k` 绝不能交给不受 Cire 规则约束的 JavaScript。
 
 ## 6. 测试 handler
 
@@ -171,7 +175,7 @@ let catch_load_error = handler Error[LoadError] {
 ## 7. 组合测试
 
 ```cire
-fn test_load_current() -> Result[Profile, LoadError] {
+def test_load_current() -> Result[Profile, LoadError] {
   with fixed_settings as settings
   with fake_api
   with quiet_logger
@@ -225,7 +229,7 @@ compiler 也不会把它们的读取路由到同一个 handler。
 记录耗时的 helper 不应固定调用者剩余的 effect：
 
 ```cire
-fn[A]![..E] measured(
+def[A]![..E] measured(
   name : String,
   body : () -> A ! E,
 ) -> A ! {Clock, Logger, ..E} {
@@ -264,7 +268,7 @@ enum LoadState[A, E] {
 概念 View：
 
 ```cire
-fn![S : Reader[Settings]] profile_page(
+def![S : Reader[Settings]] profile_page(
   settings : cap S,
   state : Source[LoadState[Profile, LoadError]],
 ) -> View ! {settings, Observe} {
@@ -298,7 +302,7 @@ Button body 是 latent event action。它的 `ProfileApi`、`Logger`、
 下面不能安全返回：
 
 ```cire
-fn broken() -> () -> Settings {
+def broken() -> () -> Settings {
   with fixed_settings as settings
   in {
     fn() {

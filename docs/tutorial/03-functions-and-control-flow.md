@@ -1,11 +1,13 @@
 # 03　函数与控制流
 
+> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) 教程基线。
+
 ## 1. 函数是一等值
 
 函数可以像整数和字符串一样传入、返回和保存：
 
 ```cire
-fn apply_twice(
+def apply_twice(
   value : Int,
   transform : (Int) -> Int,
 ) -> Int {
@@ -44,7 +46,7 @@ numbers.map(fn(value) {
 Lambda 可以捕获外层绑定：
 
 ```cire
-fn add_by(amount : Int) -> (Int) -> Int {
+def add_by(amount : Int) -> (Int) -> Int {
   fn(value) {
     value + amount
   }
@@ -79,7 +81,7 @@ numbers.map(fn(value) {
 ## 4. `if` 是表达式
 
 ```cire
-fn category(age : Int) -> String {
+def category(age : Int) -> String {
   if age < 13 {
     "child"
   } else if age < 18 {
@@ -104,7 +106,7 @@ if debug {
 最后一个表达式通常最清楚，但 guard-style 检查可以提前返回：
 
 ```cire
-fn safe_percent(value : Int, total : Int) -> Int {
+def safe_percent(value : Int, total : Int) -> Int {
   if total == 0 {
     return 0
   }
@@ -157,7 +159,7 @@ loop {
 ADT 往往通过递归处理：
 
 ```cire
-fn factorial(value : Int) -> Int {
+def factorial(value : Int) -> Int {
   if value <= 1 {
     1
   } else {
@@ -178,7 +180,7 @@ struct User {
   name : String
 }
 
-fn User::greet(self : User) -> String {
+def User::greet(self : User) -> String {
   "Hello, " + self.name
 }
 ```
@@ -194,7 +196,8 @@ user.greet()
 
 ## 当前状态
 
-函数类型、lambda、call、method call 和 trailing lambda 已有 parser 基线。
-`if`、`return`、递归、循环与完整 operator precedence 尚未全部实现。
+`def` 声明、`fn` 值、函数类型、call/method、trailing lambda、`if`、
+`return`、递归、循环与 precedence 都属于 profile grammar。仓库没有
+parser、elaborator 或 checker。
 
 上一章：[值与表达式](02-values-and-expressions.md)　下一章：[数据与模式匹配](04-data-and-patterns.md)

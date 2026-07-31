@@ -1,5 +1,8 @@
 # 00　如何阅读这套教程
 
+> 本章按 [`Cire-TR₀/2026-07-31`](../spec-status.md) 解释规范与第一方契约；
+> 仓库当前没有实现。
+
 ## 1. 先分清三件事
 
 Cire 还在设计和实现早期。阅读示例时，需要把三件事分开：
@@ -64,7 +67,7 @@ callback、运行清理”，而 GC 负责回收不可达内存。
 代码围栏中的内容是 Cire：
 
 ```cire
-fn double(value : Int) -> Int {
+def double(value : Int) -> Int {
   value * 2
 }
 ```
@@ -72,7 +75,7 @@ fn double(value : Int) -> Int {
 省略号表示尚未展开的普通实现：
 
 ```cire
-fn connect(url : Url) -> Connection ! {Network} {
+def connect(url : Url) -> Connection ! {Network} {
   ...
 }
 ```
@@ -126,12 +129,12 @@ items.for_each(fn(item) {
 
 ## 6. 不要从示例推断尚未冻结的细节
 
-普通 tuple、循环、literal 后缀、package 配置等语法仍需逐项冻结。相关章节
-会明确标为“MoonBit 风格工作形式”。这表示它是当前教学和讨论基线，不表示
-parser 已经建立兼容性承诺。
+Literal 后缀和 package manifest 等细节仍需逐项冻结；tuple、循环、pattern、
+block 与 precedence 已由完整 grammar 统一。相关章节会明确区分 profile
+baseline 与开放问题，示例本身不产生额外兼容性承诺。
 
 如果教程和别的设计文档冲突，以
-[表面语法工作规范](../surface-syntax.md)为准；如果想确认实现状态，以
-[compiler 进度](../simple/progress.md)为准。
+[完整表面语法](../surface-grammar.md)和[状态矩阵](../spec-status.md)为准。
+仓库当前没有实现。
 
 下一章：[第一个 Cire 程序](01-first-program.md)

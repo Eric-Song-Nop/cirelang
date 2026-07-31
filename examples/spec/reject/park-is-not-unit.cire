@@ -1,0 +1,24 @@
+// profile: Cire-TR₀/2026-07-31
+// expect: reject
+// rule: T-Park — Transfers(ParkContract) has no expression result
+
+effect Async {
+  once[A] await(task : Task[A]) -> A may_suspend
+}
+
+def bad(
+  task : Task[Int],
+  source : CompletionSource[Int],
+  owner : Owner,
+) -> Int {
+  with handler Async {
+    once await(_task) as k => {
+      let _parked = source.park(k, under = owner)
+      0
+    }
+    return(value) => value
+  }
+  in {
+    Async::await(task)
+  }
+}

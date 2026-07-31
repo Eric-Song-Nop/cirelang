@@ -1,5 +1,7 @@
 # 13　UI 与 trailing lambda
 
+> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) 第一方契约。
+
 ## 1. UI 是旗舰框架，不是语言语法
 
 Cire 核心不认识：
@@ -94,7 +96,7 @@ Column(gap=8, align=Center) {
 ## 5. 一个普通 View 函数
 
 ```cire
-fn user_card(user : User) -> View {
+def user_card(user : User) -> View {
   Card {
     Text(user.name)
 
@@ -113,7 +115,7 @@ fn user_card(user : User) -> View {
 ## 6. 响应式 View
 
 ```cire
-fn counter_view(count : Source[Int]) -> View ! {Observe} {
+def counter_view(count : Source[Int]) -> View ! {Observe} {
   Column {
     Text(read(count).to_string())
     Button("Increment") {
@@ -243,8 +245,8 @@ committed view、显示 fallback，还是等待更小边界先提交。
 
 ## 当前状态
 
-Labelled argument、label punning、method call 和嵌套 trailing lambda 已有
-parser baseline。UI、incremental、Owner、renderer、state/resource 和
-stable site 都是尚未实现的第一方设计。
+Labelled argument、label punning、method call 和嵌套 trailing lambda 属于
+profile grammar。仓库没有 parser；UI、incremental、Owner、renderer、
+state/resource 与 stable site 都是尚未实现的第一方契约。
 
 上一章：[增量计算](12-incremental-computation.md)　下一章：[Wasm 与互操作](14-wasm-and-interop.md)

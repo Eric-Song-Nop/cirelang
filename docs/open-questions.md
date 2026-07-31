@@ -1,5 +1,8 @@
 # 开放问题与原型验证计划
 
+> **Open-question registry:** [`Cire-TR₀/2026-07-31`](spec-status.md)。只有本文
+> 明确列为开放的项目才允许多候选；仓库当前没有实现。
+
 ## 1. 已经可以依赖的结论
 
 下游设计目前可以把以下内容当作工作约束：
@@ -8,7 +11,8 @@
 2. 代数效应、effect row、effect polymorphism 与可组合 handler 属于语言核心。
 3. 表面恢复模式是 `abort / once / fun / ctl`。
 4. `fun` 与 `ctl` 保持 Koka 的核心语义。
-5. `once` 表示显式、可保存但至多处置一次的恢复权。
+5. `once` 表示显式、至多处置一次的恢复权；跨 callback 只能经 sealed
+   completion source 转交，不能保存 raw `Resume`。
 6. 第一版数量检查聚焦恢复权，不让所有普通变量默认 affine。
 7. 具名 capability、capture analysis、Owner 与 generation 各有独立职责。
 8. Capture 信息由编译器推导，保存在 artifact 并用于诊断。
@@ -19,11 +23,13 @@
 13. 表面语法以 MoonBit 为基线。普通泛型写 `[...]`；effect family、
     effect constructor 与 row 使用独立的 `![...]`。单 effect 写 `![F]`
     或 `![F : Reader[A]]`，整行写 `![..E]`。双列表已接受为继续细化的
-    设计基线，但 parser 尚未实现。
+    设计基线；仓库当前没有 parser。
 14. Named capability identity 由普通 term binder 或 `as app` 绑定，在源
     row 中写 `{app}`；`Read[app]` 只允许作为诊断展开。Capability type
     当前工作写法为 `app : cap F`，`cap` 关键词仍可调整。
-15. `once`/`ctl` clause 使用 `as k`，处置写成 `k.resume(value)`、`k.discontinue(error)`、`k.finalize()`。
+15. `once`/`ctl` clause 使用 `as k`；`TR₀` 处置写成
+    `k.resume(value)`、`k.finalize()` 或 sealed
+    `source.park(k, under = owner)`。`discontinue` 不在本 profile。
 16. `with` 把 scoped computation transformer 应用到 computation thunk；
     effect handler 是主要用途，但普通同形高阶 wrapper 也可使用。
 17. Effect visibility 镜像 trait：`effect`、`pub effect`、`pub(open) effect`。
@@ -42,7 +48,7 @@
 
 **已决定**
 
-- operation declaration、effect row、handler、`as k` 与 continuation disposition 采用 [表面语法工作规范](surface-syntax.md)中的写法；
+- operation declaration、effect row、handler、`as k` 与 continuation disposition 采用 [表面语法设计说明](surface-syntax.md)中的写法；
 - Named capability 的源 row 写 `{app}`；`Read[app]` 仅用于诊断；
 - `with h in body` 降为 `h(fn() { body })`；
 - 连续 `with h1 with h2 in body` 是有序 chain，第一项最外层，只在末尾写
@@ -67,10 +73,11 @@
 
 **仍然开放**
 
-- `park/adopt` 的名称和责任转移语法；
+- sealed completion source/port 的标准库命名与 ergonomics（Core
+  `Transfers(ParkContract)` 已冻结）；
 - `val` 是否正式保留为无参数 `fun`；
 - one-call/many-call closure 是否需要显式 surface marker；
-- Owner 的第一方 API 与责任转移操作如何组合；
+- Owner 的第一方 API 如何提供 sealed source/port；
 - same-effect operation 的显式 forwarding 拼写；
 - stable lexical site 由编译器 intrinsic 还是模块级声明身份产生；
 - `Error[E]` 的 `raise`、`try/catch` 专用糖；
@@ -80,8 +87,9 @@
 - `ability`、`cap`、associated `effect`/`effects` 是否为最终关键词；
 - 用户是否需要普通显式 higher-rank type；
 - higher-kinded effect constructor binder `![F[_] : Reader[_]]` 的精确
-  量化与诊断；
-- row union 的 `|`、row predicate `Has`/`Lacks`/`All`/`Only` 是否冻结；
+  作用域、generalization 与诊断；
+- `|` union 与 extension 产生的 `Lacks` 已冻结；显式 `Has`/`All`/`Only`
+  predicate 的完整 solver/diagnostic 是否进入首版；
 - 多 ability 提供同名 operation 时的限定调用；
 - 独立 ability `impl` 是否进入第一阶段，以及 coherence/orphan 规则；
 - 显式 generic call 中 effect/row argument 的最终写法；当前工作形式为
@@ -153,9 +161,10 @@ capture checker。编译器可以暂时不支持相关程序，但不能接受�
 
 - 一个 closure 捕获 `once k` 后，其调用数量如何推导；
 - closure 被放入 ADT、trait object 或多态容器时如何保留数量；
-- 两个 callback 对同一 `k` 的动态竞争如何通过安全 one-shot slot 表达；
+- 两个 callback 如何通过 generation-bound completion port 的 CAS竞争；
 - callback never called 时谁 finalize；
-- `park/adopt` 是普通库 API 还是编译器理解的 ownership transfer。
+- standard API 的 source/port 命名与 host adapter ergonomics。Core park 是
+  checker理解的 terminal ownership transfer，不再开放。
 
 ### 3.4 Multi-shot 与可变状态
 
@@ -244,7 +253,8 @@ Owner
 - deep/shallow handler 的差异；
 - multi-shot 分叉如何复制动态 extent；
 - `resume` 正常返回后何时运行退出动作；
-- `discontinue` 与普通 Error effect 的关系；
+- 若未来引入 `discontinue`，其 typed payload/world/cleanup contract 与普通
+  Error effect 的关系；
 - `finalize` 是否可以 suspend；
 - finalizer 抛错或执行 final control 时如何继续清理；
 - trap 后有哪些保证仍成立。
@@ -267,7 +277,7 @@ Owner
 
 - 独立 abortive control effect；
 - typed `Cancelled` error；
-- Owner revocation + discontinue；
+- Owner revocation + finalize/CAS；
 - shield/mask 的受控组合。
 
 目标是避免普通 `catch _` 意外吞掉结构化取消，同时不过度特殊化语言。
@@ -290,7 +300,7 @@ Modal time、world-indexed resumption、async 与 replay 的最新压力测试�
 该文档把 logical `Next`、Task completion 与 incremental Epoch 分开，并把
 sealed checkpoint 作为演算候选；它仍是研究草案，不改变本节的开放状态。
 逐规则的 PEG、typing judgment 与 replacement machine 见
-[Cire-TR₀ Typst 形式化草案](temporal-reactivity-formalization.typ)。
+[Cire-TR₀ Typst 形式化](temporal-reactivity-formalization.typ)。
 
 ### 6.1 `Observe.read` 的控制模式
 
@@ -341,7 +351,7 @@ sealed checkpoint 作为演算候选；它仍是研究草案，不改变本节�
 - 多个 root 的协调；
 - 从何时开始需要 snapshot isolation 或 MVCC。
 
-普通即时反馈环应被诊断，而不是靠不断 flush 碰运气。合法的时间反馈可以由显式 `delay`、`fold` 或 `feedback` 协议表达；若以后需要严格 FRP，再评估 `Later<A>` 一类时间模态，而不是让它成为第一版前提。
+普通即时反馈环应被诊断，而不是靠不断 flush 碰运气。合法的时间反馈可以由显式 `delay`、`fold` 或 `feedback` 协议表达；若以后需要严格 FRP，再评估 `Later[A]` 一类时间模态，而不是让它成为第一版前提。
 
 ### 6.5 扩展触发条件
 
@@ -492,7 +502,7 @@ multi-shot captures non-replayable capability
 ```text
 normal return
 abort
-discontinue
+explicit Error/Cancel outcome
 unresumed once
 Owner close
 cleanup throws

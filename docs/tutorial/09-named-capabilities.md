@@ -1,5 +1,7 @@
 # 09　具名 capability
 
+> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) 教程基线。
+
 ## 1. 先记住一句话
 
 具名 capability 是：
@@ -30,7 +32,7 @@ effect Counter {
   fun set(value : Int) -> Unit
 }
 
-fn increment() -> Unit ! {Counter} {
+def increment() -> Unit ! {Counter} {
   let value = Counter::get()
   Counter::set(value + 1)
 }
@@ -118,7 +120,7 @@ handler 实例。
 `transfer` 显式选择 receiver：
 
 ```cire
-fn![F : Account] transfer(
+def![F : Account] transfer(
   from : cap F,
   to : cap F,
   amount : Int,
@@ -234,7 +236,7 @@ capability。
 再看一次泛型函数：
 
 ```cire
-fn[A]![F : Reader[A]] read_from(
+def[A]![F : Reader[A]] read_from(
   app : cap F,
 ) -> A ! {app} {
   app.read()
@@ -268,7 +270,7 @@ handler instance 的受检查引用。
 匿名：
 
 ```cire
-fn current_balance() -> Int ! {BankAccount} {
+def current_balance() -> Int ! {BankAccount} {
   BankAccount::balance()
 }
 ```
@@ -282,7 +284,7 @@ fn current_balance() -> Int ! {BankAccount} {
 具名：
 
 ```cire
-fn![F : Account] selected_balance(
+def![F : Account] selected_balance(
   account : cap F,
 ) -> Int ! {account} {
   account.balance()
@@ -323,7 +325,7 @@ Read[app]
 
 ```cire
 // 错误：Read[app] 不是源语法
-fn wrong(app : cap Read[Int]) -> Int ! {Read[app]} {
+def wrong(app : cap Read[Int]) -> Int ! {Read[app]} {
   app.read()
 }
 ```
@@ -331,7 +333,7 @@ fn wrong(app : cap Read[Int]) -> Int ! {Read[app]} {
 正确写法：
 
 ```cire
-fn right(app : cap Read[Int]) -> Int ! {app} {
+def right(app : cap Read[Int]) -> Int ! {app} {
   app.read()
 }
 ```
@@ -345,7 +347,7 @@ type argument，不能同时承担 instance syntax。
 直接传对象通常更简单：
 
 ```cire
-fn render(settings : Settings) -> View {
+def render(settings : Settings) -> View {
   Text(settings.theme)
 }
 ```
@@ -383,7 +385,7 @@ ability Reader[A] {
 匿名调用：
 
 ```cire
-fn[A]![F : Reader[A]] read_any() -> A ! {F} {
+def[A]![F : Reader[A]] read_any() -> A ! {F} {
   F::read()
 }
 ```
@@ -391,7 +393,7 @@ fn[A]![F : Reader[A]] read_any() -> A ! {F} {
 具名调用：
 
 ```cire
-fn[A]![F : Reader[A]] read_named(
+def[A]![F : Reader[A]] read_named(
   app : cap F,
 ) -> A ! {app} {
   app.read()
@@ -415,7 +417,7 @@ Compiler 内部必须保留这个区别：
 ## 12. Capability 参数本身就是 identity polymorphism
 
 ```cire
-fn[A]![F : Reader[A], ..E] relay(
+def[A]![F : Reader[A], ..E] relay(
   app : cap F,
   body : () -> A ! {app, ..E},
 ) -> A ! {app, ..E} {
@@ -559,8 +561,8 @@ handler”在确实需要时变成显式、可检查的 receiver。
 
 ## 当前状态
 
-`{app}` 是已决定的源语法，`Read[app]` 只用于诊断。Named binder 已有旧单项
-`with` parser 基线；新的 `with ... in ...` chain、`cap`、ability
-constraint、fresh identity、capture inference 和 escape checking 尚未实现。
+`{app}` 是 profile 源语法，`Read[app]` 只用于诊断。`with ... in ...`、
+`cap`、ability constraint 与 fresh `CapId` 已形式化；仓库没有 parser、
+capture inference 或 escape checker。
 
 上一章：[Handler 与 with](08-handlers-and-with.md)　下一章：[四种恢复模式](10-resumptions.md)

@@ -1,6 +1,0 @@
-import {
-  "Eric-Song-Nop/cirelang/compiler/diagnostic",
-  "Eric-Song-Nop/cirelang/compiler/source",
-  "Eric-Song-Nop/cirelang/compiler/syntax",
-  "moonbitlang/core/json",
-}

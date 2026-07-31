@@ -1,12 +1,15 @@
 # Cire 语法和例子
 
-这些例子展示当前表面语法。标为“parser 已支持”的部分已经有语法测试，
-但还没有类型检查和运行时语义。
+> **Profile examples:** [`Cire-TR₀/2026-07-31`](../spec-status.md)。仓库当前
+> 没有 parser；所有“状态”只表示规范状态。
+
+这些例子展示当前 canonical surface。更系统的正负 case 在
+[`examples/spec/`](../../examples/spec/)；仓库没有类型检查或运行时实现。
 
 ## 1. 普通函数
 
 ```moonbit
-fn[A] apply(
+def[A] apply(
   value : A,
   transform : (A) -> A,
 ) -> A {
@@ -16,7 +19,7 @@ fn[A] apply(
 
 泛型使用方括号，参数和返回类型的形状接近 MoonBit。纯函数不用写空 effect row。
 
-状态：parser 已支持函数、类型参数、函数类型、调用和 block。
+状态：profile baseline；无实现。
 
 ## 2. 普通泛型和 effect 泛型分开写
 
@@ -43,7 +46,7 @@ effect Read[A] : Reader[A] {}
 然后同时对普通类型、effect family、row 与 identity 多态：
 
 ```moonbit
-fn[A]![F : Reader[A], ..E] relay(
+def[A]![F : Reader[A], ..E] relay(
   app : cap F,
   body : () -> A ! {app, ..E},
 ) -> A ! {app, ..E} {
@@ -64,7 +67,7 @@ fn[A]![F : Reader[A], ..E] relay(
 如果只需要匿名 effect polymorphism，不传具体 capability：
 
 ```moonbit
-fn[A]![F : Reader[A], ..E] read_then(
+def[A]![F : Reader[A], ..E] read_then(
   next : (A) -> Unit ! E,
 ) -> Unit ! {F, ..E} {
   next(F::read())
@@ -75,9 +78,8 @@ fn[A]![F : Reader[A], ..E] read_then(
 `Read : Type -> Effect`。同样，`abort[A] raise(...) -> A` 里的 `A`
 是 operation 的普通返回类型多态，不是 effect row 多态。
 
-状态：双列表、`ability`、`cap` 和 ability constraint 是设计工作形式，
-当前 parser 尚未支持。当前 parser 只实现了旧单列表 generic baseline、
-`! E` 对应的基础 type shape、effect row 与 capability identity CST。
+状态：双形参列表、`ability`、`cap` 和 ability constraint 是 profile
+baseline；无实现。
 
 ## 3. Effect 声明
 
@@ -96,14 +98,14 @@ pub(open) effect Choice {
 | `once` | handler 显式拿到 continuation，但最多使用一次 |
 | `ctl` | handler 可以不恢复、恢复一次或恢复多次 |
 
-状态：四种 mode 的声明和 handler clause 都已进入 parser。
+状态：四种 mode 的声明与 clause lowering 是 profile baseline；无实现。
 
 ## 4. Effect row
 
 匿名 effect family 直接写类型：
 
 ```moonbit
-fn fetch() -> Data ! {Network, Error[HttpError]} {
+def fetch() -> Data ! {Network, Error[HttpError]} {
   Network::load()
 }
 ```
@@ -111,7 +113,7 @@ fn fetch() -> Data ! {Network, Error[HttpError]} {
 具体 capability 直接写变量名：
 
 ```moonbit
-fn read_app(app : cap Read[Int]) -> Int ! {app} {
+def read_app(app : cap Read[Int]) -> Int ! {app} {
   app.read()
 }
 ```
@@ -119,18 +121,17 @@ fn read_app(app : cap Read[Int]) -> Int ! {app} {
 `{app}` 是源代码写法。下面的写法不合法：
 
 ```moonbit
-fn wrong(app : cap Read[Int]) -> Int ! {Read[app]} {
+def wrong(app : cap Read[Int]) -> Int ! {Read[app]} {
   app.read()
 }
 ```
 
-目标 parser 必须给出定向诊断，并建议把 `Read[app]` 改成 `app`。
-当前 parser 已在旧参数 type baseline 上实现相同的 row 修复；
-`cap Read[Int]` 本身尚未进入 parser。`Read[app]` 只用于编译器解释
+未来 parser 必须给出定向诊断，并建议把 `Read[app]` 改成 `app`。
+`Read[app]` 只用于编译器解释
 “这是 `Read` family 的具体实例”。
 
-状态：closed row、open tail、family item、`{app}` 和 `Read[app]` 定向修复
-已经支持；双列表 binder 与 `cap` 尚未支持。
+状态：closed row、open tail、family item、`{app}` 和 `RowExpr` 是 profile
+baseline；无实现。
 
 四种常见 effect annotation 要分清：
 
@@ -144,7 +145,7 @@ fn wrong(app : cap Read[Int]) -> Int ! {Read[app]} {
 ## 5. Handler 和 `with`
 
 ```moonbit
-fn run() -> Int {
+def run() -> Int {
   with handler Choice {
     ctl choose(value) as k => k.resume(value)
     return(value) => value
@@ -192,14 +193,13 @@ in {
 第一项最外层。`with` 常用于 effect handler，但普通接收 computation thunk
 的 wrapper 也可以使用；`as app` 仍只建立 fresh named capability。
 
-状态：handler、旧的单项 `with` baseline、named capability binder、
-`return` clause 和 continuation binder 的定向错误已经进入 parser；新的
-`with ... in ...` chain 尚未实现。
+状态：只接受 canonical `with ... in ...` chain。Named binder、implicit
+return synthesis 与 continuation binder 规则属于 profile baseline；无实现。
 
 ## 6. Trailing lambda 和 UI DSL
 
 ```moonbit
-fn view() -> View {
+def view() -> View {
   Column(gap=8) {
     Text("Profile")
     users.for_each { user => UserRow(user) }
@@ -226,9 +226,9 @@ Button("Save", fn() {
 })
 ```
 
-状态：调用、method call、labelled argument、label punning、嵌套 trailing
-lambda，以及跨换行和注释的附着都已进入 parser。这里的 `Column`、`Button`
-只是未来 UI 库的示意，还没有可运行的 UI 框架。
+状态：调用、method、label、source-order 求值与 trailing-lambda 附着由
+[完整表面语法](../surface-grammar.md)规定；`Column`、`Button` 是第一方 UI
+契约示意，不是可运行框架。
 
 ## 7. Owner 和 capability capture
 
@@ -238,10 +238,14 @@ lambda，以及跨换行和注释的附着都已进入 parser。这里的 `Colum
 Owner::scope { owner =>
   use(owner)
 }
+
+source.park(k, under = owner)
 ```
 
-但它不会只是一个普通容器插入函数。编译器必须理解 capability capture、
-escape、continuation ownership 和 finalization。
+第二个 call 只在 sealed completion-source evidence下产生 terminal
+`Transfers(ParkContract)`；它不会返回 `Unit`，也不会把 raw `Resume` 塞进
+callback。Compiler必须理解 capability capture、escape、continuation
+ownership、generation CAS 和 finalization。
 
-状态：核心设计方向已确定，静态规则尚未实现。我们会等整套规则一致后再启用，
-不会先做几个不完整的“安全检查”。
+状态：capture/escape/Owner boundary 是 profile baseline；仓库没有静态检查
+实现。未来实现必须整组启用，不能只补少数特例。

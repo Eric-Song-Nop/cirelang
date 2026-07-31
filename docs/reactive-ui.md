@@ -1,5 +1,8 @@
 # 第一方响应式 UI 框架
 
+> **First-party contract:** [`Cire-TR₀/2026-07-31`](spec-status.md)。UI 由普通
+> 调用、builder/effect protocol 与 renderer 提供，不增加 parser 特判。
+
 ## 1. 定位
 
 **已决定**
@@ -220,30 +223,24 @@ ResourcePlan
 真正宿主修改需要 commit capability：
 
 ```text
-commit(
-  plan: ViewPlan,
-  authority: CommitAuthority
-) ! {host_write}
+def commit(
+  plan : ViewPlan,
+  authority : CommitAuthority,
+) -> Unit ! {host_write} {
+  ...
+}
 ```
 
-`CommitAuthority<γ>` 最多只能消费一次。它可以由续体专用数量系统扩展出的通用 affine capability 表达，也可以先由标准库安全封装。
+`CommitAuthority[γ]` 最多只能消费一次。它可以由续体专用数量系统扩展出的通用 affine capability 表达，也可以先由标准库安全封装。
 
 ### 8.2 阶段由 capability 表达
 
 不需要把 `view/action/commit` 做成语言关键字。框架可以用具名 effect capability 约束：
 
 ```text
-view :
-  Props -> ViewPlan
-  ! {observe, declare}
-
-action :
-  Event -> Unit
-  ! {snapshot, state, tasks, command}
-
-commit :
-  ViewPlan -> Unit
-  ! {host_write}
+view : (Props) -> ViewPlan ! {observe, declare}
+action : (Event) -> Unit ! {snapshot, state, tasks, command}
+commit : (ViewPlan) -> Unit ! {host_write}
 ```
 
 结果是：
@@ -291,10 +288,10 @@ Candidate plan 能减少不可逆工作泄漏，但不能把浏览器变成 ACID
 
 ### 10.1 State
 
-持久 UI state 绑定 logical Owner 与声明 site：
+持久 UI state 绑定 logical Owner 与声明 site。它使用普通 API：
 
-```text
-state count = 0
+```cire
+let count = UiState::cell(owner, 0)
 ```
 
 它不是普通局部 `var`：
@@ -308,10 +305,13 @@ state count = 0
 
 DOM listener 在 Owner 存活期间可以被调用很多次，但每次 event occurrence 启动一个新的 action：
 
-```text
-on click => action {
-  update_state(...)
-}
+```cire
+Button(
+  "Update",
+  on_click = Event::handler(owner) {
+    update_state()
+  },
+)
 ```
 
 不应把一次永久事件 continuation 反复恢复。需要区分：
@@ -327,15 +327,15 @@ Action 内读取 state 通常是一次当前 Epoch 的 snapshot read，不建立
 
 状态事务不能跨越 `await`：
 
-```text
-action {
-  atomic {
+```cire
+Action::run {
+  Atomic::run {
     saving = true
   }
 
-  let result = await save()
+  let result = Async::await(save())
 
-  atomic {
+  Atomic::run {
     saving = false
     status = result
   }
@@ -352,14 +352,14 @@ Resource 的身份通常是：
 (owner, declaration_site, key, generation)
 ```
 
-概念 API：
+概念 API 使用普通 labelled call 与 trailing lambda：
 
-```text
-resource profile
-  keyed user.id
-  policy switch_latest
-{
-  await api.load_profile(user.id)
+```cire
+let profile = Resource::switch_latest(
+  owner,
+  key = user.id,
+) { key =>
+  Async::await(api.load_profile(key))
 }
 ```
 
@@ -382,7 +382,7 @@ key 改变后，policy 决定：
 取消和 stale-completion policy。语言层 accept/reject 例见
 [Temporal modality、代数效应与增量计算](temporal-reactivity-design-experiment.md)。
 对应的候选 typing 与 candidate-buffer machine 见
-[Cire-TR₀ Typst 形式化草案](temporal-reactivity-formalization.typ)。
+[Cire-TR₀ Typst 形式化](temporal-reactivity-formalization.typ)。
 
 ### 11.1 Observe 在 Await 前
 
@@ -414,12 +414,12 @@ render(config, theme)
 
 这些是 scoped handler 与 candidate policy 的组合：
 
-```text
-boundary {
-  pending => ...
-  failed(error) => ...
-} {
-  child computation
+```cire
+Boundary(
+  pending = fn() { Spinner() },
+  failed = fn(error) { ErrorView(error) },
+) {
+  child_computation()
 }
 ```
 
@@ -445,7 +445,7 @@ boundary {
 普通：
 
 ```text
-read(List<Item>)
+read(List[Item])
 ```
 
 列表变化后重放整个循环是正确但粗粒度的。
@@ -462,7 +462,7 @@ Update(key, delta)
 框架为每个 key 建立 sibling Owner：
 
 ```text
-for item in friends keyed item.id {
+friends.for_each_keyed(key = fn(item) { item.id }) { item =>
   FriendRow(item)
 }
 ```
@@ -524,32 +524,36 @@ disposed
 
 Demand tracking 是后续优化，不是最小增量内核的要求。
 
-## 16. 一个概念表面
+## 16. 用 canonical syntax 组合第一方 API
 
-下面只展示组合关系，不代表已冻结语法：
+语言不增加 `component/state/resource/view/action` 关键字。下面使用普通 `def`、
+labelled argument 与 trailing lambda；具体库名仍可演化：
 
-```text
-component UserPane(user: Source<User>) keyed user.id {
-  state expanded = false
+```cire
+def user_pane(user : Source[User]) -> View
+  ! {Observe, UiState, Resource, Event} {
+  Owner::scope { owner =>
+    let expanded = UiState::cell(owner, false)
+    let profile = Resource::switch_latest(
+      owner,
+      key = Observe::read(user).id,
+    ) { key =>
+      api.load_profile(key)
+    }
 
-  let profile = resource(
-    key = read(user).id,
-    policy = switch_latest
-  ) {
-    await api.load_profile(key)
-  }
-
-  view {
     Column {
-      Button("Toggle") on click => action {
-        expanded = !expanded
-      }
+      Button(
+        "Toggle",
+        on_click = Event::handler(owner) {
+          expanded.update(fn(value) { !value })
+        },
+      )
 
-      if expanded {
-        boundary {
-          pending => Spinner()
-          failed(e) => ErrorView(e)
-        } {
+      if expanded.read() {
+        Boundary(
+          pending = fn() { Spinner() },
+          failed = fn(error) { ErrorView(error) },
+        ) {
           Profile(profile.await())
         }
       }
@@ -569,7 +573,7 @@ component UserPane(user: Source<User>) keyed user.id {
 - view 只产生 plan；
 - renderer 在 commit capability 下修改宿主。
 
-表单双向访问应优先使用有定律的 `Binding<A>`/lens，而不是隐式深层 Proxy。它是 UI 库设计方向，不是语言内建特性。
+表单双向访问应优先使用有定律的 `Binding[A]`/lens，而不是隐式深层 Proxy。它是 UI 库设计方向，不是语言内建特性。
 
 ## 17. 必须坚持的不变量
 

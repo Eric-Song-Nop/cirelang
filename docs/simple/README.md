@@ -1,6 +1,9 @@
 # Cire 简明文档
 
-这组短文只回答三个问题：Cire 是什么、现在做到哪里、代码大概长什么样。
+> 基线：[`Cire-TR₀/2026-07-31`](../spec-status.md)。仓库当前没有实现；
+> 本目录只解释规范和未来实现入口。
+
+这组短文只回答三个问题：Cire 是什么、设计基线是什么、代码大概长什么样。
 
 ## 一句话介绍
 
@@ -26,13 +29,13 @@ pub(open) ability Reader[A] {
 
 pub(open) effect Read[A] : Reader[A] {}
 
-fn[A]![F : Reader[A]] read_app(
+def[A]![F : Reader[A]] read_app(
   app : cap F,
 ) -> A ! {app} {
   app.read()
 }
 
-fn main() -> Int {
+def main() -> Int {
   with handler Read[Int] {
     fun read() => 42
   } as app
@@ -50,15 +53,13 @@ fn main() -> Int {
 - `with ... as app in ...` 创建不可伪造的 identity；编译器从该 binder
   检查保留 `app` 的值没有逃出 handler action。
 
-双泛型列表、`ability` 和 `cap` 是最新设计，当前 parser **尚未支持**。
-Parser 已完成的是旧单列表 baseline、effect row、handler、旧的单项 `with`
-baseline 与错误恢复；新的 `with ... in ...` chain 尚未实现。类型、effect、
-capture 和 Owner 检查也还没实现，所以这段代码目前不能一路编译到 Wasm。
+这段代码是 profile 级示例。仓库没有 parser、type checker、runtime 或 Wasm
+backend；未来实现必须按规范接受或给出规范定义的诊断。
 
 ## 接下来读什么
 
 - [语法和例子](examples.md)：看函数、effect、handler 和 UI DSL。
 - [完整多态设计](../polymorphism-design.md)：看双列表、ability、row
   constraint 和 named capability。
-- [实现设计与进度](progress.md)：看编译器已经完成什么、下一步做什么。
+- [规范状态与重启路线](progress.md)：看当前基线和未来实现入口。
 - [完整设计文档](../README.md)：需要规则依据和开放问题时再读。

@@ -1,0 +1,17 @@
+// profile: Cire-TR₀/2026-07-31
+// expect: reject
+// rule: TR₀ resumption primitives expose resume/finalize, not discontinue
+
+effect Async {
+  once await(task : Task[Int]) -> Int may_suspend
+}
+
+def bad(task : Task[Int]) -> Int {
+  with handler Async {
+    once await(_task) as k => k.discontinue("cancelled")
+    return(value) => value
+  }
+  in {
+    Async::await(task)
+  }
+}

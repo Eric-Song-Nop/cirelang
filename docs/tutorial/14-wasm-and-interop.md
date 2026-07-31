@@ -1,5 +1,7 @@
 # 14　WebAssembly 与宿主互操作
 
+> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) ABI 设计。
+
 ## 1. WebAssembly 是首要目标
 
 Cire 从一开始就面向 WebAssembly，而不是先设计一门只适合某个 native runtime
@@ -71,10 +73,11 @@ wasi_fs   : cap WasiFs
 ## 5. Once callback
 
 Promise completion 理论上只完成一次，但宿主 adapter 仍不能信任外部代码遵守
-Cire 的数量规则。ABI 使用 one-shot slot：
+Cire 的数量规则。Sealed completion source不把 raw `Resume` 交给宿主，而是
+建立 generation-bound completion port 与 CAS slot：
 
 ```text
-第一次 completion  → claim 成功，resume/discontinue
+第一次 completion  → claim 成功，以 Result/Outcome 恢复
 重复 completion     → AlreadyUsed
 Owner 已关闭        → Revoked
 ```
@@ -172,7 +175,7 @@ node detach 也不等于 logical Owner dispose。因此：
 ## 当前状态
 
 Wasm-first 是已决定方向；本章 ABI、handle、callback 和 teardown 是设计要求。
-Compiler 还没有 Wasm backend、runtime、JS/DOM/WASI adapter 或 component
+仓库没有 compiler、Wasm backend、runtime、JS/DOM/WASI adapter 或 component
 metadata。
 
 上一章：[UI 与 trailing lambda](13-ui-and-trailing-lambdas.md)　下一章：[完整示例](15-complete-example.md)

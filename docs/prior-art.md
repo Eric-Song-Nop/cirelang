@@ -1,5 +1,8 @@
 # 相关语言与设计先例
 
+> **Rationale:** 本文记录 [`Cire-TR₀/2026-07-31`](spec-status.md) 的外部
+> 设计依据，不独立定义 Cire。
+
 ## 1. 结论
 
 Cire 的单个零件大多有明确先例。研究空间不在于声称 capture set、effect row 或 one-shot continuation 从未出现，而在于把这些部分连成一个可用系统：
@@ -85,7 +88,7 @@ polymorphism 防止 fresh name 逃逸。
 Cire 采用相同的分层动机，但使用 MoonBit 风格的表面写法：
 
 ```moonbit
-fn[A]![F : Reader[A], ..E] relay(
+def[A]![F : Reader[A], ..E] relay(
   app : cap F,
   body : () -> A ! {app, ..E},
 ) -> A ! {app, ..E}
@@ -181,10 +184,10 @@ continue k 7
 Cire 希望加强为：
 
 - `once` 在类型层保证至多处置一次；
-- 分支敏感检查 `resume/discontinue/finalize`；
+- 分支敏感检查 `resume/finalize/park`；
 - 未处置时自动 finalize；
-- 保存到未来必须转交 Owner；
-- host duplicate completion 由 one-shot runtime slot 防御。
+- 保存到未来必须经 sealed completion source 转交 Owner；
+- host duplicate completion 由 generation-bound CAS slot 防御。
 
 参考：
 
@@ -308,7 +311,7 @@ Rust 的非 `Copy` 值是理解 affine ownership 的一个现实例子，但用�
 Cire 第一版约束的是 handler 中的**恢复权使用量**，不是所有普通变量：
 
 ```text
-k : Resume<A, R> with usage 0..1
+k : Resume[A, R] with usage 0..1
 ```
 
 它是 QTT/graded context 中的能力预算。以后若要给文件、socket 和锁提供通用 affine user type，可以复用部分数量系统；那是独立的资源安全扩展。

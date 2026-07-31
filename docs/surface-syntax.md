@@ -1,12 +1,17 @@
-# Cire 表面语法工作规范
+# Cire 表面语法规范
 
 ## 1. 状态与目标
 
-本文是 Cire 当前的**表面语法工作规范**。它把已经决定的语法与仍需形式化的语义边界分开：
+> **Profile:** [`Cire-TR₀/2026-07-31`](spec-status.md)
+>
+> 本文定义表面构造的含义；完整、实现无关的 token/PEG grammar 见
+> [Cire-TR₀ 完整表面语法](surface-grammar.md)。
 
-- 标为**已决定**的写法可以作为 parser、formatter、测试与文档的共同输入；
-- 标为**工作形式**的写法可以先实现，但在形成兼容性承诺前仍可调整；
-- 标为**开放问题**的部分不得被编译器悄悄赋予偶然语义。
+本文把 profile baseline 与仍需研究的语义边界分开：
+
+- 标为 **Profile baseline** 的写法是当前规范；
+- 标为**工作语法**的写法已有唯一 grammar/elaboration，但拼写仍可调整；
+- 标为**开放问题**的部分不得被未来编译器悄悄赋予偶然语义。
 
 Cire 的基本外观遵循 MoonBit：
 
@@ -15,7 +20,8 @@ Cire 的基本外观遵循 MoonBit：
 - block 是表达式，最后一个表达式是结果；
 - Cire 只为 effect、handler、continuation 与 named capability 增加必要语法。
 
-本文不是 EBNF。语法规则采用 PEG，最终以手写 parser 中的可执行规则和 conformance test 为准。
+规范先于实现。未来 parser 与 conformance test 必须服从
+[完整表面语法](surface-grammar.md)，不能反向裁决语言。
 
 ## 2. MoonBit 风格基线
 
@@ -32,7 +38,7 @@ struct Pair[A, B] {
   second : B
 }
 
-fn[A, B] map(
+def[A, B] map(
   xs : Array[A],
   f : (A) -> B,
 ) -> Array[B] {
@@ -45,16 +51,17 @@ fn[A, B] map(
 | 概念 | Cire 写法 |
 |---|---|
 | 类型实参 | `Array[A]` |
-| 函数类型参数 | `fn[A] map(...)` |
+| 具名函数类型参数 | `def[A] map(...)` |
 | 函数类型 | `(A) -> B`、`(A, B) -> C` |
 | 可变局部绑定 | `let mut value = ...` |
-| 方法声明 | `fn Type::method(self : Type, ...)` |
+| 方法声明 | `def Type::method(self : Type, ...)` |
 | package-qualified name | `@pkg.name` |
 | labelled parameter | `key~ : Key` |
 | labelled argument | `key=value` 或 label punning |
 | 结构化退出动作 | `defer cleanup()` |
 
-纯函数省略 effect row。`Unit` 参数的函数仍写成 `fn() { ... }`，不会引入单独的 procedure 语法。
+纯函数省略 effect row。无参数具名函数写 `def name() { ... }`；匿名函数值写
+`fn() { ... }`，不会引入单独的 procedure 语法。
 
 ## 3. Effect 声明
 
@@ -63,21 +70,26 @@ fn[A, B] map(
 **已决定**
 
 ```moonbit
-pub(open) effect Error[E] {
+pub(open) ability Raise[E] {
   abort[A] raise(error : E) -> A
 }
 
-pub(open) effect Async {
+pub(open) ability Await[A] {
   once[A] await(task : Task[A]) -> A
 }
 
-pub(open) effect Reader[R] {
+pub(open) ability Reader[R] {
   fun ask() -> R
 }
 
-pub(open) effect Choice {
+pub(open) ability Search[A] {
   ctl[A] choose(values : Array[A]) -> A
 }
+
+pub(open) effect Error[E] : Raise[E] {}
+pub(open) effect Async[A] : Await[A] {}
+pub(open) effect Environment[R] : Reader[R] {}
+pub(open) effect Choice[A] : Search[A] {}
 ```
 
 operation 的形式为：
@@ -95,7 +107,8 @@ mode [type parameters] operation(parameters) -> result type
 | `once` | 是 | 至多一次 |
 | `ctl` | 是 | 零次、一次或多次 |
 
-mode 写在类型参数之前，例如 `once[A] await(...)`，与 MoonBit 的 `fn[A] name(...)` 保持同一视觉顺序。
+mode 写在类型参数之前，例如 `once[A] await(...)`，与具名函数的
+`def[A] name(...)` 保持同一视觉顺序。
 
 ### 3.2 Effect visibility
 
@@ -146,7 +159,8 @@ handler Choice {
 Typechecker 根据 operation declaration 找到 clause 后，为 declaration 中的
 `A` 创建 fresh type skolem，并以该 skolem 检查参数、结果和 continuation。
 Clause 不能假定某个具体 `A`，也不能把它和外层同名 type parameter 偶然
-合并。高级 HIR dump 可以显示这个隐式量化，但第一版不增加
+合并。高级 HIR dump 可以显示这个由 declaration 引入的 fresh skolem，但
+Surface 不增加
 `ctl[A] choose(...)` 的 clause 表面写法。
 
 如果 operation 需要接收 effect-polymorphic callback，可以在自己的 generic
@@ -171,19 +185,19 @@ type/effect safety 规则决定。
 **已决定**
 
 ```moonbit
-fn load(url : Url) -> Data
+def load(url : Url) -> Data
   ! {Network, Async, Error[HttpError]} {
   ...
 }
 
-fn[A, B]![..E] map_effectful(
+def[A, B]![..E] map_effectful(
   xs : Array[A],
   f : (A) -> B ! E,
 ) -> Array[B] ! E {
   ...
 }
 
-fn[A]![..E] observe_then(
+def[A]![..E] observe_then(
   body : () -> A ! {Observe, ..E},
 ) -> A ! {Observe, ..E} {
   ...
@@ -202,7 +216,7 @@ fn[A]![..E] observe_then(
 源程序在 row 中直接写 capability 的 term identity：
 
 ```moonbit
-fn read_app(app : cap Read[Int]) -> Int ! {app} {
+def read_app(app : cap Read[Int]) -> Int ! {app} {
   app.read()
 }
 ```
@@ -220,7 +234,7 @@ Read[app]
 匿名 family effect 与 named capability 可以出现在同一 row：
 
 ```moonbit
-fn sync(app : cap Read[Model]) -> Unit
+def sync(app : cap Read[Model]) -> Unit
   ! {Network, Error[SyncError], app} {
   ...
 }
@@ -228,7 +242,7 @@ fn sync(app : cap Read[Model]) -> Unit
 
 ### 4.3 普通类型、effect 与 capability 多态
 
-**工作形式；双列表已接受为细化基线，尚未实现**
+**Profile baseline**
 
 Cire 使用两个相邻但职责不同的 generic list：
 
@@ -251,7 +265,7 @@ Effect 列表中的 binder 由自身形状分类：
 完整例子：
 
 ```moonbit
-fn[
+def[
   A : Eq + Show,
 ]![
   Input : Reader[A],
@@ -295,11 +309,11 @@ effect State[A] : Reader[A] + Writer[A] {}
 同一份 ability evidence 同时支持匿名和具名调用：
 
 ```moonbit
-fn[A]![F : Reader[A]] read_any() -> A ! {F} {
+def[A]![F : Reader[A]] read_any() -> A ! {F} {
   F::read()
 }
 
-fn[A]![F : Reader[A]] read_from(
+def[A]![F : Reader[A]] read_from(
   app : cap F,
 ) -> A ! {app} {
   app.read()
@@ -329,18 +343,18 @@ identity，并在 Kernel HIR 中建立 rank-2/generative boundary。
 两个未知 row 使用 row formula，不在一个 literal 中放两个开放 tail：
 
 ```moonbit
-fn[A, B, C]![..E1, ..E2] compose(
+def[A, B, C]![..E1, ..E2] compose(
   first : (A) -> B ! E1,
   second : (B) -> C ! E2,
 ) -> (A) -> C ! (E1 | E2) {
-  value => second(first(value))
+  fn(value) { second(first(value)) }
 }
 ```
 
 Effect row constraint 的工作形式：
 
 ```moonbit
-fn![
+def![
   ..E : Has[Log] + Lacks[Blocking] + All[Replayable],
 ] schedule(task : () -> Unit ! E) -> Task ! E {
   ...
@@ -360,9 +374,10 @@ consume[Int]![State[Int], {Log}](app, log_value)
 Ability 的 associated type/effect/row、higher-kinded binder、`fresh` function
 type 与 Core 展开见[多态与 effect abstraction 工作设计](polymorphism-design.md)。
 
-当前 parser 尚未支持 `![...]`、`ability`、`cap`、associated effect/row、
-row formula 或 `fresh`。旧的 `Fx : Effect` / `Eff : EffectRow` parser
-fixture 只代表已经完成的实现 baseline，不再代表目标表面语法。
+完整 binder、argument 与 `RowExpr` grammar 见
+[完整表面语法](surface-grammar.md#3-形参实参与约束)。表面的两个形参列表
+是不同 kind domain 的参数绑定；只有 elaboration/generalization 明确引入
+Core binder 时才讨论量词。
 
 ## 5. Operation 调用
 
@@ -411,11 +426,11 @@ let all_choices = handler Choice {
 
 ```moonbit
 once await(task) as k => {
-  task.owner.adopt(k)
+  task.completion_source.park(k, under = task.owner)
 }
 
 ctl choose(values) as k => {
-  values.map(value => k.resume(value))
+  values.map { value => k.resume(value) }
 }
 ```
 
@@ -430,13 +445,18 @@ Continuation disposition 使用方法外观：
 
 ```moonbit
 k.resume(value)
-k.discontinue(error)
 k.finalize()
 ```
 
-这些不是可覆盖的普通方法。resolver 将它们识别为 continuation primitive，HIR 中分别保存为 `Resume`、`Discontinue` 与 `Finalize`，因此不能通过定义一个同名 method 改变控制语义。
+这些不是可覆盖的普通方法。resolver 将它们识别为 `Resume` 与 `Finalize`，
+因此不能通过定义同名 method 改变控制语义。`k.discontinue(error)` 不属于
+`Cire-TR₀`：失败由显式 abort effect 表达，取消由 Owner/finalize 协议表达。
 
-`owner.adopt(k)` 是责任转交的当前工作拼写；名称仍可调整。无论最后采用什么拼写，adopt 都必须消耗当前 clause 的处置责任，并由编译器检查，而不能只是一个约定俗成的容器插入函数。
+`source.park(k, under = owner)` 只在 operand 带 sealed completion-source
+evidence 时降为 Core T-Park。它消耗当前 clause 的处置责任，产生
+`Transfers(ParkContract)` 并终止当前 path；它不是返回 `Unit` 的普通容器
+插入函数。宿主 callback只拿到 generation-bound completion port，不能捕获
+raw `Resume`。
 
 ### 6.3 Return 与 forwarding
 
@@ -449,7 +469,9 @@ handler Reader[Int] {
 }
 ```
 
-- 省略 `return` 时等价于 identity；
+- 省略 `return` 时，Surface elaboration 先合成
+  `return(value) => value`；Core exactness checking 因而始终看到恰好一个
+  return clause；
 - 不属于当前 handled effect 的 operation 自动向外层 handler 转发；
 - 当前 effect 中没有 clause 的 operation 默认产生穷尽性诊断；
 - 显式 forwarding 的最终关键字和 clause 形式仍是开放问题。
@@ -736,10 +758,10 @@ in {
 以下语义不能降为不受编译器理解的普通库调用：
 
 - handler expression 与 operation dispatch；
-- `k.resume`、`k.discontinue`、`k.finalize`；
+- `k.resume`、`k.finalize`；
 - fresh named capability identity；
 - continuation usage/capture checking；
-- Owner adoption 的责任转移；
+- sealed source park 的 terminal responsibility transfer；
 - continuation-aware `defer`。
 
 它们可以有普通调用的表面外观，但 HIR 必须保留专用节点和 source origin。
@@ -774,14 +796,14 @@ HandlerAction {
 - 为 capability binder 生成 fresh、不可伪造的 identity；
 - 推导闭包、handler 与 continuation 的 capture；
 - 检查 return、closure、aggregate 与 storage boundary 上的 escape；
-- 检查 continuation 被 Owner adopt 后的唯一处置责任；
+- 检查 continuation 被 sealed source park 后的唯一处置责任；
 - 把静态 capability identity 与运行时 Owner/generation 区分开。
 
 源码只使用 `{app}`。Capture 结果保存在 HIR、接口摘要和诊断中。
 
 ### 8.2 Capture safety gate
 
-**已决定的实现原则**
+**Profile baseline 的实现原则**
 
 Capture safety 要么作为一组一致的核心规则实现，要么整组延后；不能先接受程序，再只检查少数 UI 或 `once` 特例。
 
@@ -793,7 +815,7 @@ Capture safety 要么作为一组一致的核心规则实现，要么整组延�
 - multi-shot replayability；
 - mutable authority 的 replay 语义；
 - handler mode weakening 对 capture safety 的影响；
-- Owner adoption 与 finalization 的唯一责任。
+- Owner park/CAS 与 finalization 的唯一责任。
 
 如果这些规则尚未完成，编译器应通过 feature gate 或明确的“尚未支持”诊断拒绝依赖它们的程序，而不是运行一个静默不安全的宽松模式。
 
@@ -812,7 +834,7 @@ Cire 不设计 token macro、AST macro 或 typed hygienic macro。以下都不�
 UI API 由普通声明和函数组成：
 
 ```moonbit
-fn user_pane(user : Source[User]) -> View ! {Observe} {
+def user_pane(user : Source[User]) -> View ! {Observe} {
   Column {
     Text(user.read().name)
     Button("Refresh") {
@@ -830,103 +852,40 @@ fn user_pane(user : Source[User]) -> View ! {Observe} {
 - incremental compiler 与 LSP 不需要执行用户宏；
 - UI DSL 仍可通过 trailing lambda 获得嵌套结构。
 
-## 10. PEG 规则片段
+## 10. Canonical grammar
 
-下面使用 PEG 的 ordered choice、repetition 与 lookahead；它们是 parser 规则的设计片段，不是 EBNF。
+[Cire-TR₀ 完整表面语法](surface-grammar.md)统一规定：
 
-```peg
-GenericClauses <- TypeParams? EffectParams?
-TypeParams     <- LBRACKET TypeParam (COMMA TypeParam)* COMMA? RBRACKET
-TypeParam      <- UpperIdent (COLON TypeConstraintList)?
-EffectParams   <- BANG LBRACKET EffectParam
-                  (COMMA EffectParam)* COMMA? RBRACKET
-EffectParam    <- DOTDOT UpperIdent RowConstraintList?
-                / EffectConstructorBinder AbilityConstraintList?
-                / UpperIdent AbilityConstraintList?
+- Unicode token、nested comment、关键字与 trivia；
+- declaration、普通/effect 形参、type 与 kinded `RowExpr`；
+- function/operation secondary effect、pattern 与 handler clause；
+- 固定 operator precedence、call、label、postfix 和 trailing lambda；
+- layout-independent block item 与 final-result 规则；
+- brace disambiguation、`with` terminator flavor 和 temporal surface。
 
-TypeArgs       <- LBRACKET Type (COMMA Type)* COMMA? RBRACKET
-EffectArgs     <- BANG LBRACKET EffectArg (COMMA EffectArg)* COMMA? RBRACKET
-EffectArg      <- RowLiteral / Type
+其中几个容易被实现偶然行为掩盖的决定是：
 
-Visibility     <- PUB (LPAREN OPEN RPAREN)?
-Mode           <- ABORT / ONCE / FUN / CTL
-
-AbilityDecl    <- Visibility? ABILITY TypeHead SuperAbilities?
-                  LBRACE AbilityItem* RBRACE
-EffectDecl     <- Visibility? EFFECT TypeHead EffectConformance?
-                  LBRACE EffectItem* RBRACE
-OperationDecl  <- Mode GenericClauses LowerIdent ParamList ARROW Type
-
-EffectAnnotation <- BANG (RowLiteral / Type)
-RowLiteral     <- LBRACE RowItems? RBRACE
-RowItems       <- RowItem (COMMA RowItem)* COMMA?
-RowItem        <- DOTDOT UpperIdent / CapabilityIdent / Type
-CapabilityType <- CAP Type
-
-HandlerExpr    <- HANDLER Type HandlerBody
-HandlerBody    <- LBRACE HandlerClause* ReturnClause? RBRACE
-HandlerClause  <- Mode LowerIdent ParamList ContinuationBinder? FAT_ARROW Expr
-ContinuationBinder <- AS LowerIdent
-ReturnClause   <- RETURN LPAREN Pattern RPAREN FAT_ARROW Expr
-
-WithExpr       <- WithEntry+ IN Expr
-WithEntry      <- WITH WithOperand (AS LowerIdent)?
-WithOperand    <- ExprWithoutTopLevelWith
-TrailingLambda <- LBRACE LambdaHead? ExprItems RBRACE
-LambdaHead     <- LambdaParams FAT_ARROW
-```
-
-`ExprWithoutTopLevelWith` 是 parser flavor，不是另一套 expression language。
-它完整解析 operand 内部的 call、trailing lambda、`if`、`match` 等构造，只在
-当前 chain 深度看到下一个 `WITH`、可选 binder 的 `AS` 或最终 `IN` 时结束。
-换行不作为 delimiter。顶层 nested `with` 必须加括号，括号内部再按普通
-`WithExpr` 解析。
-
-`WithExpr` 的 lossless CST 保留每个 `with` token、operand、可选 `as` binder、
-唯一 chain-level `in` token 和 body。Parser 在 `WITH`、`AS`、`IN` 以及
-body 的 closing delimiter 建立恢复点。典型缺失诊断是：
-
-```text
-expected `in` before the scoped computation
-```
-
-并提供插入 `in` 的 fix；不能把最后一个 trailing block 猜成 action。编辑一个
-entry 时，incremental parser 应以最近的 `WithExpr` 为候选 reparse island，
-保持未改 entry 与 body 的 stable syntax identity。
-
-Parser 必须在语义阶段额外检查：
-
-- `[...]` 与 `![...]` 是否建立了不同的 binder domain；
-- `F`、`F[_]` 与 `..E` 是否分别解析为 effect atom、effect constructor 和
-  effect row binder；
-- brace-less effect annotation 中的 type 是否解析为 `EffectRow`；
-- `![...]` 的 row argument `{...}` 是否对应声明位置的 `..E`；
-- `cap F` 是否引用一个 effect-family binder；
-- polymorphic operation clause 是否以 declaration 的 fresh type skolem 检查；
-- `ContinuationBinder` 只出现在 `once` 或 `ctl` clause；
-- row 中的 lower identifier 是否解析为 capability；
-- `Read[app]` 若出现在源代码中，应给出“诊断展开不可作为语法”的定向错误；
-- `pub(open)` 是否只用于允许该 visibility 的声明；
-- `WithEntry` 的 `as` 是否只用于 fresh named capability application；
-- 同一 `WithExpr` 中较早 entry 的 capability binder 是否按顺序进入后续
-  operand 和最终 body 的 scope；
-- trailing lambda 是否确实附着到 call expression。
-
-Expression precedence 不使用左递归 PEG 规则；手写 parser 采用明确的 precedence ladder 或 Pratt-style postfix/infix loop，同时保持 PEG 的 ordered-choice 与 commit 语义。完整 parser 设计见 [编译器前端架构](compiler-architecture.md)。
+- row literal 最多一个 open tail，`..S::Extra` 是合法 projection，多 row 用
+  `! (E1 | E2)`；
+- labelled argument 必须在 positional argument 后，且一律按源码顺序求值；
+- `factory() { ... }` 给当前 call 追加 lambda，不调用返回值；
+- 换行只是 trivia；block 由 maximal expression boundary 分项，最后一个未加
+  `;` 的表达式才是结果；
+- handler clause 使用 `PatternList`，不是 declaration `ParamList`；
+- operation declaration 可以携带 secondary effect 与 temporal contract。
 
 ## 11. 当前仍需讨论
 
 以下问题没有因本规范而自动解决：
 
 1. `val` 是否保留为零参数 `fun` operation 的糖；
-2. 同一 effect 中未列 operation 的显式 forwarding 拼写；
-3. `owner.adopt(k)` 的最终名称；
-4. Owner 的第一方 API 与责任转移操作如何组合；
-5. multi-shot 下局部 mutation 的唯一一致语义；
-6. operation 最大 mode 与实际 handler mode 如何共同约束 capture safety；
-7. one-call/many-call closure 是否需要显式 surface marker；
-8. stable lexical site 的跨编辑、重构和增量编译身份规则；
-9. `Error[E]` 是否提供 `raise`、`try/catch` 的专用糖；
-10. shallow handler 是否永远只作为低层能力，或完全不提供。
+2. 同一 effect 中未列 operation 的 explicit forwarding/masking 拼写；
+3. Owner sealed completion source/port 的库 API 细节；
+4. multi-shot 下局部 mutation 的唯一一致语义；
+5. one-call/many-call closure 是否需要显式 surface marker；
+6. stable lexical site 的跨编辑、重构和增量编译身份规则；
+7. `discontinue` 是否在完整 typed control/world/cleanup contract 后进入新
+   profile；
+8. shallow handler 是否永远只作为低层能力，或完全不提供。
 
 这些问题应先在 Core/HIR 类型规则中回答，再增加表面写法。

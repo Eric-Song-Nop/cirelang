@@ -1,0 +1,10 @@
+// profile: Cire-TR₀/2026-07-31
+// expect: reject
+// rule: T-Advance — no matching clock lock
+
+def![F : FrameClock] bad(
+  frame : cap F,
+  value : Next[frame, Int],
+) -> Int {
+  advance(value)
+}

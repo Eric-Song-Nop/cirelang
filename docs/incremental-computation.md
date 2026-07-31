@@ -1,5 +1,8 @@
 # 第一方增量计算库
 
+> **First-party contract:** [`Cire-TR₀/2026-07-31`](spec-status.md)。本文定义
+> `Source`/`Live` replacement 协议，不把它们变成语言关键字。
+
 ## 1. 定位
 
 **已决定**
@@ -33,18 +36,18 @@
 第一版公共 API 应保持很小：
 
 ```text
-Source<A>
-Live<A>
+Source[A]
+Live[A]
 
-source(initial: A) -> Source<A>
+source(initial : A) -> Source[A]
 
-read(source: Source<A>) -> A
+read(source : Source[A]) -> A
   ! {Observe}
 
-write(source: Source<A>, value: A)
+write(source : Source[A], value : A)
   ! {Update}
 
-live(computation: () -> A ! {Observe}) -> Live<A>
+live(computation : () -> A ! {Observe}) -> Live[A]
 
 batch(action: () -> Unit ! {Update})
 ```
@@ -77,14 +80,14 @@ derived(f) = live(f)
 
 无需立刻引入完全独立的 `Derived` 抽象。`Live` 如何读取当前结果、订阅输出或报告错误仍需补齐；上面列的是最小增量机制，不是已经冻结的完整产品 API。
 
-第一方生态不应把所有时间相关对象都压成万能 `Observable<A>`：
+第一方生态不应把所有时间相关对象都压成万能 `Observable[A]`：
 
 ```text
-Source<A>        可写的当前输入
-Live<A>          持续维护的当前派生结果
-Event<E>         一批中的有序 occurrence，不是“当前值”
-Task<A, E>       至多完成一次的异步计算
-Resource<K,A,E>  由 Owner、key 与 policy 管理的异步状态
+Source[A]        可写的当前输入
+Live[A]          持续维护的当前派生结果
+Event[E]         一批中的有序 occurrence，不是“当前值”
+Task[Outcome[A, E]] 至多完成一次的异步计算
+Resource[K,A,E]  由 Owner、key 与 policy 管理的异步状态
 ```
 
 `Event` 不能像 state 一样随意 lazy pull，否则会漏掉 occurrence；`Task` 的 one-shot 完成也不同于会重复变化的 Source。具体 `Event/Task/Resource` API 属于更高层标准库。
@@ -203,7 +206,7 @@ Source 变化时：
 
 ```text
 effect Observe {
-  ctl read<A>(source: Source<A>) -> A
+  ctl[A] read(source : Source[A]) -> A
 }
 ```
 
@@ -421,7 +424,7 @@ fork {
 **已决定第一版不要求**
 
 - 通用 `Source / Derived` 依赖 DAG；
-- `Change<A>` 差量代数；
+- `Change[A]` 差量代数；
 - demand tracking；
 - cycle detection；
 - MVCC 式 snapshot isolation；
@@ -442,7 +445,7 @@ fork {
 
 ### 14.1 `Derived`
 
-可共享的 `Derived<A>` 可以提供：
+可共享的 `Derived[A]` 可以提供：
 
 - 自己的内部 continuation trace；
 - 多消费者共享；
@@ -450,31 +453,31 @@ fork {
 - lazy/demand-driven 求值；
 - cycle 诊断。
 
-### 14.2 `Change<A>`
+### 14.2 `Change[A]`
 
 差量协议可以是 opt-in：
 
 ```text
-trait Change<A> {
+trait Change[A] {
   type Delta
 
-  zero() -> Delta
-  compose(Delta, Delta) -> Delta
-  apply(A, Delta) -> A
+  def zero() -> Delta
+  def compose(left : Delta, right : Delta) -> Delta
+  def apply(value : A, change : Delta) -> A
 }
 ```
 
 默认退化为：
 
 ```text
-Delta = Replace<A>
+Delta = Replace[A]
 ```
 
 它与 continuation cut 是互补的：
 
 ```text
 continuation cut  决定从哪里重新执行
-Change<A>         决定数据内部能否局部传播 patch
+Change[A]         决定数据内部能否局部传播 patch
 ```
 
 ### 14.3 Keyed collection

@@ -1,0 +1,11 @@
+// profile: Cire-TR₀/2026-07-31
+// expect: reject
+// rule: Surface grammar / CallArguments — positional arguments precede labels
+
+def connect(host : String, port~ : Int, secure~ : Bool) -> Connection {
+  loop {}
+}
+
+def bad() -> Connection {
+  connect("example.test", secure=true, 443)
+}

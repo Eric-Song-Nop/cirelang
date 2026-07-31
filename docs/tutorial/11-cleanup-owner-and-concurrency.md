@@ -1,5 +1,7 @@
 # 11　清理、Owner 与结构化并发
 
+> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) 教程基线。
+
 ## 1. GC 解决不了“什么时候结束”
 
 Cire 是 GC 语言。对象不可达后，GC 可以回收内存，但它不能决定：
@@ -17,7 +19,7 @@ Cire 是 GC 语言。对象不可达后，GC 可以回收内存，但它不能�
 普通结构化退出使用：
 
 ```cire
-fn read_file(path : Path) -> Bytes ! {FileSystem} {
+def read_file(path : Path) -> Bytes ! {FileSystem} {
   let file = FileSystem::open(path)
   defer file.close()
 
@@ -65,11 +67,11 @@ capture k
 resume k
   重新进入这段动态 scope
 
-discontinue/finalize k
+finalize k
   展开并执行 cleanup
 
-adopt k under owner
-  Owner 接管最终处置责任
+park source k under owner
+  sealed completion port 接管最终处置责任
 ```
 
 ## 4. Owner 是关闭责任树
@@ -100,27 +102,28 @@ Owner::scope { owner =>
 `Owner::scope` 和 `owner.spawn` 是普通 API 外观，不是新语法。Compiler 仍要
 理解其中涉及的 capability capture、one-shot 责任转移和 finalization。
 
-## 5. `owner.adopt(k)`
+## 5. Sealed `source.park`
 
 `once` clause 把 continuation 保存到未来时，不能只放进一个全局表：
 
 ```cire
 handler Async {
   once await(task) as k => {
-    task.owner.adopt(k)
+    task.completion_source.park(k, under = task.owner)
   }
 }
 ```
 
-Adopt 的静态含义：
+Park 的静态含义：
 
 - 当前 clause 失去对 `k` 的处置权；
-- Owner 必须最终 `resume`、`discontinue` 或 `finalize`；
+- 当前 path 得到 terminal `Transfers(ParkContract)`，不是 `Unit`；
+- 宿主只拿到 generation-bound completion port，不拿 raw `Resume`；
+- completion（含 `Result/Outcome` 失败值）、cancel 和 close 竞争同一个 CAS；
 - Owner 关闭会 finalize 尚未处置的 `k`；
-- completion、cancel 和 close 竞争同一个 one-shot claim。
 
-`owner.adopt(k)` 是当前工作名称。无论最终 API 怎样命名，它都不能退化成普通
-容器的 `push`，否则 compiler 无法证明责任只转移一次。
+`source.park(k, under = owner)` 需要 sealed source evidence，不能退化成普通
+容器的 `push` 或用户自定义同名 method，否则 checker 无法证明责任只转移一次。
 
 ## 6. Generation 防止旧 callback 复活
 
@@ -197,7 +200,7 @@ Task group 是第一方库，不需要 `async`、`nursery` 等大量特殊关键
 取消不是“随便返回一个错误字符串”。它需要：
 
 - 撤销继续提交结果的权限；
-- 对 parked continuation 执行 discontinue/finalize；
+- 让 cancel/close 对 parked continuation 的 claim 做 CAS，并由胜者 finalize；
 - child-first 清理任务与资源；
 - 避免普通 catch-all 意外吞掉结构化取消。
 
@@ -222,8 +225,9 @@ reentrant handler
 
 ## 当前状态
 
-`defer` 是表面基线；Owner、generation、task group 和 callback adapter 是
-第一方协议方向。Continuation-aware cleanup、adoption、两阶段关闭、结构化
-取消和 portable context 尚未实现。
+`defer` 是表面 grammar 基线，但 reduction calculus 仍是明确的证明义务。
+Owner、generation、sealed completion source/port、task group 和 callback
+adapter 是第一方协议契约。仓库没有 runtime；continuation-aware cleanup、
+两阶段关闭、结构化取消和 portable context 都尚未实现。
 
 上一章：[四种恢复模式](10-resumptions.md)　下一章：[增量计算](12-incremental-computation.md)

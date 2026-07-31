@@ -1,0 +1,14 @@
+// profile: Cire-TR₀/2026-07-31
+// expect: accept
+// rule: labelled arguments follow positional arguments and evaluate in source order
+
+def panel(title : String, gap~ : Int, enabled~ : Bool) -> View {
+  Column(gap~) {
+    Text(title)
+    Button("Save", enabled~) { save() }
+  }
+}
+
+def demo() -> View {
+  panel(make_title(), enabled=is_enabled(), gap=measure_gap())
+}

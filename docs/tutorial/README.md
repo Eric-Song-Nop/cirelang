@@ -1,5 +1,8 @@
 # Cire 语言教程
 
+> **Tutorial profile:** [`Cire-TR₀/2026-07-31`](../spec-status.md)。仓库当前
+> 没有 compiler/runtime；教程示例按规范判断，不按历史 parser 判断。
+
 这是一套从零开始、按顺序阅读的 Cire language tour。它先介绍普通的值、函数、
 数据类型和模块，再逐步进入 Cire 最重要的部分：类型化代数效应、effect
 polymorphism、handler、具名 capability、受控续体和结构化清理。
@@ -10,7 +13,7 @@ polymorphism、handler、具名 capability、受控续体和结构化清理。
 
 | 章节 | 主题 | 学完以后能回答 |
 |---|---|---|
-| [00](00-how-to-read.md) | 如何阅读与实现状态 | 哪些是语言设计，哪些现在已经能被 compiler 处理？ |
+| [00](00-how-to-read.md) | 如何阅读与 profile 状态 | 哪些规则已冻结，哪些仍是开放参数？ |
 | [01](01-first-program.md) | 第一个程序 | Cire 程序由什么组成？ |
 | [02](02-values-and-expressions.md) | 值、绑定与表达式 | `let`、可变局部值和 block 如何求值？ |
 | [03](03-functions-and-control-flow.md) | 函数与控制流 | 函数、lambda、`if`、循环如何组合？ |
@@ -33,15 +36,15 @@ polymorphism、handler、具名 capability、受控续体和结构化清理。
 
 ## 教程中的状态
 
-教程描述的是 Cire 当前的目标语言，不等于当前 compiler 已经全部实现。
+教程描述的是 Cire 当前 profile；仓库没有 compiler/runtime。
 
 - **已决定**：后续设计和实现应遵守的语法或语义。
 - **工作形式**：当前最完整的写法，仍允许在兼容性承诺前调整。
 - **库设计**：普通 Cire API 的目标形状，不是语言关键字。
-- **尚未实现**：教程可以用于讨论和设计，但现在还不能编译运行。
+- **无实现**：教程代码是 conformance 规范，不是现在可运行的程序。
 
-每一章末尾都有“当前状态”。如果只想知道 parser 现在能处理什么，请直接看
-[实现进度](../simple/progress.md)。
+每一章末尾都有“当前状态”。统一设计/实现状态见
+[状态矩阵](../spec-status.md)，未来重启路线见[简明进度](../simple/progress.md)。
 
 ## 教学方法与参考
 
@@ -57,5 +60,5 @@ polymorphism、handler、具名 capability、受控续体和结构化清理。
   effect type、handler、effect polymorphism 和 `with` 把高级控制流逐步展开。
 
 这些资料影响的是教学次序和例子的解释方式。所有代码仍然是 Cire 语法；
-语言规则以[表面语法工作规范](../surface-syntax.md)和
+语言规则以[完整表面语法](../surface-grammar.md)和
 [多态设计](../polymorphism-design.md)为准。

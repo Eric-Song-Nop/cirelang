@@ -1,5 +1,7 @@
 # 12　第一方增量计算
 
+> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) 第一方契约。
+
 ## 1. 这不是新的语言语法
 
 Cire 核心没有 `Signal`、`reactive` 或 `computed` 关键字。增量计算是建立在：

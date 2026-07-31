@@ -1,5 +1,7 @@
 # 04　数据与模式匹配
 
+> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) 教程基线。
+
 ## 1. Struct：一组同时存在的字段
 
 Struct 描述一个值由哪些字段组成：
@@ -57,7 +59,7 @@ enum LoginState {
 模式匹配同时完成“判断形状”和“取出数据”：
 
 ```cire
-fn status_text(state : LoginState) -> String {
+def status_text(state : LoginState) -> String {
   match state {
     LoggedOut => "Please sign in"
     Loading => "Loading..."
@@ -77,7 +79,7 @@ compiler 应给出缺失例子，而不只说“match 不完整”。
 `_` 匹配任意值但不绑定：
 
 ```cire
-fn is_ready(state : LoginState) -> Bool {
+def is_ready(state : LoginState) -> Bool {
   match state {
     LoggedIn(_) => true
     _ => false
@@ -88,7 +90,7 @@ fn is_ready(state : LoginState) -> Bool {
 Literal pattern：
 
 ```cire
-fn word(value : Int) -> String {
+def word(value : Int) -> String {
   match value {
     0 => "zero"
     1 => "one"
@@ -100,7 +102,7 @@ fn word(value : Int) -> String {
 Guard 在 pattern 已经匹配后增加条件：
 
 ```cire
-fn describe(user : User) -> String {
+def describe(user : User) -> String {
   match user {
     { active: true, name, .. } if name != "" => name
     { active: false, .. } => "inactive"
@@ -150,7 +152,7 @@ enum Tree[A] {
 递归函数与递归 pattern 自然配合：
 
 ```cire
-fn[A] size(tree : Tree[A]) -> Int {
+def[A] size(tree : Tree[A]) -> Int {
   match tree {
     Empty => 0
     Node(left, _, right) => 1 + size(left) + size(right)
@@ -181,12 +183,12 @@ match value {
 }
 ```
 
-这些形式必须和 precedence、binder 重复、两侧 binder 集合、错误恢复一起
-形成完整 PEG；在此之前不把细节当成稳定承诺。
+这些形式已经与 precedence、binder 重复、两侧 binder 集合及恢复边界写入
+完整 grammar；穷尽性和类型细化仍属于 checker/proof obligation。
 
 ## 当前状态
 
-ADT、pattern、`match`、struct literal 与完整穷尽性检查尚未实现。本章使用
-已经选择的 MoonBit 风格方向，并明确保留尚待冻结的细节。
+ADT、pattern、`match` 与 struct literal 属于 profile grammar；仓库没有
+parser/checker。穷尽性、or-pattern type join 与诊断是未来实现义务。
 
 上一章：[函数与控制流](03-functions-and-control-flow.md)　下一章：[泛型、trait 与包](05-generics-traits-and-packages.md)

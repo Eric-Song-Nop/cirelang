@@ -1,23 +1,25 @@
 # 01　第一个 Cire 程序
 
+> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) 教程基线。
+
 ## 1. 从一个函数开始
 
 最小的普通函数由名称、参数、返回类型和函数体组成：
 
 ```cire
-fn answer() -> Int {
+def answer() -> Int {
   42
 }
 ```
 
-`fn` 开始函数声明，`answer` 是名称，`()` 表示没有参数，`Int` 是返回类型。
+`def` 开始具名函数声明，`answer` 是名称，`()` 表示没有参数，`Int` 是返回类型。
 花括号中的 block 是一个表达式；最后一个表达式 `42` 就是整个 block 的值，
 所以不需要写 `return 42`。
 
 调用函数使用普通括号：
 
 ```cire
-fn doubled_answer() -> Int {
+def doubled_answer() -> Int {
   answer() * 2
 }
 ```
@@ -27,7 +29,7 @@ fn doubled_answer() -> Int {
 参数写成 `名称 : 类型`：
 
 ```cire
-fn greet(name : String) -> String {
+def greet(name : String) -> String {
   "Hello, " + name
 }
 ```
@@ -38,7 +40,7 @@ Cire 是静态类型语言。`name` 在函数体中始终是 `String`；如果�
 顶层公共函数使用 `pub`：
 
 ```cire
-pub fn square(value : Int) -> Int {
+pub def square(value : Int) -> Int {
   value * value
 }
 ```
@@ -51,7 +53,7 @@ pub fn square(value : Int) -> Int {
 可执行 package 从 `main` 开始。概念上的 Hello World 是：
 
 ```cire
-fn main() -> Unit ! {Console} {
+def main() -> Unit ! {Console} {
   Console::print_line("Hello, Cire!")
 }
 ```
@@ -79,7 +81,7 @@ main 返回 Unit，并且需要 Console 能力
 
 ```cire
 // 摄氏温度转华氏温度
-fn fahrenheit(celsius : Double) -> Double {
+def fahrenheit(celsius : Double) -> Double {
   celsius * 1.8 + 32.0 // block 的最后一个表达式
 }
 ```
@@ -92,7 +94,7 @@ fn fahrenheit(celsius : Double) -> Double {
 下面的 `if` 本身产生值：
 
 ```cire
-fn absolute(value : Int) -> Int {
+def absolute(value : Int) -> Int {
   if value < 0 {
     -value
   } else {
@@ -114,7 +116,7 @@ Cire 的 `match`、block 和 scoped computation application 也遵循同一个
 下面的两个分支返回不同类型：
 
 ```cire
-fn broken(flag : Bool) -> Int {
+def broken(flag : Bool) -> Int {
   if flag {
     1
   } else {
@@ -131,11 +133,11 @@ compiler 应同时标出两个分支，并解释 `Int` 与 `String` 无法统一
 试着只看类型写出函数体：
 
 ```cire
-fn minutes_to_seconds(minutes : Int) -> Int {
+def minutes_to_seconds(minutes : Int) -> Int {
   ...
 }
 
-fn choose_name(nickname : String, use_nickname : Bool) -> String {
+def choose_name(nickname : String, use_nickname : Bool) -> String {
   ...
 }
 ```
@@ -144,7 +146,7 @@ fn choose_name(nickname : String, use_nickname : Bool) -> String {
 
 ## 当前状态
 
-函数签名、调用和 block 已进入 parser。完整 `main`、`if`、运算符、literal
-以及类型检查尚未完成；本章普通语法采用 MoonBit 风格工作形式。
+函数签名、调用、block、`if`、运算符与 literal 都属于 profile grammar。
+仓库没有 parser 或 type checker；本章例子是规范示例，不是已运行程序。
 
 上一章：[如何阅读](00-how-to-read.md)　下一章：[值、绑定与表达式](02-values-and-expressions.md)

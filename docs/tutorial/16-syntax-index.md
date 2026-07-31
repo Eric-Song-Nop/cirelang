@@ -1,23 +1,27 @@
 # 16　Cire 语法索引
 
+> 本索引服从 [`Cire-TR₀/2026-07-31`](../spec-status.md) 与
+> [完整表面语法](../surface-grammar.md)；仓库当前没有 parser。
+
 本章是教程的速查表，不替代完整 grammar。Cire 的 grammar 使用手写 PEG；
-最终规则以可执行 parser 和 conformance test 为准。
+最终规则以 [完整表面语法](../surface-grammar.md) 为准；未来 parser 与
+conformance corpus必须服从它。
 
 ## 1. 顶层声明
 
 ### 函数
 
 ```cire
-fn name(parameters) -> ResultType {
+def name(parameters) -> ResultType {
   body
 }
 
-pub fn[A : Trait] name(...) -> Result ! {Effect} {
+pub def[A : Trait] name(...) -> Result ! {Effect} {
   ...
 }
 ```
 
-普通泛型位于函数名之后：`fn[A, B] name(...)`。
+普通泛型位于 `def` 之后、函数名之前：`def[A, B] name(...)`。
 
 ### Struct 与 enum
 
@@ -36,7 +40,7 @@ enum Option[A] {
 ### Method
 
 ```cire
-fn User::display_name(self : User) -> String {
+def User::display_name(self : User) -> String {
   self.name
 }
 ```
@@ -45,15 +49,17 @@ fn User::display_name(self : User) -> String {
 
 ```cire
 pub(open) trait Show {
-  to_string(Self) -> String
+  def to_string(self : Self) -> String
 }
 
-pub impl Show for User with to_string(self) {
-  self.name
+pub impl Show for User {
+  def to_string(self : User) -> String {
+    self.name
+  }
 }
 ```
 
-普通 trait/impl 采用 MoonBit 风格工作基线，完整 parser 尚未实现。
+普通 trait/impl 已进入 profile grammar；仓库当前没有 parser/checker。
 
 ### Ability 与 effect
 
@@ -190,8 +196,6 @@ Constructor、record、array、or-pattern、guard、typed pattern 和 rest patte
 fn(value) {
   body
 }
-
-value => expression
 ```
 
 Generic function value 的工作形式：
@@ -203,7 +207,7 @@ mapper : fn[B]![..E](A) -> B ! E
 ## 8. Labelled parameter 与 argument
 
 ```cire
-fn connect(host : String, port~ : Int) -> Connection {
+def connect(host : String, port~ : Int) -> Connection {
   ...
 }
 
@@ -231,8 +235,8 @@ callee { value =>
 ## 10. 普通 generic
 
 ```cire
-fn[A] identity(value : A) -> A
-fn[A : Eq + Show] explain(value : A) -> String
+def[A] identity(value : A) -> A
+def[A : Eq + Show] explain(value : A) -> String
 
 Array[Int]
 Result[Profile, LoadError]
@@ -244,10 +248,10 @@ identity[Int](1)
 ## 11. Effect generic
 
 ```cire
-fn![F] forward(...)
-fn[A]![F : Reader[A]] read(...)
-fn[A]![..E] map_effectful(...)
-fn[A]![F[_] : Raise[_]] fail(...)
+def![F] forward(...)
+def[A]![F : Reader[A]] read(...)
+def[A]![..E] map_effectful(...)
+def[A]![F[_] : Raise[_]] fail(...)
 ```
 
 ```text
@@ -290,7 +294,7 @@ E1 | E2         row union 工作形式
 ## 13. Row constraint
 
 ```cire
-fn![
+def![
   ..E : Has[Logger] + Lacks[Blocking] + All[Replayable],
 ] schedule(...) -> Task ! E {
   ...
@@ -332,11 +336,13 @@ effect FileStore
     ] {}
 ```
 
-独立 ability implementation 的工作形式：
+独立 ability implementation：
 
 ```cire
 impl[A] Reader[A] for LegacyState[A] {
-  read = LegacyState::get
+  def read(self : LegacyState[A]) -> A {
+    self.get()
+  }
 }
 ```
 
@@ -369,7 +375,7 @@ Cire 不增加 `perform` 关键字。Resolver 根据类型环境识别 operation
 ## 17. Capability type 与 named row
 
 ```cire
-fn[A]![F : Reader[A]] read_from(
+def[A]![F : Reader[A]] read_from(
   app : cap F,
 ) -> A ! {app} {
   app.read()
@@ -497,13 +503,13 @@ in {
 
 ```cire
 k.resume(value)
-k.discontinue(error)
 k.finalize()
-owner.adopt(k)
+source.park(k, under = owner)
 ```
 
-前三个是 compiler-recognized continuation primitive。`owner.adopt(k)` 是
-责任转移的工作名称，也必须由 compiler 检查。
+前两个降为 Core resumption primitive。第三个只在 sealed completion-source
+evidence 下产生 terminal `Transfers(ParkContract)`；它不返回 `Unit`，宿主
+只得到 generation-bound completion port。
 
 ## 21. 不是 Cire 源语法的概念
 
@@ -540,38 +546,21 @@ Cire 不设计：
 - `Error[E]` 的 `raise`、`try/catch` 专用糖；
 - one-call/many-call closure marker；
 - shallow handler；
-- Owner adoption 的最终 API 名称；
+- Owner completion source/port 的库 API 细节；
 - stable lexical site 的表面接口。
 
 教程始终先使用已经定义的核心形式。
 
-## 24. 当前 compiler 覆盖
+## 24. 仓库实现状态
 
-已经有 parser baseline：
-
-- function signature、type parameter、function type、call 和 block；
-- effect declaration、四种 operation mode、基础 effect row；
-- `{app}` 和错误 `Read[app]` 的定向修复；
-- method/qualified call、labelled argument、label punning；
-- trailing lambda、handler、旧的单项 `with` parser baseline、`return`
-  clause、`as k`；
-- lossless CST、missing token、error node、diagnostic/fix serialization；
-- revision-checked reparse correctness baseline。
-
-尚未完成：
-
-- 完整 ordinary expression、ADT、pattern、trait、package 和 precedence；
-- 双列表、ability、`cap`、associated item、row algebra；
-- 多 entry `with ... in ...` chain；
-- name resolution、kind/type/effect/capture checking；
-- Surface HIR、Kernel HIR 和正式 desugaring；
-- formatter、LSP、runtime、Wasm backend。
-
-实现状态会变化，最新清单以[简明进度](../simple/progress.md)为准。
+仓库当前没有 parser、checker、runtime、标准库、formatter、LSP 或 backend。
+本索引描述 `Cire-TR₀/2026-07-31` 的目标语法；正负样例位于
+[`examples/spec/`](../../examples/spec/)，但它们是 conformance 规范，
+不是已通过的测试。重新实现的入口条件见[状态矩阵](../spec-status.md)。
 
 ## 25. 继续阅读
 
-- 目标表面规则：[Cire 表面语法工作规范](../surface-syntax.md)
+- 表面构造说明：[Cire 表面语法设计说明](../surface-syntax.md)
 - 高级多态：[多态与 effect abstraction](../polymorphism-design.md)
 - 恢复规则：[代数效应与恢复模式](../effects-and-resumptions.md)
 - Capture/Owner：[Named capability、Owner 与结构化清理](../capabilities-and-finalization.md)

@@ -1,5 +1,7 @@
 # 06　第一个 effect
 
+> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) 教程基线。
+
 ## 1. Effect 是向上下文发出的请求
 
 先看一个没有固定实现的时钟：
@@ -20,7 +22,7 @@ pub(open) effect Clock {
 自己需要什么，不把实现方式写死。
 
 ```cire
-fn expired(deadline : Instant) -> Bool ! {Clock} {
+def expired(deadline : Instant) -> Bool ! {Clock} {
   Clock::now() >= deadline
 }
 ```
@@ -31,7 +33,7 @@ fn expired(deadline : Instant) -> Bool ! {Clock} {
 ## 2. 纯函数省略空 row
 
 ```cire
-fn add(left : Int, right : Int) -> Int {
+def add(left : Int, right : Int) -> Int {
   left + right
 }
 ```
@@ -48,7 +50,7 @@ fn add(left : Int, right : Int) -> Int {
 ## 3. 多个 effect
 
 ```cire
-fn load_profile(id : UserId) -> Profile
+def load_profile(id : UserId) -> Profile
   ! {Network, Clock, Error[LoadError]} {
   let started = Clock::now()
   let profile = Network::get_profile(id)
@@ -93,7 +95,7 @@ mode [普通类型参数] 名称(参数) -> 结果类型
 `Error::raise` 的 `[A]` 表示它可以出现在任意结果类型的位置：
 
 ```cire
-fn require_name(name : String) -> String ! {Error[InputError]} {
+def require_name(name : String) -> String ! {Error[InputError]} {
   if name == "" {
     Error::raise(MissingName)
   }
@@ -131,7 +133,7 @@ capability。后者在第 9 章解释。
 作为普通数据：
 
 ```cire
-fn parse_age(text : String) -> Result[Int, ParseError] {
+def parse_age(text : String) -> Result[Int, ParseError] {
   ...
 }
 ```
@@ -139,7 +141,7 @@ fn parse_age(text : String) -> Result[Int, ParseError] {
 作为上下文请求：
 
 ```cire
-fn parse_age(text : String) -> Int ! {Error[ParseError]} {
+def parse_age(text : String) -> Int ! {Error[ParseError]} {
   ...
 }
 ```
@@ -174,7 +176,7 @@ pub(open) effect Open { ... }
 函数调用会把 effect 需求向外传播：
 
 ```cire
-fn report_deadline(deadline : Instant) -> Unit
+def report_deadline(deadline : Instant) -> Unit
   ! {Clock, Console} {
   if expired(deadline) {
     Console::print_line("expired")
@@ -197,8 +199,8 @@ polymorphism，第 8 章再写第一个 handler。
 
 ## 当前状态
 
-Effect declaration、四种 operation mode、基础 effect row 和 operation call
-外形已有 parser baseline。Resolver、effect inference、handler elimination 和
-类型检查尚未实现。
+Effect declaration、四种 mode、identity-aware row、secondary row 与
+operation call 都属于 profile grammar/semantics。仓库没有 parser、resolver、
+effect inference 或 checker。
 
 上一章：[泛型、trait 与包](05-generics-traits-and-packages.md)　下一章：[Effect 多态](07-effect-polymorphism.md)

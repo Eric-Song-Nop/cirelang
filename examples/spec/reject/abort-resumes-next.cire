@@ -1,0 +1,7 @@
+// profile: Cire-TR₀/2026-07-31
+// expect: reject
+// rule: Operation contract — abort has no successful resumption transition
+
+effect BadClock {
+  abort stop() -> Never resumes next
+}

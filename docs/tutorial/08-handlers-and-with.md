@@ -1,5 +1,7 @@
 # 08　Handler 与 `with`
 
+> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) 教程基线。
+
 ## 1. Handler 给请求赋予含义
 
 Effect declaration 只说明可以请求什么：
@@ -24,7 +26,7 @@ struct，也可以在不同测试中创建不同实例。
 ## 2. 使用 `with`
 
 ```cire
-fn test_expired() -> Bool {
+def test_expired() -> Bool {
   with fixed_clock
   in {
     expired(Instant::from_seconds(900))
@@ -72,7 +74,7 @@ let result =
 只用一次时可以直接写：
 
 ```cire
-fn test_expired() -> Bool {
+def test_expired() -> Bool {
   with handler Clock {
     fun now() => Instant::from_seconds(1000)
   }
@@ -116,7 +118,7 @@ return(value) => value
 Abortive error handler 可以把控制 effect 转换成普通数据：
 
 ```cire
-fn attempt[A, E]![..Rest](
+def attempt[A, E]![..Rest](
   body : () -> A ! {Error[E], ..Rest},
 ) -> Result[A, E] ! Rest {
   with handler Error[E] {
@@ -140,7 +142,7 @@ fn attempt[A, E]![..Rest](
 实际程序通常不只需要一个 effect：
 
 ```cire
-fn load_page() -> Page
+def load_page() -> Page
   ! {Clock, Logger, Error[LoadError]} {
   ...
 }
@@ -240,7 +242,7 @@ clause 发出的 effect 由谁处理。显式组合已经把这些答案写进�
 封装整套 handler：
 
 ```cire
-fn[A]![..E] test_runtime(
+def[A]![..E] test_runtime(
   action : () -> A
     ! {Clock, Logger, Error[LoadError], ..E},
 ) -> Result[A, LoadError] ! E {
@@ -476,9 +478,8 @@ in {
 
 ## 当前状态
 
-Handler expression、clause、`return`、旧的单项 `with` parser baseline、
-named binder 和相关定向错误已进入 parser。这里确定的 `with ... in ...`
-chain、handler typing、effect elimination、deep resumption 和 desugaring
-HIR 尚未实现。
+Handler、clause、implicit `return`、ordered `with ... in ...` chain 与
+named binder 都属于 profile grammar/elaboration。仓库没有 parser、HIR、
+handler checker 或 runtime。
 
 上一章：[Effect 多态](07-effect-polymorphism.md)　下一章：[具名 capability](09-named-capabilities.md)

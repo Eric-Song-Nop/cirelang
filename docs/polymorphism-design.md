@@ -1,20 +1,24 @@
-# 多态与 effect abstraction 工作设计
+# 多态与 effect abstraction 设计
+
+> **Normative companion:** [`Cire-TR₀/2026-07-31`](spec-status.md)。表面的
+> `[...]` / `![...]` 是分域形参列表；只有 Core/generalization 才使用量词术语。
 
 ## 1. 文档状态
 
-本文记录 2026-07-27 讨论形成的多态设计基线。
+本文记录 `Cire-TR₀/2026-07-31` 的多态设计基线。
 
 当前状态分成三层：
 
-- **已接受为细化基线**：普通泛型与 effect 泛型使用双列表；
-- **设计方向**：effect ability、具名 capability type、associated
-  effect/row、row constraint 与 generative handler application；
-- **仍可调整**：`ability`、`cap` 等具体关键词，以及 row formula
-  的运算符。
+- **Profile baseline**：普通泛型与 effect 泛型使用双形参列表；
+- **Profile baseline**：effect ability、具名 capability type、associated
+  effect/row、row constraint、generative handler application 与 `RowExpr`；
+- **Profile baseline**：具名声明用 `def`；匿名函数值和显式泛型函数值类型用
+  `fn`；effect mode 使用 `fun`；
+- **候选拼写**：`ability`、`cap` 等关键词可由新 profile 调整，但当前 grammar
+  只接受 canonical 拼写。
 
-本文只描述语言设计，没有对应 parser、类型检查器或运行时实现。当前 parser
-仍只认识旧的单列表 `Fx : Effect` / `Eff : EffectRow` baseline；不能因为
-本文出现了新语法，就把它标记为“parser 已支持”。
+仓库没有 parser、类型检查器或运行时实现。未来实现必须服从本文和
+[完整表面语法](surface-grammar.md)。
 
 ## 2. 设计目标
 
@@ -34,7 +38,7 @@
 旧写法：
 
 ```moonbit
-fn[A, Fx : Effect, Eff : EffectRow] relay(...)
+def[A, Fx : Effect, Eff : EffectRow] relay(...)
 ```
 
 有两个问题：
@@ -57,11 +61,11 @@ fn[A, Fx : Effect, Eff : EffectRow] relay(...)
 最小例子：
 
 ```moonbit
-fn[A] identity(value : A) -> A
+def[A] identity(value : A) -> A
 
-fn[A]![F : Reader[A]] read() -> A ! {F}
+def[A]![F : Reader[A]] read() -> A ! {F}
 
-fn[A, B]![..E] map(
+def[A, B]![..E] map(
   xs : Array[A],
   f : (A) -> B ! E,
 ) -> Array[B] ! E
@@ -87,7 +91,7 @@ E : EffectRow
 只转发任意原子 effect 时写：
 
 ```moonbit
-fn![F] forward(body : () -> Unit ! {F}) -> Unit ! {F} {
+def![F] forward(body : () -> Unit ! {F}) -> Unit ! {F} {
   body()
 }
 ```
@@ -95,7 +99,7 @@ fn![F] forward(body : () -> Unit ! {F}) -> Unit ! {F} {
 只转发任意 row 时写：
 
 ```moonbit
-fn[A]![..E] forward_row(
+def[A]![..E] forward_row(
   body : () -> A ! E,
 ) -> A ! E {
   body()
@@ -105,7 +109,7 @@ fn[A]![..E] forward_row(
 ### 3.2 多类参数同时出现
 
 ```moonbit
-fn[
+def[
   A : Eq + Show,
 ]![
   Input : Reader[A],
@@ -123,7 +127,7 @@ fn[
 }
 ```
 
-这段签名同时量化：
+这段签名同时引入以下 surface 形参和 term binder：
 
 ```text
 A       普通类型
@@ -142,7 +146,7 @@ effect abstraction。Resolver 不能用变量名称猜类别。
 声明：
 
 ```moonbit
-fn[A]![F : Reader[A], ..E] consume(
+def[A]![F : Reader[A], ..E] consume(
   app : cap F,
   after : (A) -> Unit ! E,
 ) -> Unit ! {app, ..E} {
@@ -264,7 +268,7 @@ origin
 常见用法：
 
 ```moonbit
-fn[A]![F : Reader[A]] read_from(
+def[A]![F : Reader[A]] read_from(
   app : cap F,
 ) -> A ! {app} {
   app.read()
@@ -274,7 +278,7 @@ fn[A]![F : Reader[A]] read_from(
 两个相同 family 的 capability 仍然是不同 identity：
 
 ```moonbit
-fn[A : Eq]![F : Reader[A]] same_value(
+def[A : Eq]![F : Reader[A]] same_value(
   left : cap F,
   right : cap F,
 ) -> Bool ! {left, right} {
@@ -290,7 +294,7 @@ fn[A : Eq]![F : Reader[A]] same_value(
 匿名 effect：
 
 ```moonbit
-fn[A]![F : Reader[A]] read_any() -> A ! {F} {
+def[A]![F : Reader[A]] read_any() -> A ! {F} {
   F::read()
 }
 ```
@@ -298,7 +302,7 @@ fn[A]![F : Reader[A]] read_any() -> A ! {F} {
 具名 capability：
 
 ```moonbit
-fn[A]![F : Reader[A]] read_named(
+def[A]![F : Reader[A]] read_named(
   app : cap F,
 ) -> A ! {app} {
   app.read()
@@ -386,7 +390,7 @@ pub(open) effect FileStore
 泛型代码使用 projection：
 
 ```moonbit
-fn![S : Store] load(
+def![S : Store] load(
   store : cap S,
   key : S::Key,
 ) -> S::Value
@@ -398,7 +402,7 @@ fn![S : Store] load(
 常见 associated equality 直接写入 constraint argument：
 
 ```moonbit
-fn[A]![S : Store[Value = A]] load_as(
+def[A]![S : Store[Value = A]] load_as(
   store : cap S,
   key : S::Key,
 ) -> A ! {store, S::Fail, ..S::Extra} {
@@ -409,7 +413,7 @@ fn[A]![S : Store[Value = A]] load_as(
 两个 effect 参数可以共享关联项：
 
 ```moonbit
-fn![
+def![
   Left : Store,
   Right : Store[
     Key = Left::Key,
@@ -420,20 +424,18 @@ fn![
   right : cap Right,
   key : Left::Key,
 ) -> Unit
-  ! {
-    left,
-    right,
-    Left::Fail,
-    Right::Fail,
-    ..Left::Extra,
-    ..Right::Extra,
-  } {
+  ! (
+    {left, right, Left::Fail, Right::Fail}
+    | Left::Extra
+    | Right::Extra
+  ) {
   right.put(key, left.get(key))
 }
 ```
 
-复杂 equality、递归 constraint 与不适合写成 named argument 的关系仍可使用
-`where`；简单 projection equality 不需要额外拉出一大段 clause。
+简单 projection equality 直接写 named argument。`TR₀` 尚未定义 `where`
+grammar；复杂 equality、递归 constraint 与无法放进 binder 的关系必须留作
+新 profile，而不能让未来 parser私自接受候选 clause。
 
 ## 7. Effect row algebra
 
@@ -451,7 +453,7 @@ fn![
 `..E` 在 effect binder 与 row literal 中保持同一种视觉含义：
 
 ```moonbit
-fn![..E] ...
+def![..E] ...
 ! {Log, ..E}
 ```
 
@@ -461,21 +463,25 @@ fn![..E] ...
 formula：
 
 ```moonbit
-fn[A, B, C]![..E1, ..E2] compose(
+def[A, B, C]![..E1, ..E2] compose(
   first : (A) -> B ! E1,
   second : (B) -> C ! E2,
 ) -> (A) -> C ! (E1 | E2) {
-  value => second(first(value))
+  fn(value) { second(first(value)) }
 }
 ```
 
-当前运算符方向：
+`TR₀` 的运算符只有：
 
 ```text
 E1 | E2   union
-E1 & E2   intersection
-E - X     difference
 ```
+
+row 是 identity-aware set：`Anon(F)` 与 `Named(app,F)` 是两个 entry，同
+family 不会自动合并。`{F, ..E}` 形成 extension 时必须同时满足
+`Lacks(E,F)`；若 constraint solver不能证明，就拒绝，而不是静默去重未知
+tail。Intersection、difference 和 raw family subtraction 不属于本 profile；
+handler elimination 依赖 call-site/prompt route 的 attributed demand `Δ`。
 
 `|` 用于 row union，`+` 用于 constraint conjunction：
 
@@ -500,7 +506,7 @@ Only[UIEffect]
 例子：
 
 ```moonbit
-fn![
+def![
   ..E : Has[Log] + Lacks[Blocking] + All[Replayable],
 ] schedule(
   task : () -> Unit ! E,
@@ -565,7 +571,7 @@ Err[T]   satisfies Raise[T] for every T
 例子：
 
 ```moonbit
-fn[A]![Err[_] : Raise[_]] fail(
+def[A]![Err[_] : Raise[_]] fail(
   error : A,
 ) -> Never ! {Err[A]} {
   Err[A]::raise(error)
@@ -573,7 +579,8 @@ fn[A]![Err[_] : Raise[_]] fail(
 ```
 
 `_` 在 binder pattern 中表示 constructor parameter 位置，不是普通表达式
-inference hole。Higher-kinded constraint 的量化与 coherence 仍需形式化。
+inference hole。Higher-kinded constraint 的 generalization 与 coherence
+仍需形式化。
 
 ## 10. Generic function value 与 handler generativity
 
@@ -608,7 +615,7 @@ Handler value 的序列化签名使用专用 `HandlerAction` 表示这一规则�
 源码使用已经确定的 capability term 与 named row：
 
 ```moonbit
-fn[A]![F : Reader[A]] make_reader(
+def[A]![F : Reader[A]] make_reader(
   app : cap F,
 ) -> () -> A ! {app} {
   fn() { app.read() }
@@ -638,7 +645,9 @@ effect State[A] : Reader[A] + Writer[A] {}
 
 ```moonbit
 impl[A] Reader[A] for LegacyState[A] {
-  read = LegacyState::get
+  def read(self : LegacyState[A]) -> A {
+    self.get()
+  }
 }
 ```
 
@@ -652,12 +661,21 @@ impl Store for LegacyDatabase {
   effect Fail = DatabaseError
   effects Extra = {Network}
 
-  get = LegacyDatabase::fetch
-  put = LegacyDatabase::save
+  def get(self : LegacyDatabase, key : String) -> Record {
+    self.fetch(key)
+  }
+
+  def put(
+    self : LegacyDatabase,
+    key : String,
+    value : Record,
+  ) -> Unit {
+    self.save(key, value)
+  }
 }
 ```
 
-开放独立 `impl` 前必须冻结：
+Profile grammar 已接受独立 `impl`；静态语义进入实现前必须冻结：
 
 - orphan/coherence；
 - overlap；

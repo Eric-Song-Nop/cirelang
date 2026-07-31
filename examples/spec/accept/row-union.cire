@@ -1,0 +1,10 @@
+// profile: Cire-TR₀/2026-07-31
+// expect: accept
+// rule: RowExpr kinding and union normalization
+
+def[A, B, C]![..E1, ..E2] compose(
+  first : (A) -> B ! E1,
+  second : (B) -> C ! E2,
+) -> (A) -> C ! (E1 | E2) {
+  fn(value) { second(first(value)) }
+}

@@ -1,5 +1,8 @@
 # Named capability、Owner 与结构化清理
 
+> **Normative companion:** [`Cire-TR₀/2026-07-31`](spec-status.md)。本文解释
+> capability/capture/Owner 契约；冲突时以状态矩阵和 TR₀ judgment 为准。
+
 ## 1. 设计中心
 
 **设计方向**
@@ -12,7 +15,7 @@
 源码只使用已经确定的 named row：
 
 ```moonbit
-fn read_app(app : cap Read[Int]) -> Int ! {app} {
+def read_app(app : cap Read[Int]) -> Int ! {app} {
   app.read()
 }
 ```
@@ -119,7 +122,7 @@ capability identity 与约束写入序列化接口摘要；LSP 和诊断复用�
 例如：
 
 ```moonbit
-fn use_reader(
+def use_reader(
   app : cap Read[Int],
   callback : () -> Unit ! {app, HostWrite},
 ) -> Unit ! {app, HostWrite} {
@@ -293,24 +296,24 @@ Candidate generation 是第一方增量/UI 协议，不是语言关键字。提�
 
 ## 9. One-shot 恢复权的处置
 
-`once` clause 对 `k` 有三类终结操作：
+`once` clause 对 `k` 有三类终结路径：
 
 ```moonbit
 k.resume(value)
-k.discontinue(error)
 k.finalize()
+source.park(k, under = owner)
 ```
 
-如果 `k` 被保存到未来，必须转交给 Owner：
-
-```moonbit
-owner.adopt(k)
-```
+第三条只对 sealed completion source 开放，产生
+`Transfers(ParkContract)` 并终止当前 path；它不把 raw `Resume` 保存进
+callback，也不返回 `Unit`。
 
 责任转移后：
 
 - 当前 clause 不再拥有恢复权；
-- Owner 关闭前必须恢复、终止或 finalize；
+- 宿主只拿到绑定 `(owner,generation,claim)` 的 completion port；
+- completion（包括 `Result/Outcome` 失败值）、cancel 与 Owner close 对同一
+  claim 做 CAS；
 - Owner 关闭会自动 finalize 尚未处置的 `k`；
 - 宿主 callback 的重复调用只能有一次成功 claim。
 
@@ -341,11 +344,11 @@ capture k
 resume k
   → 重新进入这段动态作用域
 
-discontinue/finalize k
+finalize k
   → 展开并执行 cleanup
 
-adopt k under owner
-  → owner 接管最终处置义务
+park source k under owner
+  → sealed completion port 接管最终处置义务
 ```
 
 如果一个 multi-shot 续体携带不可重放的 cleanup 或独占资源，捕获应被拒绝，

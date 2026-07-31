@@ -1,11 +1,13 @@
 # 07　Effect 多态与 ability
 
+> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) 教程基线。
+
 ## 1. 高阶函数为什么需要 effect 多态
 
 先写一个只接受纯 callback 的 `map`：
 
 ```cire
-fn[A, B] map(
+def[A, B] map(
   values : Array[A],
   transform : (A) -> B,
 ) -> Array[B] {
@@ -27,7 +29,7 @@ users.map { user =>
 的整行 effect 成为参数：
 
 ```cire
-fn[A, B]![..E] map_effectful(
+def[A, B]![..E] map_effectful(
   values : Array[A],
   transform : (A) -> B ! E,
 ) -> Array[B] ! E {
@@ -83,11 +85,11 @@ E : EffectRow
 formula：
 
 ```cire
-fn[A, B, C]![..E1, ..E2] compose(
+def[A, B, C]![..E1, ..E2] compose(
   first : (A) -> B ! E1,
   second : (B) -> C ! E2,
 ) -> (A) -> C ! (E1 | E2) {
-  value => second(first(value))
+  fn(value) { second(first(value)) }
 }
 ```
 
@@ -121,7 +123,7 @@ pub(open) effect State[A]
 现在可以对任意 Reader family 编程：
 
 ```cire
-fn[A]![F : Reader[A]] read_any() -> A ! {F} {
+def[A]![F : Reader[A]] read_any() -> A ! {F} {
   F::read()
 }
 ```
@@ -134,7 +136,7 @@ handler。
 下面的函数同时约束普通值和 effect family：
 
 ```cire
-fn[
+def[
   A : Eq + Show,
 ]![
   Input : Reader[A],
@@ -223,7 +225,7 @@ pub(open) effect FileStore
 泛型代码使用 projection：
 
 ```cire
-fn![S : Store] load(
+def![S : Store] load(
   key : S::Key,
 ) -> S::Value ! {S, S::Fail, ..S::Extra} {
   S::get(key)
@@ -241,11 +243,13 @@ Effect header 中最常见的 conformance：
 effect State[A] : Reader[A] + Writer[A] {}
 ```
 
-如果要让已有 effect 满足 ability，独立 `impl` 的工作形式是：
+如果要让已有 effect 满足 ability，独立 `impl` 使用：
 
 ```cire
 impl[A] Reader[A] for LegacyState[A] {
-  read = LegacyState::get
+  def read(self : LegacyState[A]) -> A {
+    self.get()
+  }
 }
 ```
 
@@ -258,21 +262,30 @@ impl Store for LegacyDatabase {
   effect Fail = DatabaseError
   effects Extra = {Network}
 
-  get = LegacyDatabase::fetch
-  put = LegacyDatabase::save
+  def get(self : LegacyDatabase, key : String) -> Record {
+    self.fetch(key)
+  }
+
+  def put(
+    self : LegacyDatabase,
+    key : String,
+    value : Record,
+  ) -> Unit {
+    self.save(key, value)
+  }
 }
 ```
 
-独立 ability `impl` 是否进入第一阶段仍未决定。开放它之前必须冻结 coherence、
-orphan、overlap、associated item 唯一性、operation adapter 和 mode
-compatibility。
+独立 ability `impl` 已进入 profile grammar；checker仍必须冻结并验证
+coherence、orphan、overlap、associated item 唯一性、operation adapter 和
+mode compatibility。仓库当前没有该 checker。
 
 ## 9. Row constraint
 
 有时 API 不关心 row 提供哪些 operation，只关心它满足某种集合性质：
 
 ```cire
-fn![
+def![
   ..E : Has[Log] + Lacks[Blocking] + All[Replayable],
 ] schedule(
   task : () -> Unit ! E,
@@ -297,7 +310,7 @@ Only[Ability]   entry 限制在某组 ability
 对 `Type -> Effect` 的构造器抽象时，用 binder hole：
 
 ```cire
-fn[A]![Err[_] : Raise[_]] fail(
+def[A]![Err[_] : Raise[_]] fail(
   error : A,
 ) -> Never ! {Err[A]} {
   Err[A]::raise(error)
@@ -330,8 +343,8 @@ consume(app, log_value)
 
 ## 当前状态
 
-双列表已经是多态设计基线，但 `![...]`、`ability`、associated effect/row、
-row formula、row predicate 和 higher-kinded effect constructor 尚未进入
-parser。它们是本章的工作形式，不是当前可运行语法。
+双列表、`![...]`、ability、associated effect/row、row union/predicate 与
+higher-kinded effect constructor 已进入 profile grammar。仓库没有 parser
+或 kind/row solver；这些例子是 conformance 目标，不是当前可运行程序。
 
 上一章：[第一个 effect](06-effects.md)　下一章：[Handler 与 with](08-handlers-and-with.md)
