@@ -47,11 +47,15 @@ evidence artifact，不得只检查 parser 是否接受。
 metadata，真正 wire payload只在 `contract` 字段，且必须符合
 `FunctionContractV1`。它关联 `interfaces/choose-once.cire`；call只能
 discharge `stage=Call` 的 obligation，而 `HandlerInstall` obligation和
-latent site必须保留到 fresh prompt存在的 installation。
+latent site必须保留到 fresh prompt存在的 installation；顶层 suspension
+还必须含与该 latent primary site逐字段对应的 `RequestV1` attribution。
 `interfaces/flow-abort-transfer-owner.json` 则逐 variant固定
 `Aborts`、`Transfers(ParkContractV1)`、`OwnerBoundV1`、root route以及
-Owner/generation-CAS wire形状；它是 union-variant oracle，不伪装成某个
-FunctionContract source projection。
+Owner/generation-CAS wire形状，包括 shared alpha-normalized claim-cell、
+`Unclaimed→Completed | Finalized` race、generation-preserving equality
+gate与完整 `SuffixContractV1` continuation/live evidence；它是 union-variant
+oracle，不伪装成某个 FunctionContract source projection。两个 JSON oracle
+都使用 schema规定的 canonical object-key encoding。
 
 `diagnostics-v1.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；
 新增或重命名 id需要新 registry version，不能让 parser recovery改变同一

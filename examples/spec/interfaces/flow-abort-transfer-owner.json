@@ -1,22 +1,8 @@
 {
-  "oracle_schema": "CireSpecWireVariantOracleV1",
-  "profile": "Cire-TR₀/2026-07-31",
-  "schema_version": 1,
   "binders": {
-    "parameter_binders": [
-      {
-        "slot": 0,
-        "type": {
-          "kind": "NominalTypeV1",
-          "module": ["prelude"],
-          "name": "Owner",
-          "arguments": []
-        }
-      }
-    ],
-    "type_binders": [],
-    "row_binders": [],
+    "clock_binders": [],
     "contract_binders": [],
+    "identity_binders": [],
     "owner_binders": [
       {
         "slot": 0,
@@ -26,9 +12,39 @@
         }
       }
     ],
-    "clock_binders": [],
-    "identity_binders": [],
-    "prompt_binders": []
+    "parameter_binders": [
+      {
+        "slot": 0,
+        "type": {
+          "kind": "OwnerTypeV1",
+          "owner": {
+            "namespace": "Owner",
+            "slot": 0
+          }
+        }
+      }
+    ],
+    "prompt_binders": [],
+    "row_binders": [],
+    "type_binders": []
+  },
+  "expectation": {
+    "canonical_json": "sorted-unique-V1",
+    "continuation_projection": "full-SuffixContractV1",
+    "disposition_states": [
+      "Unclaimed",
+      "Completed",
+      "Finalized"
+    ],
+    "flow_variants": [
+      "Aborts",
+      "Transfers"
+    ],
+    "owner_generation_protocol": "generation-gated-shared-claim-cell-CAS",
+    "suspension_variants": [
+      "OwnerBoundV1"
+    ],
+    "unknown_tags": "reject"
   },
   "flow_summary": [
     {
@@ -38,9 +54,165 @@
     {
       "kind": "Transfers",
       "park_contract": {
+        "claim": {
+          "claim_cell_slot": 0,
+          "completion_transition": "UnclaimedToCompleted",
+          "failure_transition": "NoStateChange",
+          "finalization_transition": "UnclaimedToFinalized",
+          "generation_gate": "EqualCurrentGeneration",
+          "generation_transition": "PreserveGeneration",
+          "source_generation": "ClaimTicketGeneration"
+        },
+        "claim_cell_slot": 0,
+        "completion_port": {
+          "claim_cell_slot": 0,
+          "owner": {
+            "namespace": "Owner",
+            "slot": 0
+          },
+          "port_slot": 0,
+          "result_type": {
+            "kind": "BuiltinTypeV1",
+            "name": "Int"
+          }
+        },
+        "disposition": {
+          "claim_cell_slot": 0,
+          "completion_transition": "UnclaimedToCompleted",
+          "continuation": {
+            "attributed_demand": [],
+            "cleanup": {
+              "attributed_demand": [],
+              "residual_row": {
+                "kind": "EmptyV1"
+              },
+              "semantic_summary": {
+                "kind": "PureV1"
+              },
+              "suspension": {
+                "atoms": [],
+                "grade": "NoSuspend"
+              },
+              "transition": {
+                "kind": "SameWorldV1"
+              }
+            },
+            "flow": [
+              {
+                "kind": "Returns",
+                "result_transformer": {
+                  "capture": {
+                    "kind": "NoCaptureV1"
+                  },
+                  "kind": "ParametricResultV1",
+                  "provenance": {
+                    "kind": "StableV1"
+                  }
+                },
+                "transition": {
+                  "kind": "SameWorldV1"
+                }
+              }
+            ],
+            "live_bindings": [
+              {
+                "capture": {
+                  "kind": "CaptureSlotsV1",
+                  "slots": [
+                    {
+                      "namespace": "Owner",
+                      "slot": 0
+                    }
+                  ]
+                },
+                "provenance": {
+                  "kind": "GenerationBoundV1",
+                  "owner": {
+                    "namespace": "Owner",
+                    "slot": 0
+                  }
+                },
+                "slot": {
+                  "namespace": "SuffixLive",
+                  "slot": 0
+                },
+                "type": {
+                  "kind": "BuiltinTypeV1",
+                  "name": "Int"
+                },
+                "usage": {
+                  "kind": "Once",
+                  "slot": {
+                    "namespace": "SuffixLive",
+                    "slot": 0
+                  }
+                }
+              }
+            ],
+            "required_phase": {
+              "allowed_phases": [
+                "Pure",
+                "Compute",
+                "Action",
+                "Commit"
+              ],
+              "current_owner": null,
+              "required_authorities": []
+            },
+            "residual_row": {
+              "kind": "EmptyV1"
+            },
+            "result_transformer": {
+              "capture": {
+                "kind": "NoCaptureV1"
+              },
+              "kind": "ParametricResultV1",
+              "provenance": {
+                "kind": "StableV1"
+              }
+            },
+            "semantic_summary": {
+              "kind": "PureV1"
+            },
+            "suspension": {
+              "atoms": [],
+              "grade": "NoSuspend"
+            },
+            "transition": {
+              "kind": "SameWorldV1"
+            }
+          },
+          "continuation_site_slot": 0,
+          "finalization_transition": "UnclaimedToFinalized",
+          "states": [
+            "Unclaimed",
+            "Completed",
+            "Finalized"
+          ]
+        },
+        "origin": "wire-variants.cire:park-branch",
         "owner_slot": 0,
+        "required_phase": {
+          "allowed_phases": [
+            "Action"
+          ],
+          "current_owner": {
+            "namespace": "Owner",
+            "slot": 0
+          },
+          "required_authorities": [
+            {
+              "kind": "OwnerAuthorityV1",
+              "owner": {
+                "namespace": "Owner",
+                "slot": 0
+              }
+            }
+          ]
+        },
         "site_slot": 0,
         "source": {
+          "generation_model": "Unsigned64NoWrap",
           "owner": {
             "namespace": "Owner",
             "slot": 0
@@ -49,82 +221,21 @@
             "kind": "BuiltinTypeV1",
             "name": "Int"
           },
-          "generation_model": "Unsigned64NoWrap",
           "write_authority": "OwnerExecutorOnly"
-        },
-        "completion_port": {
-          "owner": {
-            "namespace": "Owner",
-            "slot": 0
-          },
-          "result_type": {
-            "kind": "BuiltinTypeV1",
-            "name": "Int"
-          },
-          "port_slot": 0
-        },
-        "claim": {
-          "source_generation": "ClaimTicketGeneration",
-          "success_test": "EqualCurrentGeneration",
-          "success_transition": "IncrementExactlyOnce",
-          "failure_transition": "NoWrite"
-        },
-        "disposition": {
-          "continuation_site_slot": 0,
-          "cleanup": {
-            "residual_row": {
-              "kind": "EmptyV1"
-            },
-            "attributed_demand": [],
-            "transition": {
-              "kind": "SameWorldV1"
-            },
-            "suspension": {
-              "grade": "NoSuspend",
-              "atoms": []
-            },
-            "semantic_summary": {
-              "kind": "PureV1"
-            }
-          },
-          "states": ["Open", "Claimed", "Completed"],
-          "only_transition": "OpenToClaimedToCompleted"
-        },
-        "required_phase": {
-          "kind": "WithAuthorityV1",
-          "base": "Action",
-          "authority": {
-            "kind": "OwnerAuthorityV1",
-            "owner": {
-              "namespace": "Owner",
-              "slot": 0
-            }
-          }
-        },
-        "origin": "wire-variants.cire:park-branch"
+        }
       }
     }
   ],
   "no_return_projection": {
-    "transition": {
-      "kind": "BottomTransitionV1"
-    },
     "result_transformer": {
       "kind": "BottomResultV1"
+    },
+    "transition": {
+      "kind": "BottomTransitionV1"
     }
   },
-  "suspension": {
-    "grade": "MaySuspend",
-    "atoms": [
-      {
-        "kind": "OwnerBoundV1",
-        "park_site_slot": 0,
-        "owner_slot": 0,
-        "grade": "MaySuspend",
-        "origin": "wire-variants.cire:park-branch"
-      }
-    ]
-  },
+  "oracle_schema": "CireSpecWireVariantOracleV1",
+  "profile": "Cire-TR₀/2026-07-31",
   "route_examples": [
     {
       "kind": "ResolveAtCallV1",
@@ -134,10 +245,17 @@
       "kind": "RootOfEntryV1"
     }
   ],
-  "expectation": {
-    "flow_variants": ["Aborts", "Transfers"],
-    "suspension_variants": ["OwnerBoundV1"],
-    "owner_generation_protocol": "generation-CAS",
-    "unknown_tags": "reject"
+  "schema_version": 1,
+  "suspension": {
+    "atoms": [
+      {
+        "grade": "MaySuspend",
+        "kind": "OwnerBoundV1",
+        "origin": "wire-variants.cire:park-branch",
+        "owner_slot": 0,
+        "park_site_slot": 0
+      }
+    ],
+    "grade": "MaySuspend"
   }
 }

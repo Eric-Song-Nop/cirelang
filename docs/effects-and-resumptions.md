@@ -125,9 +125,12 @@ def[A]![F : Reader[A], ..E] use_reader(
 具体 identity 多态。后者不是普通类型参数：每次调用可以传入不同实例，
 但函数体中的 `{app}` 精确引用本次 value binder。
 
-这与 named handler 的核心模型一致：name 是由普通 lambda 绑定的一等值；
-fresh handler action 则由编译器按 rank-2 generativity 检查。源语言第一版
-不引入 `[app : Read[A]]` 或显式 `forall app`。
+这与 named handler 的核心模型一致，但 `app` 不是普通 lambda binder，也
+不能 generalize。Surface HIR 先保留 binder-bearing `ScopedApply`；
+resolver/type checker确认 handler evidence后，每次 installation降为
+`freshprompt p in handle[p,h,ι](let app=capref(ι); body)`。fresh prompt与
+identity由 Kernel节点生成，escape检查在退出 binder/identity scope时执行。
+源语言第一版不引入 `[app : Read[A]]` 或显式 `forall app`。
 
 `..E` 本身也能实例化为包含 named capability 的 row。例如调用
 `map_effectful` 时，回调使用 `app.read()`，编译器可以推导

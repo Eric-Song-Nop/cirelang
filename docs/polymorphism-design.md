@@ -348,13 +348,13 @@ pub(open) ability Store {
   effects Extra : All[Replayable] = {}
 
   fun get(key : Key) -> Value
-    ! {Fail, ..Extra}
+    ! {Fail}
 
   fun put(key : Key, value : Value) -> Unit
-    ! {Fail, ..Extra}
+    ! {Fail}
 
   once watch(key : Key) -> Value
-    ! {Fail, ..Extra}
+    ! {Fail}
 }
 ```
 
@@ -365,6 +365,11 @@ Key、Value  associated Type
 Fail        associated Effect
 Extra       associated EffectRow
 ```
+
+`Extra` 可用于普通 function contract 的 open row；TR₀ 的 operation
+declaration immediate secondary row 必须 closed，因此上面三个 operation
+不能写 `! {Fail, ..Extra}`。未来若扩展 open secondary-site schema，必须
+另立版本，不能把普通 row tail暗中当作已经枚举完的 operation sites。
 
 当前推荐直接使用 `type`、`effect`、`effects` 三种声明，而不是写：
 
@@ -771,8 +776,8 @@ PEG 只保存语法，不负责：
 4. named associated argument 是否统一使用 `Store[Value = A]`；
 5. TR₀ 的 row union 已冻结为 `|` 并 lowering 到 canonical `RowUnion`，
    不再作为待选 spelling；
-6. TR₀ 已解析 `Has`、`Lacks`、`All`、`Only` constraint，并 lowering 到
-   已形式化 obligation；未来只讨论新增 predicate，不重开这些名字；
+6. TR₀ 只冻结 `|` union 与 extension产生的 `Lacks` obligation；显式
+   `Has`、`All`、`Only` 仍待 solver/schema/diagnostic一起设计；
 7. 多 ability 同名 operation 的限定调用；
 8. higher-kinded binder hole `_` 的作用域与诊断；
 9. 独立 ability `impl` 是否进入第一阶段；

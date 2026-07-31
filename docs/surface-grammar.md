@@ -301,12 +301,17 @@ RowUnion            <- RowPrimary (PIPE RowPrimary)*
 RowPrimary          <- RowLiteral / RowReference
                      / LPAREN RowExpr RPAREN
 RowReference        <- QualifiedName TypeArgs?
-RowLiteral          <- LBRACE RowLiteralBody? RBRACE
+RowLiteral          <- LBRACE
+                       (InvalidRowLiteralMultipleTails / RowLiteralBody)?
+                       RBRACE
 RowLiteralBody      <- RowEntry (COMMA RowEntry)*
                        (COMMA RowTail)? COMMA?
                      / RowTail COMMA?
 RowEntry            <- LowerIdent / TypeReference
 RowTail             <- DOTDOT RowReference
+InvalidRowLiteralMultipleTails <- (RowEntry COMMA)* RowTail COMMA
+                       DOTDOT CUT RowReference
+                       (COMMA RowTail)* COMMA?
 ```
 
 规则：
@@ -324,6 +329,11 @@ RowTail             <- DOTDOT RowReference
   extension 不能通过。TR₀ 只有 extension 与 union，没有 subtraction；
 - `{F}` 与 `{app}` 分别解析到 anonymous family 与 named identity，不能互换；
 - `Read[app]` 不是源语法。诊断可以用它解释 `{app}` 的 family。
+
+`InvalidRowLiteralMultipleTails` 只构造 committed recovery CST。第二个
+`DOTDOT` 后的 `CUT` 保证 `{..E1, ..E2}` 不退化成不稳定 parser error；
+RowWF 必须以版本化 `row-literal-has-multiple-tails` 拒绝该 node并建议
+`E1 | E2`。它不把多个 literal tail接受进语言。
 
 `Next[frame,A]` 使用普通 `TypeReference` / `TypeArgs` CST；kind checking 将
 `frame` 解释为受限 clock identity。它不会把所有 lower identifier 都提升成

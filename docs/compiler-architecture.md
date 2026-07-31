@@ -420,17 +420,16 @@ WithChain {
 就抹掉这个差别，否则 formatter、comment ownership、selection range 和
 incremental subtree identity 都会不稳定。
 
-Kernel HIR 只保留：
+Surface HIR 额外保留 `ScopedApply`；resolver/type checker 取得 operand
+evidence 后必须消除它。Kernel HIR 只保留：
 
 ```text
 Call
 Lambda
 Handler
-ScopedApply
-FreshPrompt / CapRef
+FreshPrompt / Handle / CapRef
 OperationCall
 Resume / Finalize / Park
-HandlerAction
 ```
 
 典型展开：
@@ -469,7 +468,8 @@ xs.each { x => body }
 产生 `ScopedApply`，不在未解析类型时猜 operand 类别。Resolver/type checker
 取得 evidence 后，匿名普通 wrapper 可以在 Typed HIR/Core 中成为 `Call`；
 effect handler 和 fresh capability binder 即使具有普通调用外观，也必须保留
-`HandlerApply`/`HandlerAction` 语义节点。
+`FreshPrompt`/`Handle`/`CapRef` 语义节点。Kernel 中不存在
+`HandlerApply`/`HandlerAction` variant。
 
 ### 7.2 Evaluation order
 

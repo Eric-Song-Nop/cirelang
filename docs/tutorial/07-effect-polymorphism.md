@@ -176,8 +176,10 @@ ability Traversable[A] {
 }
 ```
 
-`[B]` 是 operation 的普通输出类型，`![..E]` 只量化 callback function
-contract 内的 latent row。TR₀ 的 operation 自身 secondary annotation必须是
+`[B]` 绑定 operation 的普通 type parameter，`![..E]` 绑定只在 callback
+latent contract 中使用的 row parameter；Surface 不把这两个 binder称为
+“量化”。显式 quantification术语只用于 Core/generalization。TR₀ 的
+operation 自身 secondary annotation必须是
 finite closed row；不能把同一个 `E` 写成 `) -> Array[B] ! E`。
 
 Higher-order operation 也采用同一顺序：

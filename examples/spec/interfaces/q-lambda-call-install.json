@@ -1,321 +1,417 @@
 {
-  "oracle_schema": "CireSpecInterfaceOracleV1",
-  "subject": "library::choose_once",
-  "source": "choose-once.cire",
   "contract": {
-  "profile": "Cire-TR₀/2026-07-31",
-  "schema_version": 1,
-  "artifact": "FunctionContractV1",
-  "row": {
-    "kind": "ClosedV1",
-    "entries": [
+    "LatentSites": [
       {
-        "kind": "AnonV1",
-        "family": {
-          "kind": "NominalTypeV1",
-          "module": ["library"],
-          "name": "Choice",
-          "arguments": []
-        }
-      }
-    ]
-  },
-  "transition": {
-    "kind": "SameWorldV1"
-  },
-  "flow_summary": [
-    {
-      "kind": "Returns",
-      "transition": {
-        "kind": "SameWorldV1"
-      },
-      "result_transformer": {
-        "kind": "ArrayElementOfV1",
-        "argument": {
-          "namespace": "Parameter",
-          "slot": 0
-        }
-      }
-    }
-  ],
-  "suspension": {
-    "grade": "NoSuspend",
-    "atoms": [
-      {
-        "kind": "DirectV1",
-        "grade": "NoSuspend",
-        "origin": "choose-once.cire:choose_once"
-      }
-    ]
-  },
-  "semantic_summary": {
-    "kind": "PureV1"
-  },
-  "capture_slots": [],
-  "usage": [
-    {
-      "slot": {
-        "namespace": "Parameter",
-        "slot": 0
-      },
-      "kind": "Many"
-    }
-  ],
-  "result_transformer": {
-    "kind": "ArrayElementOfV1",
-    "argument": {
-      "namespace": "Parameter",
-      "slot": 0
-    }
-  },
-  "required_phase": {
-    "kind": "AnyPhaseV1"
-  },
-  "ParametricObligations": [
-    {
-      "id": 0,
-      "kind": "BoundarySafeV1",
-      "stage": "Call",
-      "slots": [
-        {
-          "namespace": "Parameter",
-          "slot": 0
-        }
-      ],
-      "boundary": "CallArgument",
-      "origin": "choose-once.cire:choose_once"
-    },
-    {
-      "id": 1,
-      "kind": "DuplicableEnvV1",
-      "stage": "HandlerInstall",
-      "slots": [],
-      "site_slot": 0,
-      "origin": "choose-once.cire:Choice.choose"
-    }
-  ],
-  "LatentSites": [
-    {
-      "site_slot": 0,
-      "stage": "HandlerInstall",
-      "receiver": {
-        "kind": "AnonV1",
-        "family": {
-          "kind": "NominalTypeV1",
-          "module": ["library"],
-          "name": "Choice",
-          "arguments": []
-        }
-      },
-      "operation": {
-        "kind": "ExactOperationV1",
-        "family": {
-          "kind": "NominalTypeV1",
-          "module": ["library"],
-          "name": "Choice",
-          "arguments": []
-        },
-        "name": "choose"
-      },
-      "route": {
-        "kind": "ResolveAtInstallationV1",
-        "on_missing": "RootOfEntryV1"
-      },
-      "actual_arguments": [
-        {
-          "kind": "SlotArgumentV1",
-          "source": {
-            "namespace": "Parameter",
-            "slot": 0
-          },
-          "type": {
-            "kind": "ApplyTypeV1",
-            "constructor": {
-              "kind": "BuiltinConstructorV1",
-              "name": "Array"
+        "actual_arguments": [
+          {
+            "capture": {
+              "kind": "NoCaptureV1"
             },
-            "arguments": [
-              {
-                "kind": "TypeParameterV1",
+            "kind": "SlotArgumentV1",
+            "nominal_index": {
+              "kind": "NoNominalIndexV1"
+            },
+            "provenance": {
+              "argument": {
+                "namespace": "Parameter",
                 "slot": 0
-              }
-            ]
-          },
-          "nominal_index": {
-            "kind": "NoNominalIndexV1"
-          },
-          "provenance": {
-            "kind": "ArgumentV1",
-            "argument": {
+              },
+              "kind": "ArgumentV1"
+            },
+            "source": {
               "namespace": "Parameter",
               "slot": 0
-            }
-          },
-          "capture": {
-            "kind": "NoCaptureV1"
-          }
-        }
-      ],
-      "instantiated_signature": {
-        "type_binders": [],
-        "parameters": [
-          {
-            "kind": "ApplyTypeV1",
-            "constructor": {
-              "kind": "BuiltinConstructorV1",
-              "name": "Array"
             },
-            "arguments": [
-              {
-                "kind": "TypeParameterV1",
-                "slot": 0
-              }
-            ]
+            "type": {
+              "arguments": [
+                {
+                  "kind": "TypeParameterV1",
+                  "slot": 0
+                }
+              ],
+              "constructor": {
+                "kind": "BuiltinConstructorV1",
+                "name": "Array"
+              },
+              "kind": "ApplyTypeV1"
+            }
           }
         ],
-        "result": {
-          "kind": "TypeParameterV1",
-          "slot": 0
-        },
-        "mode": "ctl",
-        "transition": {
-          "kind": "SameWorldV1"
-        },
-        "suspension": {
-          "grade": "NoSuspend",
-          "atoms": [
+        "call_obligation_ids": [],
+        "install_obligation_ids": [
+          1
+        ],
+        "instantiated_signature": {
+          "mode": "ctl",
+          "obligation_ids": [
+            1
+          ],
+          "parameters": [
             {
-              "kind": "DirectV1",
-              "grade": "NoSuspend",
-              "origin": "choose-once.cire:Choice.choose"
+              "arguments": [
+                {
+                  "kind": "TypeParameterV1",
+                  "slot": 0
+                }
+              ],
+              "constructor": {
+                "kind": "BuiltinConstructorV1",
+                "name": "Array"
+              },
+              "kind": "ApplyTypeV1"
             }
-          ]
-        },
-        "result_transformer": {
-          "kind": "ArrayElementOfV1",
-          "argument": {
-            "namespace": "OperationArgument",
+          ],
+          "required_phase": {
+            "allowed_phases": [
+              "Pure",
+              "Compute",
+              "Action",
+              "Commit"
+            ],
+            "current_owner": null,
+            "required_authorities": []
+          },
+          "result": {
+            "kind": "TypeParameterV1",
             "slot": 0
-          }
-        },
-        "required_phase": {
-          "kind": "AnyPhaseV1"
-        },
-        "obligation_ids": [1],
-        "secondary_sites": {
-          "kind": "Closed",
-          "sites": []
-        }
-      },
-      "suffix": {
-        "residual_row": {
-          "kind": "EmptyV1"
-        },
-        "attributed_demand": [],
-        "flow": [
-          {
-            "kind": "Returns",
-            "transition": {
-              "kind": "SameWorldV1"
-            },
-            "result_transformer": {
-              "kind": "OperationResultV1",
-              "site_slot": 0
-            }
-          }
-        ],
-        "transition": {
-          "kind": "SameWorldV1"
-        },
-        "suspension": {
-          "grade": "NoSuspend",
-          "atoms": [
-            {
-              "kind": "DirectV1",
-              "grade": "NoSuspend",
-              "origin": "choose-once.cire:return-suffix"
-            }
-          ]
-        },
-        "semantic_summary": {
-          "kind": "PureV1"
-        },
-        "result_transformer": {
-          "kind": "OperationResultV1",
-          "site_slot": 0
-        },
-        "required_phase": {
-          "kind": "AnyPhaseV1"
-        },
-        "cleanup": {
-          "residual_row": {
-            "kind": "EmptyV1"
           },
-          "attributed_demand": [],
+          "result_transformer": {
+            "capture": {
+              "argument": {
+                "namespace": "OperationArgument",
+                "slot": 0
+              },
+              "kind": "ArrayElementCaptureV1"
+            },
+            "kind": "ParametricResultV1",
+            "provenance": {
+              "argument": {
+                "namespace": "OperationArgument",
+                "slot": 0
+              },
+              "kind": "ArrayElementProvenanceV1"
+            }
+          },
+          "secondary_sites": {
+            "kind": "Closed",
+            "sites": []
+          },
+          "suspension": {
+            "atoms": [],
+            "grade": "NoSuspend"
+          },
           "transition": {
             "kind": "SameWorldV1"
           },
-          "suspension": {
-            "grade": "NoSuspend",
-            "atoms": [
-              {
-                "kind": "DirectV1",
-                "grade": "NoSuspend",
-                "origin": "choose-once.cire:return-suffix-cleanup"
+          "type_binders": []
+        },
+        "operation": {
+          "family": {
+            "arguments": [],
+            "kind": "NominalTypeV1",
+            "module": [
+              "library"
+            ],
+            "name": "Choice"
+          },
+          "kind": "ExactOperationV1",
+          "name": "choose"
+        },
+        "origin": "choose-once.cire:Choice.choose",
+        "receiver": {
+          "family": {
+            "arguments": [],
+            "kind": "NominalTypeV1",
+            "module": [
+              "library"
+            ],
+            "name": "Choice"
+          },
+          "kind": "AnonV1"
+        },
+        "route": {
+          "kind": "ResolveAtInstallationV1",
+          "on_missing": "RootOfEntryV1"
+        },
+        "secondary_sites": {
+          "kind": "Closed",
+          "sites": []
+        },
+        "site_slot": 0,
+        "stage": "HandlerInstall",
+        "suffix": {
+          "attributed_demand": [],
+          "cleanup": {
+            "attributed_demand": [],
+            "residual_row": {
+              "kind": "EmptyV1"
+            },
+            "semantic_summary": {
+              "kind": "PureV1"
+            },
+            "suspension": {
+              "atoms": [],
+              "grade": "NoSuspend"
+            },
+            "transition": {
+              "kind": "SameWorldV1"
+            }
+          },
+          "flow": [
+            {
+              "kind": "Returns",
+              "result_transformer": {
+                "capture": {
+                  "kind": "OperationResultCaptureV1",
+                  "site_slot": 0
+                },
+                "kind": "ParametricResultV1",
+                "provenance": {
+                  "kind": "OperationResultProvenanceV1",
+                  "site_slot": 0
+                }
+              },
+              "transition": {
+                "kind": "SameWorldV1"
               }
-            ]
+            }
+          ],
+          "live_bindings": [],
+          "required_phase": {
+            "allowed_phases": [
+              "Pure",
+              "Compute",
+              "Action",
+              "Commit"
+            ],
+            "current_owner": null,
+            "required_authorities": []
+          },
+          "residual_row": {
+            "kind": "EmptyV1"
+          },
+          "result_transformer": {
+            "capture": {
+              "kind": "OperationResultCaptureV1",
+              "site_slot": 0
+            },
+            "kind": "ParametricResultV1",
+            "provenance": {
+              "kind": "OperationResultProvenanceV1",
+              "site_slot": 0
+            }
           },
           "semantic_summary": {
             "kind": "PureV1"
-          }
-        },
-        "live_bindings": []
-      },
-      "secondary_sites": {
-        "kind": "Closed",
-        "sites": []
-      },
-      "call_obligation_ids": [],
-      "install_obligation_ids": [1],
-      "origin": "choose-once.cire:Choice.choose"
-    }
-  ],
-  "binders": {
-    "parameter_binders": [
-      {
-        "slot": 0,
-        "type": {
-          "kind": "ApplyTypeV1",
-          "constructor": {
-            "kind": "BuiltinConstructorV1",
-            "name": "Array"
           },
-          "arguments": [
-            {
-              "kind": "TypeParameterV1",
-              "slot": 0
-            }
-          ]
+          "suspension": {
+            "atoms": [],
+            "grade": "NoSuspend"
+          },
+          "transition": {
+            "kind": "SameWorldV1"
+          }
         }
       }
     ],
-    "type_binders": [
+    "ParametricObligations": [
       {
-        "slot": 0,
-        "kind": "Type"
+        "boundary": "CallArgument",
+        "id": 0,
+        "kind": "BoundarySafeV1",
+        "origin": "choose-once.cire:choose_once",
+        "slots": [
+          {
+            "namespace": "Parameter",
+            "slot": 0
+          }
+        ],
+        "stage": "Call"
+      },
+      {
+        "id": 1,
+        "kind": "DuplicableEnvV1",
+        "origin": "choose-once.cire:Choice.choose",
+        "site_slot": 0,
+        "slots": [],
+        "stage": "HandlerInstall"
       }
     ],
-    "row_binders": [],
-    "contract_binders": [],
-    "owner_binders": [],
-    "clock_binders": [],
-    "identity_binders": [],
-    "prompt_binders": []
-  }
+    "artifact": "FunctionContractV1",
+    "binders": {
+      "clock_binders": [],
+      "contract_binders": [],
+      "identity_binders": [],
+      "owner_binders": [],
+      "parameter_binders": [
+        {
+          "slot": 0,
+          "type": {
+            "arguments": [
+              {
+                "kind": "TypeParameterV1",
+                "slot": 0
+              }
+            ],
+            "constructor": {
+              "kind": "BuiltinConstructorV1",
+              "name": "Array"
+            },
+            "kind": "ApplyTypeV1"
+          }
+        }
+      ],
+      "prompt_binders": [],
+      "row_binders": [],
+      "type_binders": [
+        {
+          "kind": "Type",
+          "slot": 0
+        }
+      ]
+    },
+    "capture_slots": [],
+    "flow_summary": [
+      {
+        "kind": "Returns",
+        "result_transformer": {
+          "capture": {
+            "argument": {
+              "namespace": "Parameter",
+              "slot": 0
+            },
+            "kind": "ArrayElementCaptureV1"
+          },
+          "kind": "ParametricResultV1",
+          "provenance": {
+            "argument": {
+              "namespace": "Parameter",
+              "slot": 0
+            },
+            "kind": "ArrayElementProvenanceV1"
+          }
+        },
+        "transition": {
+          "kind": "SameWorldV1"
+        }
+      }
+    ],
+    "profile": "Cire-TR₀/2026-07-31",
+    "required_phase": {
+      "allowed_phases": [
+        "Pure",
+        "Compute",
+        "Action",
+        "Commit"
+      ],
+      "current_owner": null,
+      "required_authorities": []
+    },
+    "result_transformer": {
+      "capture": {
+        "argument": {
+          "namespace": "Parameter",
+          "slot": 0
+        },
+        "kind": "ArrayElementCaptureV1"
+      },
+      "kind": "ParametricResultV1",
+      "provenance": {
+        "argument": {
+          "namespace": "Parameter",
+          "slot": 0
+        },
+        "kind": "ArrayElementProvenanceV1"
+      }
+    },
+    "row": {
+      "entries": [
+        {
+          "family": {
+            "arguments": [],
+            "kind": "NominalTypeV1",
+            "module": [
+              "library"
+            ],
+            "name": "Choice"
+          },
+          "kind": "AnonV1"
+        }
+      ],
+      "kind": "ClosedV1"
+    },
+    "schema_version": 1,
+    "semantic_summary": {
+      "kind": "PureV1"
+    },
+    "suspension": {
+      "atoms": [
+        {
+          "entry": {
+            "family": {
+              "arguments": [],
+              "kind": "NominalTypeV1",
+              "module": [
+                "library"
+              ],
+              "name": "Choice"
+            },
+            "kind": "AnonV1"
+          },
+          "grade": "NoSuspend",
+          "kind": "RequestV1",
+          "operation": {
+            "family": {
+              "arguments": [],
+              "kind": "NominalTypeV1",
+              "module": [
+                "library"
+              ],
+              "name": "Choice"
+            },
+            "kind": "ExactOperationV1",
+            "name": "choose"
+          },
+          "origin": "choose-once.cire:Choice.choose",
+          "route": {
+            "kind": "ResolveAtInstallationV1",
+            "on_missing": "RootOfEntryV1"
+          },
+          "site_role": "Primary",
+          "site_slot": 0
+        }
+      ],
+      "grade": "NoSuspend"
+    },
+    "transition": {
+      "kind": "SameWorldV1"
+    },
+    "usage": [
+      {
+        "kind": "Many",
+        "slot": {
+          "namespace": "Parameter",
+          "slot": 0
+        }
+      }
+    ]
   },
   "expectation": {
-    "discharge": [0],
-    "preserve_until_handler_install": [1],
-    "instantiate_latent_sites": [0]
-  }
+    "canonical_json": "sorted-unique-V1",
+    "discharge": [
+      0
+    ],
+    "instantiate_latent_sites": [
+      0
+    ],
+    "preserve_until_handler_install": [
+      1
+    ],
+    "primary_request_sites": [
+      0
+    ]
+  },
+  "oracle_schema": "CireSpecInterfaceOracleV1",
+  "source": "choose-once.cire",
+  "subject": "library::choose_once"
 }
