@@ -1857,9 +1857,19 @@ Aborts/Transfers连同
 保持 terminal。全部 path-local ContractWF/AttributedOK/nonescape通过后才能
 对 observers做 ACI normalization；top-level transition/result不是可独立写入
 的第二事实。
+`x.type` 必须逐字段等于 $F$ 每个 reachable Returns path的 result type；若
+prefix是 imported/local application，`x.world/provenance/capture` 还必须等于
+该 application entry world经 source transition后的 world，以及 source result
+transformer在本次 actual上的实例化。只验证 binder自身 well-formed而不把它
+与 prefix return相连是不合法的。Returns→Returns的 transition按顺序组合，
+`SameWorldV1` 仅是 identity，不能覆盖先前 `NextWorldV1`；同一 authority的
+usage按顺序 semiring组合，尤其 `Once+Once=Many`，`Zero`从 canonical map省略。
 
 每次 `InvokeV2` alpha-refresh site/prompt/Q ids；投影 id以
 `(application_slot, local_id)` qualified，在完整实例化后才 flatten。
+该 qualification必须使用对两个非负整数的 injective pairing（或等价 fresh
+allocator），覆盖 site、prompt、claim/port与 Q/$Lambda$ 中全部 local id；
+固定 radix加法不是合法实现，因为例如 `(0,1000)` 与 `(1,0)` 会碰撞。
 Call-stage Q在 invocation处 discharge；HandlerInstall-stage Q与 exact
 $Lambda$ application key一起保留到 fresh prompt存在。`FunctionContractKindV2`
 把 visible row与 parameter/result type一起匹配；依赖求解顺序固定为
@@ -1873,6 +1883,11 @@ normalization。occurs-check、forward ref、cross-kind projection或 scope esca
 `FunctionTypeV2.contract` 中的 `ContractRefV2` 使用同一 root/hash/kind
 检查，因而跨模块 runtime callback value的 type可以直接携带它的
 imported contract identity，不只携带一个同 kind但无法同一化的本地 binder。
+standalone `FunctionTypeV2` 的 parameter/result必须立即等于 resolved
+declaration kind；只有 `AppliedContractV2.callee_summary` 可把这一步延后到
+本 application substitution完成后检查。`LocalFunctionRefV2` 在 validator与
+deterministic evaluator中都解析同一 module-local declaration table，不能只
+在 shape checker中接受而在 evaluator中成为未知分支。
 
 本文内部仍用 $Q/Lambda$ 简写这两个字段。`id`、capture/site/prompt slot
 都在 declaration boundary按 source order alpha-normalize；wire equality不依赖
@@ -1964,12 +1979,16 @@ list，且 `continuation_transfer` 唯一允许
 `ForwardDispositionEvidenceV2.inner_disposition` 必须解析到当前
 `ClauseDispositionBinderV2`，其 `ResumeTypeV2.usage` 必须与 clause mode的
 $q in {0,1,omega}$ 一致，不再把 V2 硬编码为 `Once`。
+精确映射是 `fun↦Once, once↦Once, ctl↦Many, abort↦Zero`；abort clause携带
+`Once` continuation authority必须拒绝。
 该 clause binder的 `SuffixLive` slot只在所属 clause computation的全部递归
 usage/live/suffix节点中可见；handler return、其他 clause或任意未绑定 slot
 一律报 `handler-disposition-escapes-scope`。Forward本身还必须逐字段满足：
 `operation`等于当前 clause operation，`entry`等于 handler handled entry，
 `site_slot`等于 disposition site；`route`是当前 handler prompt的严格外层
-`InstallationPromptV1`，不能是本 prompt、root或 unresolved selector；
+nearest lexical `InstallationPromptV1`，不能是任意不同数值、本 prompt、root
+或 unresolved selector；handler entry与 clause/Forward operation都先按
+封闭 tagged union解码，两个相等的未知 tag不能互相“证明”合法；
 `entry_world`是该 site的 exact `EntryWorldV1`；actual summary的长度/type按位
 等于 instantiated signature parameters；call/install ids只能投影 signature
 声明的 obligation ids；continuation/result/answer/usage逐字段等于 disposition
@@ -2000,6 +2019,12 @@ parked Owner（source/port/`owner_slot`）与 resumption Owner可以不同；不
 CAS transition、preserve-generation与 failure-no-state-change，以及
 `OneShotDispositionV2.states=[Unclaimed,Completed,Finalized]` 都是 exact wire
 protocol，不是描述性字符串集合；任一字段漂移必须在 import时拒绝。
+每个 `TransfersV2(park)` path还必须保留与 park逐字段对应的
+`OwnerBoundV1(MaySuspend)` atom、sealed first-party Park certificate与
+`RequireBoth` 后仍包含 park Action/Owner gate的 phase。该规则对普通
+FunctionContract、handler、unpack与 flow oracle完全相同；不能只在
+ClockPackage专用 decoder中检查，也不能以 top-level observer删掉 sole
+OwnerBound atom。
 V2 normal transition/result只允许由 `normal_return(computation)` 派生；
 importer不得接受独立可写的第二份 top-level projection。legacy V1仍用
 `NormalizeReturnProjectionV1` 检查 concrete fields，但不能表达 symbolic
@@ -2156,6 +2181,13 @@ import_packed_next_package_v2(scope, wire):
     storage, exists ρc. exists i,c,Sp. body, wire.control_protocol)
 ```
 
+oracle envelope在调用 importer前必须以自己的 `DeclarationBindersV2` 验证
+`storage_owner` 与所有 outward Owner refs；package内部 existential binder只
+引入 child Owner，不能反向充当被删掉的 outer storage binder。
+`PackedNextPackageV2.sealed_origin`、direct-child witness的 sealed origin与所有
+first-party summary trust都必须精确等于 `cire.temporal:pack_next` / sealed
+`cire.temporal` 常量；任意 forged origin或 trust erasure在 seal前拒绝。
+
 `OwnerIndexedTypeV1.payload=null` 当且仅当 constructor是
 `CommitTicket/CommitGate`；其余 owner-indexed constructors必须带 payload。
 V2 `PackedNextTypeV2` 始终带 Owner ref与 payload；importer还必须验证其
@@ -2206,6 +2238,12 @@ formal parameter list；否则它是单参数 list。`actual_arguments` 的长�
 `application-argument-type-mismatch` 拒绝。`entry_world` 还必须是带同一
 `application_slot` 的 `ApplicationEntryWorldV2`。这些 premise对 imported、
 local与 contract-parameter ref统一成立。
+每个 row argument必须先以封闭 `RowExprV1` variant递归解码，再代入 kind中
+全部 `TailV1(Row slot)`；未知 row tag不能作为 opaque JSON通过。imported/local
+target的六类 substitution domain必须分别精确等于 declaration binders；
+`ContractParameterRefV2` 已由 lexical binder给出完整 instantiated kind，因而
+其 declaration-domain为空，任何额外 slot（即使未被结果使用）都是
+`contract-parameter-inconsistent-instantiation`。
 对 `PathBindV2(prefix,binder,continuation,PreserveTerminalV2)` 的实际求值先原样
 保留 prefix 的每个 Aborts/Transfers，只对每个 Returns建立 binder并求值一次
 continuation。因而一个具有 1 Returns、1 Aborts、2 Transfers 的 callback顺序
@@ -2223,7 +2261,13 @@ path $f$ 与 continuation path $g$ 的唯一完整组合为：
 composePath(f, g):
   require f.outcome is ReturnsV2
   return PathContractV2(
-    outcome               = g.outcome,
+    outcome               = if g.outcome is ReturnsV2 then
+                              ReturnsV2(
+                                transitionSeq(
+                                  f.outcome.transition,
+                                  g.outcome.transition),
+                                g.outcome.result_transformer)
+                            else g.outcome,
     residual_row          = rowSeq(f.residual_row, g.residual_row),
     attributed_demand     = canonicalUnion(f.demand, g.demand),
     suspension            = attributedJoin(f.suspension, g.suspension),
@@ -2282,6 +2326,9 @@ import_contract_computation_v2(node, applications, returns, delegates):
         prefix, applications, returns, delegates)
       require binder.slot not in returns
       b = import_return_binder_v2(binder, returns)
+      require every Returns path r in p has
+        b.type == r.result_type and
+        b.world/provenance/capture == project_return(r, applications)
       c = import_contract_computation_v2(
         continuation, applications, returns + {binder.slot -> b}, delegates)
       return PathBind(p, b, c, PreserveTerminal)
@@ -2295,7 +2342,7 @@ import_contract_computation_v2(node, applications, returns, delegates):
 import_path_outcome_v2(outcome, applications, returns, delegates):
   match exact_variant(outcome):
     ReturnsV2(transition, transformer):
-      return Returns(transition,
+      return Returns(import_transition_v1_exact(transition),
         import_result_transformer_v2(transformer, returns))
     AbortsV2(origin): return Aborts(origin)
     TransfersV2(park):
@@ -3295,6 +3342,11 @@ the unique close-before-same-tag transition. `PackedAllocateSummaryV2` and
 origins `cire.temporal:packed-allocate` and
 `cire.temporal:packed-terminal-close`; together with acquire/release/dispose
 they are the only first-party PackedNext state observers and none is `PureV1`.
+其完整 certificate fields是 frozen constants：allocate为
+`Fresh/Share/StackOnly/HostObservable/Sealed(cire.temporal)`，terminal-close为
+`Fresh/Forbid/StackOnly/HostObservable/Sealed(cire.temporal)`，publish均为
+`None`。validator必须与这些常量比较，不能从待验证 payload中按 origin自行
+“提取”证书后再证明它自己；把 trust改为 `Derived` 必须拒绝。
 
 The shared cell is exactly:
 
@@ -3317,7 +3369,9 @@ JSON事实。runtime oracle/importer必须从该 JSON逐条编译 pattern table�
 trace；不得另写一份 lease count/state machine作为第二 source of truth。
 `initial_state`只能是 `Open(0)`，runtime serialized `transition_table` 必须逐项
 等于从 package导出的 table。任意 package transition、runtime initial state或
-derived table漂移分别以 stable protocol diagnostic拒绝。
+derived table漂移分别以 stable protocol diagnostic拒绝。runtime root还必须是
+profile对应的 `schema_version=2`；版本 1不能因其余字段形状相似而进入 V2
+state-machine decoder。
 
 An acquire that linearized first is not interrupted by dispose. `dispose` is
 idempotent, empty-row and NoSuspend, returns Unit after requesting Closing, and
@@ -7657,7 +7711,7 @@ synth(ctx, e):
       require phase_allows(ctx.Φ, Action)
       require owner_authorized(ctx.Φ, owner, ρ)
       Dk = continuation(k)
-      require outlives(ρ, Dk.owner_region)
+      require outlives(Dk.owner_region, ρ)
       require suspension_stable(
         ρ, Dk.summary, Dk.provenance_live, Dk.captures_live)
       require owner_bound_parking(ρ, Dk)
@@ -7740,7 +7794,8 @@ PackedNext的三个算法分支不从 surface type反推丢失的 existential。
 ```text
 check_pack_next(ctx, owner_expr, builder):
   owner = check_value_as(ctx, owner_expr, Owner[ρ])
-  require phase_allows(ctx.Φ, Action) and
+  Φpack = required_phase_for(Action, owner, ρ)
+  require phase_allows(ctx.Φ, Φpack) and
     owner_authorized(ctx.Φ, owner, ρ)
   (ρc, owner_child, j, i, runner, handle, child_witness, Θc) =
     create_packed_frame(owner)
@@ -7765,9 +7820,9 @@ check_pack_next(ctx, owner_expr, builder):
       path.evidence)
     expected_summary =
       if path is Returns then
-        SequenceSummaryV1(δallocate, path.summary)
+        OrderedSummaryNF(δallocate, path.summary)
       else
-        SequenceSummaryV1(
+        OrderedSummaryNF(
           δallocate, path.summary, δterminal_close)
     require Allowed(
       ctx.Φ, path.row, path.suspension, expected_summary)
@@ -7806,14 +7861,15 @@ check_pack_next(ctx, owner_expr, builder):
       hide_private(body_path.attributed_demand) and
     packed_path.suspension == body_path.suspension and
     packed_path.usage == hide_private(body_path.usage) and
-    packed_path.required_phase == hide_private(body_path.required_phase) and
+    packed_path.required_phase == RequireBoth(
+      hide_private(body_path.required_phase), Φpack) and
     packed_path.Q == hide_private(body_path.Q) and
     packed_path.Lambda == hide_private(body_path.Lambda) and
     packed_path.summary ==
       (if body_path is Returns then
-        SequenceSummaryV1(δallocate, body_path.summary)
+        OrderedSummaryNF(δallocate, body_path.summary)
        else
-        SequenceSummaryV1(
+        OrderedSummaryNF(
           δallocate, body_path.summary, δterminal_close)) and
     (body_path is Returns or packed_path.close_action == CloseChildOnce)
   require no_free_outward(paths, {ρc, j, i, L, Sp, owner_child})

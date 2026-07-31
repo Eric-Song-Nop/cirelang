@@ -106,8 +106,8 @@
           },
           "required_phase": { "allowed_phases": ["Action"], "current_owner": { "namespace": "Owner", "slot": 0 }, "required_authorities": [{ "kind": "OwnerAuthorityV1", "owner": { "namespace": "Owner", "slot": 0 } }] },
           "residual_row": { "kind": "EmptyV1" },
-          "semantic_summary": { "kind": "PureV1" },
-          "suspension": { "atoms": [], "grade": "NoSuspend" },
+          "semantic_summary": { "fork": "Forbid", "kind": "CertificateV1", "origin": "mixed-next-callback.cire:park3", "publish": "None", "replay_origin": "Fresh", "suspend": "OwnerBound", "temporal": "HostObservable", "trust": { "kind": "Sealed", "module": ["cire", "temporal"] } },
+          "suspension": { "atoms": [{ "grade": "MaySuspend", "kind": "OwnerBoundV1", "origin": "mixed-next-callback.cire:park3", "owner_slot": 0, "park_site_slot": 3 }], "grade": "MaySuspend" },
           "usage": []
         },
         {
@@ -151,8 +151,8 @@
           },
           "required_phase": { "allowed_phases": ["Action"], "current_owner": { "namespace": "Owner", "slot": 0 }, "required_authorities": [{ "kind": "OwnerAuthorityV1", "owner": { "namespace": "Owner", "slot": 0 } }] },
           "residual_row": { "kind": "EmptyV1" },
-          "semantic_summary": { "kind": "PureV1" },
-          "suspension": { "atoms": [], "grade": "NoSuspend" },
+          "semantic_summary": { "fork": "Forbid", "kind": "CertificateV1", "origin": "mixed-next-callback.cire:park4", "publish": "None", "replay_origin": "Fresh", "suspend": "OwnerBound", "temporal": "HostObservable", "trust": { "kind": "Sealed", "module": ["cire", "temporal"] } },
+          "suspension": { "atoms": [{ "grade": "MaySuspend", "kind": "OwnerBoundV1", "origin": "mixed-next-callback.cire:park4", "owner_slot": 0, "park_site_slot": 4 }], "grade": "MaySuspend" },
           "usage": []
         }
       ]

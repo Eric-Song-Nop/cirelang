@@ -194,11 +194,31 @@
     }
   ],
   "profile": "Cire-TR₀/2026-08-01",
+  "required_phase": {
+    "allowed_phases": ["Action"],
+    "current_owner": { "namespace": "Owner", "slot": 0 },
+    "required_authorities": [
+      {
+        "kind": "OwnerAuthorityV1",
+        "owner": { "namespace": "Owner", "slot": 0 }
+      }
+    ]
+  },
   "route_examples": [
     { "kind": "ResolveAtCallV1", "on_missing": "RootOfEntryV1" },
     { "kind": "RootOfEntryV1" }
   ],
   "schema_version": 2,
+  "semantic_summary": {
+    "fork": "Forbid",
+    "kind": "CertificateV1",
+    "origin": "wire-variants.cire:park-branch",
+    "publish": "None",
+    "replay_origin": "Fresh",
+    "suspend": "OwnerBound",
+    "temporal": "HostObservable",
+    "trust": { "kind": "Sealed", "module": ["cire", "temporal"] }
+  },
   "suspension": {
     "atoms": [
       {

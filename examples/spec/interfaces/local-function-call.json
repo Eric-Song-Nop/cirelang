@@ -104,5 +104,13 @@
     "computation": { "kind": "InvokeV2", "application_slot": 0 },
     "closure_environment": []
   },
-  "expectation": { "resolved_local_slots": [0] }
+  "expectation": {
+    "composition_probe": {
+      "next_then_same": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextWorldV1" },
+      "once_then_once": "Many",
+      "qualified_prompt_slots": [501500, 1]
+    },
+    "evaluated_outcomes": ["ReturnsV2"],
+    "resolved_local_slots": [0]
+  }
 }

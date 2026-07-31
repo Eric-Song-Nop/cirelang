@@ -298,6 +298,18 @@ PACKED_RELEASE_SUMMARY = packed_summary(
     fork="Share",
     suspend="StackOnly",
 )
+PACKED_ALLOCATE_SUMMARY = packed_summary(
+    "cire.temporal:packed-allocate",
+    replay_origin="Fresh",
+    fork="Share",
+    suspend="StackOnly",
+)
+PACKED_TERMINAL_CLOSE_SUMMARY = packed_summary(
+    "cire.temporal:packed-terminal-close",
+    replay_origin="Fresh",
+    fork="Forbid",
+    suspend="StackOnly",
+)
 
 
 RETURN_KINDS = {
@@ -316,6 +328,92 @@ def validate_slot_v1(value: dict[str, Any], namespace: str | None = None) -> Non
     require(isinstance(value["slot"], int) and value["slot"] >= 0, "SlotRefV1 slot")
     if namespace is not None:
         require(value["namespace"] == namespace, f"SlotRefV1 namespace must be {namespace}")
+
+
+def validate_effect_entry_selector(entry: dict[str, Any]) -> None:
+    kind = entry.get("kind")
+    if kind == "AnonV1":
+        exact_fields(entry, {"kind", "family"}, kind)
+    elif kind == "NamedV1":
+        exact_fields(entry, {"kind", "identity", "family"}, kind)
+        validate_slot_v1(entry["identity"], "Identity")
+    elif kind == "HandlerEntryParameterV1":
+        exact_fields(entry, {"kind", "contract_slot"}, kind)
+        require(isinstance(entry["contract_slot"], int) and entry["contract_slot"] >= 0, "handler entry contract slot")
+    else:
+        raise Diagnostic("contract-component-kind-mismatch")
+    if "family" in entry:
+        require(isinstance(entry["family"], dict) and isinstance(entry["family"].get("kind"), str), "effect entry family")
+
+
+def validate_operation_selector(operation: dict[str, Any]) -> None:
+    kind = operation.get("kind")
+    if kind == "ExactOperationV1":
+        exact_fields(operation, {"kind", "family", "name"}, kind)
+        require(isinstance(operation["family"], dict) and isinstance(operation["name"], str), "exact operation selector")
+    elif kind == "AnyOperationOfEntry":
+        exact_fields(operation, {"kind"}, kind)
+    else:
+        raise Diagnostic("forward-operation-mismatch")
+
+
+def validate_row_expr(row: dict[str, Any]) -> None:
+    kind = row.get("kind")
+    if kind == "EmptyV1":
+        exact_fields(row, {"kind"}, kind)
+    elif kind == "ClosedV1":
+        exact_fields(row, {"kind", "entries"}, kind)
+        for entry in row["entries"]:
+            validate_effect_entry_selector(entry)
+        reject(row["entries"] != sorted(ordered_unique(row["entries"]), key=jcs), "contract-parameter-inconsistent-instantiation")
+    elif kind == "TailV1":
+        exact_fields(row, {"kind", "row_slot"}, kind)
+        validate_slot_v1(row["row_slot"], "Row")
+    elif kind == "UnionV1":
+        exact_fields(row, {"kind", "members"}, kind)
+        reject(len(row["members"]) < 2, "contract-parameter-inconsistent-instantiation")
+        reject(row["members"] != sorted(ordered_unique(row["members"]), key=jcs), "contract-parameter-inconsistent-instantiation")
+        for member in row["members"]:
+            reject(member.get("kind") == "UnionV1", "contract-parameter-inconsistent-instantiation")
+            validate_row_expr(member)
+    else:
+        raise Diagnostic("contract-parameter-inconsistent-instantiation")
+
+
+def validate_transition(transition: dict[str, Any]) -> None:
+    kind = transition.get("kind")
+    if kind in {"BottomTransitionV1", "SameWorldV1"}:
+        exact_fields(transition, {"kind"}, kind)
+    elif kind == "NextWorldV1":
+        exact_fields(transition, {"kind", "clock"}, kind)
+        validate_slot_v1(transition["clock"], "Clock")
+    elif kind == "SequenceTransitionV1":
+        exact_fields(transition, {"kind", "steps"}, kind)
+        reject(len(transition["steps"]) < 2, "contract-parameter-inconsistent-instantiation")
+        for step in transition["steps"]:
+            reject(step.get("kind") in {"SameWorldV1", "SequenceTransitionV1"}, "contract-parameter-inconsistent-instantiation")
+            validate_transition(step)
+    elif kind == "PathJoinTransitionV1":
+        exact_fields(transition, {"kind", "paths"}, kind)
+        reject(len(transition["paths"]) < 2, "contract-parameter-inconsistent-instantiation")
+        for path in transition["paths"]:
+            validate_transition(path)
+    else:
+        raise Diagnostic("contract-parameter-inconsistent-instantiation")
+
+
+def compose_transition(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
+    steps: list[dict[str, Any]] = []
+    for transition in (left, right):
+        if transition.get("kind") == "SequenceTransitionV1":
+            steps.extend(transition["steps"])
+        elif transition.get("kind") != "SameWorldV1":
+            steps.append(transition)
+    if not steps:
+        return {"kind": "SameWorldV1"}
+    if len(steps) == 1:
+        return copy.deepcopy(steps[0])
+    return {"kind": "SequenceTransitionV1", "steps": copy.deepcopy(steps)}
 
 
 def validate_return_ref(value: dict[str, Any], returns: ReturnScope) -> dict[str, Any]:
@@ -411,6 +509,7 @@ def validate_type_v2(
     imports: ImportScope | None = None,
     contract_binders: dict[int, dict[str, Any]] | None = None,
     local_functions: LocalFunctionScope | None = None,
+    defer_function_contract_shape: bool = False,
 ) -> None:
     returns = returns or {}
     applications = applications or {}
@@ -471,10 +570,10 @@ def validate_type_v2(
                 local_functions=local_functions,
             )
             resolved_kind, _ = resolve_contract_target(contract, imports, contract_binders, local_functions)
-            # An AppliedContractV2 may carry an instantiated imported/local
-            # FunctionType; its exact shape is checked against that
-            # application's substitution below.
-            check_shape = False
+            # Only an AppliedContractV2 callee may defer this comparison until
+            # its per-use substitution has been decoded. Standalone function
+            # types must agree with the referenced declaration immediately.
+            check_shape = not defer_function_contract_shape
         reject(resolved_kind is None or resolved_kind.get("kind") != "FunctionContractKindV2", "contract-component-kind-mismatch")
         reject(check_shape and (
             type_ref["parameter"] != resolved_kind["parameter_type"]
@@ -642,12 +741,18 @@ def validate_value_summary(
     contract_binders: dict[int, dict[str, Any]] | None = None,
     local_functions: LocalFunctionScope | None = None,
     disposition_binder: dict[str, Any] | None = None,
+    defer_function_contract_shape: bool = False,
 ) -> None:
     returns = returns or {}
     exact_fields(summary, {"source", "type", "nominal_index", "provenance", "capture", "usage", "origin"}, "ValueSummaryExprV2")
     if summary["source"] is not None:
         validate_slot_v2(summary["source"], returns)
-    validate_type_v2(summary["type"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+    validate_type_v2(
+        summary["type"], returns=returns, applications=applications,
+        imports=imports, contract_binders=contract_binders,
+        local_functions=local_functions,
+        defer_function_contract_shape=defer_function_contract_shape,
+    )
     validate_nominal_index(summary["nominal_index"], returns)
     validate_provenance(summary["provenance"], returns)
     validate_capture(summary["capture"], returns)
@@ -726,6 +831,13 @@ def validate_suffix(
     for binding in suffix["live_bindings"]:
         exact_fields(binding, {"slot", "type", "provenance", "capture", "usage"}, "LiveAcrossSiteV2")
         validate_slot_v2(binding["slot"], returns)
+        binding_slot = binding["slot"]
+        if binding_slot.get("kind") == "LegacySlotRefV2" and binding_slot["value"]["namespace"] == "SuffixLive":
+            reject(
+                disposition_binder is None
+                or binding_slot["value"]["slot"] != disposition_binder["slot"],
+                "handler-disposition-escapes-scope",
+            )
         validate_type_v2(binding["type"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
         validate_provenance(binding["provenance"], returns)
         validate_capture(binding["capture"], returns)
@@ -908,6 +1020,7 @@ def validate_forward_contract(
     clause_operation: dict[str, Any],
     handled_entry: dict[str, Any],
     handler_prompt_slot: int,
+    nearest_outer_prompt_slot: int | None,
 ) -> None:
     exact_fields(forward, {"site_slot", "route", "entry", "operation", "continuation", "entry_world", "actual_argument_summaries", "instantiated_signature", "call_obligation_ids", "install_obligation_ids", "secondary_sites", "origin"}, "ForwardContractV2")
     exact_fields(evidence, {"inner_disposition", "input_state", "output_state", "forward_site_slot", "continuation_transfer"}, "ForwardDispositionEvidenceV2")
@@ -916,6 +1029,7 @@ def validate_forward_contract(
     require(evidence["input_state"] == "Open" and evidence["output_state"] == "Forwarded", "Forward disposition states")
     require(evidence["forward_site_slot"] == forward["site_slot"], "Forward site mismatch")
     require(evidence["continuation_transfer"] == "ExclusiveToForwardContract", "Forward transfer must be exclusive")
+    validate_operation_selector(forward["operation"])
     reject(forward["operation"] != clause_operation, "forward-operation-mismatch")
     reject(forward["entry"] != handled_entry, "forward-operation-mismatch")
     reject(forward["site_slot"] != disposition_binder["site_slot"], "forward-operation-mismatch")
@@ -923,7 +1037,9 @@ def validate_forward_contract(
     reject(
         route.get("kind") != "InstallationPromptV1"
         or set(route) != {"kind", "prompt_slot"}
-        or route["prompt_slot"] == handler_prompt_slot,
+        or route["prompt_slot"] == handler_prompt_slot
+        or nearest_outer_prompt_slot is None
+        or route["prompt_slot"] != nearest_outer_prompt_slot,
         "forward-route-mismatch",
     )
     validate_world(forward["entry_world"], returns)
@@ -957,8 +1073,11 @@ def validate_forward_contract(
         or resume_type["value"]["answer"] != forward["continuation"]["answer_type"],
         "forward-application-arity-type-mismatch",
     )
-    quantities = {"fun": "Once", "once": "Once", "ctl": "Many", "abort": "Once"}
-    require(resume_type["value"]["usage"] == quantities[forward["instantiated_signature"]["mode"]], "Forward disposition quantity mismatch")
+    quantities = {"fun": "Once", "once": "Once", "ctl": "Many", "abort": "Zero"}
+    reject(
+        resume_type["value"]["usage"] != quantities[forward["instantiated_signature"]["mode"]],
+        "forward-disposition-quantity-mismatch",
+    )
 
 
 def validate_path(
@@ -974,6 +1093,7 @@ def validate_path(
     clause_operation: dict[str, Any] | None = None,
     handled_entry: dict[str, Any] | None = None,
     handler_prompt_slot: int | None = None,
+    nearest_outer_prompt_slot: int | None = None,
 ) -> None:
     exact_fields(path, {"outcome", "residual_row", "attributed_demand", "suspension", "semantic_summary", "usage", "required_phase", "ParametricObligations", "LatentSites"}, "PathContractV2")
     validate_summary_normal_form(path["semantic_summary"])
@@ -994,6 +1114,7 @@ def validate_path(
     kind = outcome.get("kind")
     if kind == "ReturnsV2":
         exact_fields(outcome, {"kind", "transition", "result_transformer"}, kind)
+        validate_transition(outcome["transition"])
         validate_result_transformer(outcome["result_transformer"], returns)
     elif kind == "AbortsV2":
         exact_fields(outcome, {"kind", "origin"}, kind)
@@ -1015,6 +1136,34 @@ def validate_path(
                 ),
                 "park-owner-outlives-missing",
             )
+        park = outcome["park_contract"]
+        expected_atom = {
+            "grade": "MaySuspend",
+            "kind": "OwnerBoundV1",
+            "origin": park["origin"],
+            "owner_slot": park["owner_slot"],
+            "park_site_slot": park["site_slot"],
+        }
+        expected_summary = packed_summary(
+            park["origin"], replay_origin="Fresh", fork="Forbid", suspend="OwnerBound",
+        )
+        summary_members = (
+            path["semantic_summary"]["members"]
+            if path["semantic_summary"].get("kind") == "SequenceSummaryV1"
+            else [path["semantic_summary"]]
+        )
+        reject(
+            path["suspension"].get("grade") != "MaySuspend"
+            or expected_atom not in path["suspension"].get("atoms", [])
+            or expected_summary not in summary_members
+            or path["required_phase"]["allowed_phases"] != ["Action"]
+            or path["required_phase"]["current_owner"] != park["required_phase"]["current_owner"]
+            or any(
+                authority not in path["required_phase"]["required_authorities"]
+                for authority in park["required_phase"]["required_authorities"]
+            ),
+            "park-path-observer-mismatch",
+        )
     elif kind == "DelegatesV2":
         reject(context != "handler_clause" or disposition_binder is None, "delegates-outside-handler-clause")
         require(clause_operation is not None and handled_entry is not None and handler_prompt_slot is not None, "handler clause context missing")
@@ -1024,9 +1173,40 @@ def validate_path(
             returns=returns, imports=imports, contract_binders=contract_binders,
             local_functions=local_functions, clause_operation=clause_operation,
             handled_entry=handled_entry, handler_prompt_slot=handler_prompt_slot,
+            nearest_outer_prompt_slot=nearest_outer_prompt_slot,
         )
     else:
         raise Diagnostic("unknown-path-outcome-v2")
+
+
+def computation_return_types(
+    computation: dict[str, Any],
+    applications: ApplicationScope,
+    imports: ImportScope,
+    contract_binders: dict[int, dict[str, Any]],
+    local_functions: LocalFunctionScope,
+) -> list[dict[str, Any]]:
+    kind = computation.get("kind")
+    if kind == "InvokeV2":
+        application = applications[computation["application_slot"]]
+        target_kind, _ = resolve_contract_target(
+            application["contract"], imports, contract_binders, local_functions,
+        )
+        return [substitute_contract_kind(target_kind, application["substitution"])["result_type"]]
+    if kind == "PathBindV2":
+        return computation_return_types(
+            computation["continuation"], applications, imports,
+            contract_binders, local_functions,
+        )
+    if kind == "JoinV2":
+        return [
+            result
+            for member in computation["members"]
+            for result in computation_return_types(
+                member, applications, imports, contract_binders, local_functions,
+            )
+        ]
+    return []
 
 
 def validate_computation(
@@ -1042,6 +1222,7 @@ def validate_computation(
     clause_operation: dict[str, Any] | None = None,
     handled_entry: dict[str, Any] | None = None,
     handler_prompt_slot: int | None = None,
+    nearest_outer_prompt_slot: int | None = None,
 ) -> None:
     returns = returns or {}
     imports = imports or ImportScope()
@@ -1060,6 +1241,7 @@ def validate_computation(
                 local_functions=local_functions, disposition_binder=disposition_binder,
                 clause_operation=clause_operation, handled_entry=handled_entry,
                 handler_prompt_slot=handler_prompt_slot,
+                nearest_outer_prompt_slot=nearest_outer_prompt_slot,
             )
     elif kind == "InvokeV2":
         exact_fields(computation, {"kind", "application_slot"}, kind)
@@ -1072,12 +1254,25 @@ def validate_computation(
             imports=imports, contract_binders=contract_binders, local_functions=local_functions,
             disposition_binder=disposition_binder, clause_operation=clause_operation,
             handled_entry=handled_entry, handler_prompt_slot=handler_prompt_slot,
+            nearest_outer_prompt_slot=nearest_outer_prompt_slot,
         )
         binder = computation["return_binder"]
         validate_return_binder(
             binder, returns, applications=applications, imports=imports,
             contract_binders=contract_binders, local_functions=local_functions,
         )
+        for result_type in computation_return_types(
+            computation["prefix"], applications, imports,
+            contract_binders, local_functions,
+        ):
+            reject(binder["type"] != result_type, "path-bind-return-binder-mismatch")
+        if computation["prefix"].get("kind") == "InvokeV2":
+            application = applications[computation["prefix"]["application_slot"]]
+            _, target = resolve_contract_target(
+                application["contract"], imports, contract_binders, local_functions,
+            )
+            if target is not None:
+                validate_application_return_binder(target, application, binder)
         continuation_returns = dict(returns)
         continuation_returns[binder["slot"]] = binder
         validate_computation(
@@ -1086,6 +1281,7 @@ def validate_computation(
             local_functions=local_functions, disposition_binder=disposition_binder,
             clause_operation=clause_operation, handled_entry=handled_entry,
             handler_prompt_slot=handler_prompt_slot,
+            nearest_outer_prompt_slot=nearest_outer_prompt_slot,
         )
     elif kind == "JoinV2":
         exact_fields(computation, {"kind", "members"}, kind)
@@ -1097,6 +1293,7 @@ def validate_computation(
                 local_functions=local_functions, disposition_binder=disposition_binder,
                 clause_operation=clause_operation, handled_entry=handled_entry,
                 handler_prompt_slot=handler_prompt_slot,
+                nearest_outer_prompt_slot=nearest_outer_prompt_slot,
             )
     else:
         raise Diagnostic("unknown-contract-computation-variant")
@@ -1153,6 +1350,7 @@ def substitute_contract_kind(kind: dict[str, Any], substitution: dict[str, Any])
     identity_arguments = {entry["binder_slot"]: entry["value"] for entry in substitution["identity_arguments"]}
     clock_arguments = {entry["binder_slot"]: entry["value"] for entry in substitution["clock_arguments"]}
     contract_arguments = {entry["binder_slot"]: entry["contract"] for entry in substitution["contract_arguments"]}
+    row_arguments = {entry["binder_slot"]: entry["value"] for entry in substitution["row_arguments"]}
 
     def replace(value: Any) -> Any:
         if isinstance(value, list):
@@ -1161,6 +1359,10 @@ def substitute_contract_kind(kind: dict[str, Any], substitution: dict[str, Any])
             return value
         if value.get("kind") == "TypeParameterV2" and value.get("slot") in type_arguments:
             return copy.deepcopy(type_arguments[value["slot"]])
+        if value.get("kind") == "TailV1":
+            row_slot = value.get("row_slot", {})
+            if row_slot.get("namespace") == "Row" and row_slot.get("slot") in row_arguments:
+                return copy.deepcopy(row_arguments[row_slot["slot"]])
         if set(value) == {"namespace", "slot"}:
             table = {"Owner": owner_arguments, "Identity": identity_arguments, "Clock": clock_arguments}.get(value["namespace"])
             if table is not None and value["slot"] in table:
@@ -1240,8 +1442,16 @@ def validate_application_instantiation(
         application["contract"], returns, imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
     )
-    for summary in [application["callee_summary"], *application["actual_arguments"]]:
-        validate_value_summary(summary, returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+    validate_value_summary(
+        application["callee_summary"], returns, applications=applications,
+        imports=imports, contract_binders=contract_binders,
+        local_functions=local_functions, defer_function_contract_shape=True,
+    )
+    for summary in application["actual_arguments"]:
+        validate_value_summary(
+            summary, returns, applications=applications, imports=imports,
+            contract_binders=contract_binders, local_functions=local_functions,
+        )
     substitution = application["substitution"]
     exact_fields(substitution, {"type_arguments", "row_arguments", "contract_arguments", "owner_arguments", "identity_arguments", "clock_arguments"}, "ContractSubstitutionV2")
     validate_world(application["entry_world"], returns)
@@ -1263,6 +1473,8 @@ def validate_application_instantiation(
             exact_fields(entry, expected_fields, field)
     for entry in substitution["type_arguments"]:
         validate_type_v2(entry["value"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+    for entry in substitution["row_arguments"]:
+        validate_row_expr(entry["value"])
     for entry in substitution["contract_arguments"]:
         validate_contract_ref(entry["contract"], returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
     for field, namespace in (("owner_arguments", "Owner"), ("identity_arguments", "Identity"), ("clock_arguments", "Clock")):
@@ -1283,6 +1495,11 @@ def validate_application_instantiation(
         }
         for field, expected_slots in expected_domains.items():
             reject(set(substitution_slots(substitution, field)) != expected_slots, "contract-parameter-inconsistent-instantiation")
+    else:
+        reject(
+            any(substitution[field] for field in substitution),
+            "contract-parameter-inconsistent-instantiation",
+        )
 
     instantiated = substitute_contract_kind(kind, substitution)
     expected_callee_type = {
@@ -1342,10 +1559,12 @@ def validate_handler_contract(
     *,
     imports: ImportScope | None = None,
     local_functions: LocalFunctionScope | None = None,
+    nearest_outer_prompt_slot: int | None = None,
 ) -> None:
     imports = imports or ImportScope()
     local_functions = local_functions or {}
     exact_fields(contract, {"handled_entry", "prompt_slot", "residual_row", "attributed_demand", "suspension", "semantic_summary", "required_phase", "handler_environment", "applications", "return_computation", "clause_computations"}, "HandlerContractV2")
+    validate_effect_entry_selector(contract["handled_entry"])
     for binding in contract["handler_environment"]:
         validate_environment_binding(binding, {})
     validate_summary_normal_form(contract["semantic_summary"])
@@ -1361,6 +1580,12 @@ def validate_handler_contract(
     seen_operations: set[str] = set()
     for clause in contract["clause_computations"]:
         exact_fields(clause, {"operation", "disposition_binder", "computation"}, "ClauseComputationV2")
+        validate_operation_selector(clause["operation"])
+        if clause["operation"]["kind"] == "ExactOperationV1" and "family" in contract["handled_entry"]:
+            reject(
+                clause["operation"]["family"] != contract["handled_entry"]["family"],
+                "forward-operation-mismatch",
+            )
         operation_key = jcs(clause["operation"])
         require(operation_key not in seen_operations, "duplicate HandlerContractV2 operation")
         seen_operations.add(operation_key)
@@ -1373,6 +1598,7 @@ def validate_handler_contract(
             local_functions=local_functions, disposition_binder=disposition,
             clause_operation=clause["operation"], handled_entry=contract["handled_entry"],
             handler_prompt_slot=contract["prompt_slot"],
+            nearest_outer_prompt_slot=nearest_outer_prompt_slot,
         )
 
 
@@ -1498,8 +1724,36 @@ def compose_suspension(left: dict[str, Any], right: dict[str, Any]) -> dict[str,
     return {"atoms": atoms, "grade": grade}
 
 
+def compose_usage(left: list[dict[str, Any]], right: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grades = {"Zero": 0, "Once": 1, "Many": 2}
+    legacy: dict[str, dict[str, Any]] = {}
+    other: list[dict[str, Any]] = []
+    for usage in [*left, *right]:
+        if usage.get("kind") != "LegacyUsageExprV2":
+            other.append(usage)
+            continue
+        key = jcs(usage["value"]["slot"])
+        if key not in legacy:
+            legacy[key] = copy.deepcopy(usage)
+            continue
+        current = legacy[key]["value"]["kind"]
+        incoming = usage["value"]["kind"]
+        if current == "Once" and incoming == "Once":
+            combined = "Many"
+        else:
+            combined = max((current, incoming), key=grades.__getitem__)
+        legacy[key]["value"]["kind"] = combined
+    values = [value for value in legacy.values() if value["value"]["kind"] != "Zero"]
+    return sorted(ordered_unique([*values, *other]), key=jcs)
+
+
 def compose_path_contracts(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
     require(left["outcome"]["kind"] == "ReturnsV2", "only ReturnsV2 enters a PathBind continuation")
+    outcome = copy.deepcopy(right["outcome"])
+    if outcome["kind"] == "ReturnsV2":
+        outcome["transition"] = compose_transition(
+            left["outcome"]["transition"], outcome["transition"],
+        )
     return {
         "LatentSites": sorted(ordered_unique([*left["LatentSites"], *right["LatentSites"]]), key=lambda item: item["site_slot"]),
         "ParametricObligations": sorted(
@@ -1507,18 +1761,19 @@ def compose_path_contracts(left: dict[str, Any], right: dict[str, Any]) -> dict[
             key=lambda item: (obligation_value(item)["stage"], obligation_value(item)["id"]),
         ),
         "attributed_demand": sorted(ordered_unique([*left["attributed_demand"], *right["attributed_demand"]]), key=jcs),
-        "outcome": copy.deepcopy(right["outcome"]),
+        "outcome": outcome,
         "required_phase": compose_phase(left["required_phase"], right["required_phase"]),
         "residual_row": compose_row(left["residual_row"], right["residual_row"]),
         "semantic_summary": normalize_summary_sequence(left["semantic_summary"], right["semantic_summary"]),
         "suspension": compose_suspension(left["suspension"], right["suspension"]),
-        "usage": sorted(ordered_unique([*left["usage"], *right["usage"]]), key=jcs),
+        "usage": compose_usage(left["usage"], right["usage"]),
     }
 
 
 def qualify_application_locals(value: Any, application_slot: int) -> Any:
     def qualified(number: int) -> int:
-        return (application_slot + 1) * 1000 + number
+        diagonal = application_slot + number
+        return diagonal * (diagonal + 1) // 2 + number
 
     def rewrite(node: Any) -> Any:
         if isinstance(node, list):
@@ -1530,7 +1785,7 @@ def qualify_application_locals(value: Any, application_slot: int) -> Any:
         for key, member in node.items():
             if key == "id" and is_obligation:
                 result[key] = qualified(member)
-            elif key in {"site_slot", "park_site_slot", "continuation_site_slot", "forward_site_slot", "claim_cell_slot", "port_slot"} and isinstance(member, int):
+            elif key in {"site_slot", "park_site_slot", "continuation_site_slot", "forward_site_slot", "claim_cell_slot", "port_slot", "prompt_slot"} and isinstance(member, int):
                 result[key] = qualified(member)
             elif key in {"call_obligation_ids", "install_obligation_ids", "obligation_ids"} and isinstance(member, list):
                 result[key] = [qualified(number) for number in member]
@@ -1593,10 +1848,12 @@ def evaluate_contract_computation(
     *,
     imports: ImportScope,
     contract_environment: dict[int, dict[str, Any]] | None = None,
+    local_functions: LocalFunctionScope | None = None,
 ) -> list[dict[str, Any]]:
     """Evaluate V2 computation to complete normalized PathContractV2 values."""
 
     contract_environment = contract_environment or {}
+    local_functions = local_functions or {}
     applications = {application["application_slot"]: application for application in contract["applications"]}
 
     def evaluate(node: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1617,16 +1874,26 @@ def evaluate_contract_computation(
                 nested_environment: dict[int, dict[str, Any]] = {}
                 for entry in application["substitution"]["contract_arguments"]:
                     actual = entry["contract"]
-                    require(actual["kind"] == "ImportedFunctionRefV2", "evaluator requires resolved contract substitution")
-                    nested_environment[entry["binder_slot"]] = imports[actual["artifact_hash"]]
+                    if actual["kind"] == "ImportedFunctionRefV2":
+                        nested_environment[entry["binder_slot"]] = imports[actual["artifact_hash"]]
+                    elif actual["kind"] == "LocalFunctionRefV2":
+                        nested_environment[entry["binder_slot"]] = local_functions[actual["declaration_slot"]]
+                    else:
+                        raise AssertionError("evaluator requires a resolved contract substitution")
+            elif reference["kind"] == "LocalFunctionRefV2":
+                source = local_functions[reference["declaration_slot"]]
+                nested_environment = {}
             elif reference["kind"] == "ContractParameterRefV2":
                 parameter_slot = reference["parameter"]["slot"]
                 require(parameter_slot in contract_environment, "evaluator has no contract-parameter actual")
                 source = contract_environment[parameter_slot]
                 nested_environment = {}
             else:
-                raise AssertionError("evaluator cannot resolve LocalFunctionRefV2")
-            paths = evaluate_contract_computation(source, imports=imports, contract_environment=nested_environment)
+                raise AssertionError("evaluator cannot resolve contract reference")
+            paths = evaluate_contract_computation(
+                source, imports=imports, contract_environment=nested_environment,
+                local_functions=local_functions,
+            )
             return [
                 {
                     "path": instantiate_invoked_path(path["path"], application),
@@ -1714,10 +1981,10 @@ def validate_hof_oracle(oracle: dict[str, Any], imported: ImportScope) -> None:
     require(len(evaluated) == 7, "twice-invoked mixed callback must evaluate to seven paths")
     require(evaluated_labels == oracle["expectation"]["evaluated_pathbind_paths"], "HOF PathBind evaluation does not match seven-path golden")
     evaluated_contracts = []
-    observer_counts = oracle["expectation"]["evaluated_observer_counts"]
-    require(observer_counts == [1, 1, 1, 2, 2, 2, 2], "HOF observer-count golden")
+    observer_shapes = oracle["expectation"]["evaluated_observer_shapes"]
+    require(len(observer_shapes) == len(evaluated), "HOF observer-shape golden cardinality")
     expected_phase = source["computation"]["prefix"]["paths"][0]["required_phase"]
-    for item, observer_count in zip(evaluated, observer_counts):
+    for item, observer_shape in zip(evaluated, observer_shapes):
         path = item["path"]
         exact_fields(
             path,
@@ -1729,20 +1996,23 @@ def validate_hof_oracle(oracle: dict[str, Any], imported: ImportScope) -> None:
             contract_binders={}, local_functions={},
         )
         require(path["residual_row"] == source_kind["visible_row"], "HOF evaluated row observer lost")
-        require(len(path["attributed_demand"]) == observer_count, "HOF evaluated demand observer lost")
         require(
-            path["suspension"]["grade"] == "NoSuspend"
-            and len(path["suspension"]["atoms"]) == observer_count,
-            "HOF evaluated suspension observer lost",
+            observer_shape
+            == {
+                "attributed_demand": len(path["attributed_demand"]),
+                "latent_sites": len(path["LatentSites"]),
+                "obligations": len(path["ParametricObligations"]),
+                "semantic_summary": path["semantic_summary"],
+                "suspension_atoms": len(path["suspension"]["atoms"]),
+                "suspension_grade": path["suspension"]["grade"],
+            },
+            "HOF evaluated observer shape lost",
         )
-        require(path["semantic_summary"] == {"kind": "PureV1"}, "HOF evaluated summary normalization")
         require(path["usage"] == [] and path["required_phase"] == expected_phase, "HOF evaluated usage/phase observer lost")
         require(
-            len(path["ParametricObligations"]) == observer_count
-            and all(obligation_value(obligation)["stage"] == "HandlerInstall" for obligation in path["ParametricObligations"]),
+            all(obligation_value(obligation)["stage"] == "HandlerInstall" for obligation in path["ParametricObligations"]),
             "HOF evaluated Q observer lost",
         )
-        require(len(path["LatentSites"]) == observer_count, "HOF evaluated Lambda observer lost")
         evaluated_contracts.append(
             {
                 "trace": format_evaluated_trace(item),
@@ -1775,6 +2045,7 @@ def validate_interface_oracle(oracle: dict[str, Any], directory: Path) -> None:
 def validate_clock_package(package: dict[str, Any]) -> None:
     exact_fields(package, {"artifact", "profile", "schema_version", "storage_owner", "child_owner_binder", "owner_relation", "clock_binder", "summary_binder", "body", "control_protocol", "sealed_origin"}, "PackedNextPackageV2")
     require(package.get("artifact") == "PackedNextPackageV2" and package.get("schema_version") == 2, "PackedNext package header")
+    reject(package["sealed_origin"] != "cire.temporal:pack_next", "packed-next-sealed-origin-mismatch")
     relation = package["owner_relation"]
     exact_fields(package["child_owner_binder"], {"owner_slot"}, "QuantifiedOwnerBinderV1")
     exact_fields(relation, {"child", "parent", "relation", "sealed_origin"}, "ChildOwnerWitnessV2")
@@ -1843,7 +2114,19 @@ def validate_clock_open(computation: dict[str, Any]) -> None:
 
 
 def validate_clock_oracle(oracle: dict[str, Any]) -> None:
+    exact_fields(
+        oracle,
+        {"artifact", "profile", "schema_version", "subject", "binders", "package", "lost_acquire_path", "open_computation", "body_observers", "pack_observers", "release_policy", "release_evidence"},
+        "CireClockPackageOracleV2",
+    )
     require(oracle.get("profile") == PROFILE and oracle.get("schema_version") == 2, "wrong clock oracle profile")
+    owner_slots = {binder["slot"] for binder in oracle["binders"]["owner_binders"]}
+    reject(
+        oracle["package"]["storage_owner"].get("namespace") != "Owner"
+        or oracle["package"]["storage_owner"].get("slot") not in owner_slots,
+        "packed-next-owner-scope-mismatch",
+    )
+    validate_declaration_binders(oracle["binders"], [])
     validate_clock_package(oracle["package"])
     validate_path(
         oracle["lost_acquire_path"], applications={}, returns={}, context="function",
@@ -1881,10 +2164,6 @@ def validate_clock_oracle(oracle: dict[str, Any]) -> None:
     require(len(pack_observers) == len(body_observers), "T-Pack observer cardinality")
     for index, (body, packed) in enumerate(zip(body_observers, pack_observers)):
         require(packed["path_index"] == index and packed["input_tag"] == body["input_tag"] == packed["output_tag"], "T-Pack terminal tag preservation")
-        allocate = next(
-            member for member in walk(packed["semantic_summary"])
-            if isinstance(member, dict) and member.get("origin") == "cire.temporal:packed-allocate"
-        )
         owner = oracle["package"]["storage_owner"]
         pack_phase = {
             "allowed_phases": ["Action"],
@@ -1896,16 +2175,21 @@ def validate_clock_oracle(oracle: dict[str, Any]) -> None:
             "packed-next-pack-phase-mismatch",
         )
         if body["input_tag"] == "ReturnsV2":
-            expected_summary = normalize_summary_sequence(allocate, body["semantic_summary"])
-            require(packed["close_action"] is None and packed["semantic_summary"] == expected_summary, "T-Pack Returns observer sequence")
+            expected_summary = normalize_summary_sequence(PACKED_ALLOCATE_SUMMARY, body["semantic_summary"])
+            reject(
+                packed["close_action"] is not None or packed["semantic_summary"] != expected_summary,
+                "packed-next-observer-trust-mismatch",
+            )
         else:
             require(packed["close_action"] == "CloseChildOnceBeforeExit", "T-Pack terminal close action missing")
-            terminal_close = next(
-                member for member in walk(packed["semantic_summary"])
-                if isinstance(member, dict) and member.get("origin") == "cire.temporal:packed-terminal-close"
+            expected_summary = normalize_summary_sequence(
+                PACKED_ALLOCATE_SUMMARY, body["semantic_summary"],
+                PACKED_TERMINAL_CLOSE_SUMMARY,
             )
-            expected_summary = normalize_summary_sequence(allocate, body["semantic_summary"], terminal_close)
-            require(packed["semantic_summary"] == expected_summary, "T-Pack terminal observer sequence")
+            reject(
+                packed["semantic_summary"] != expected_summary,
+                "packed-next-observer-trust-mismatch",
+            )
     evidence = oracle["release_evidence"]
     require(len(evidence) == len(outcomes), "PackedNext release evidence cardinality")
     for index, item in enumerate(evidence):
@@ -1916,7 +2200,7 @@ def validate_clock_oracle(oracle: dict[str, Any]) -> None:
 def validate_flow_oracle(oracle: dict[str, Any]) -> None:
     exact_fields(
         oracle,
-        {"artifact", "profile", "schema_version", "binders", "flow_summary", "park_obligations", "suspension", "route_examples", "expectation"},
+        {"artifact", "profile", "schema_version", "binders", "flow_summary", "park_obligations", "suspension", "semantic_summary", "required_phase", "route_examples", "expectation"},
         "CireSpecWireVariantOracleV2",
     )
     require(oracle.get("profile") == PROFILE and oracle.get("schema_version") == 2, "wrong flow oracle profile")
@@ -1924,6 +2208,19 @@ def validate_flow_oracle(oracle: dict[str, Any]) -> None:
     outcomes = [path["kind"] for path in oracle["flow_summary"]]
     require(outcomes == ["AbortsV2", "TransfersV2"], "flow oracle variants")
     parked_owner, resumption_owner = validate_park(oracle["flow_summary"][1]["park_contract"])
+    park = oracle["flow_summary"][1]["park_contract"]
+    expected_atom = {
+        "grade": "MaySuspend", "kind": "OwnerBoundV1",
+        "origin": park["origin"], "owner_slot": park["owner_slot"],
+        "park_site_slot": park["site_slot"],
+    }
+    reject(
+        oracle["suspension"] != {"atoms": [expected_atom], "grade": "MaySuspend"}
+        or oracle["semantic_summary"]
+        != packed_summary(park["origin"], replay_origin="Fresh", fork="Forbid", suspend="OwnerBound")
+        or oracle["required_phase"] != park["required_phase"],
+        "park-path-observer-mismatch",
+    )
     for obligation in oracle["park_obligations"]:
         validate_obligation(obligation, {})
     if parked_owner != resumption_owner:
@@ -1945,7 +2242,13 @@ def validate_handler_oracle(oracle: dict[str, Any], directory: Path) -> None:
     prompt_slots = [binder["prompt_slot"] for binder in oracle["binders"]["prompt_binders"]]
     require(len(prompt_slots) == len(set(prompt_slots)) and {0, 1} <= set(prompt_slots), "handler oracle prompt scope")
     imported = resolve_imports(oracle, directory)
-    validate_handler_contract(oracle["handler_contract"], imports=imported)
+    current_prompt = oracle["handler_contract"]["prompt_slot"]
+    current_index = prompt_slots.index(current_prompt)
+    nearest_outer_prompt = prompt_slots[current_index + 1] if current_index + 1 < len(prompt_slots) else None
+    validate_handler_contract(
+        oracle["handler_contract"], imports=imported,
+        nearest_outer_prompt_slot=nearest_outer_prompt,
+    )
     validate_function_contract(oracle["outward_function_contract"])
     applications = oracle["handler_contract"]["applications"]
     require(
@@ -1966,8 +2269,7 @@ def validate_handler_oracle(oracle: dict[str, Any], directory: Path) -> None:
     require(continuation_path["outcome"]["kind"] == "DelegatesV2", "handler oracle positive DelegatesV2")
     forward = continuation_path["outcome"]["forward_contract"]
     require(
-        forward["route"]["prompt_slot"] in prompt_slots
-        and forward["route"]["prompt_slot"] != oracle["handler_contract"]["prompt_slot"],
+        forward["route"]["prompt_slot"] == nearest_outer_prompt,
         "handler oracle Forward outer route is unbound",
     )
     return_slot = oracle["expectation"]["return_bound_authority_slot"]
@@ -1999,6 +2301,33 @@ def validate_local_contract_oracle(oracle: dict[str, Any]) -> None:
     require(
         [application["contract"]["declaration_slot"] for application in applications] == oracle["expectation"]["resolved_local_slots"],
         "local FunctionContractRef resolution expectation",
+    )
+    evaluated = evaluate_contract_computation(
+        oracle["contract"], imports=ImportScope(), local_functions=local_functions,
+    )
+    reject(
+        [item["path"]["outcome"]["kind"] for item in evaluated]
+        != oracle["expectation"]["evaluated_outcomes"],
+        "local-function-evaluation-mismatch",
+    )
+    next_transition = {"kind": "NextWorldV1", "clock": slot("Clock", 0)}
+    composed_usage = compose_usage(
+        [{"kind": "LegacyUsageExprV2", "value": {"slot": slot("Parameter", 0), "kind": "Once"}}],
+        [{"kind": "LegacyUsageExprV2", "value": {"slot": slot("Parameter", 0), "kind": "Once"}}],
+    )
+    qualified_prompts = [
+        qualify_application_locals({"prompt_slot": 1000}, 0)["prompt_slot"],
+        qualify_application_locals({"prompt_slot": 0}, 1)["prompt_slot"],
+    ]
+    reject(
+        oracle["expectation"]["composition_probe"]
+        != {
+            "next_then_same": compose_transition(next_transition, {"kind": "SameWorldV1"}),
+            "once_then_once": composed_usage[0]["value"]["kind"],
+            "qualified_prompt_slots": qualified_prompts,
+        }
+        or len(set(qualified_prompts)) != 2,
+        "path-bind-observer-composition-mismatch",
     )
 
 
@@ -2048,7 +2377,16 @@ def decode_named(decoder: str, target: dict[str, Any], document: dict[str, Any],
         validate_clock_open(target)
     elif decoder == "HandlerContractV2":
         imported = resolve_imports(document, directory) if document.get("artifact") == "CireHandlerContractOracleV2" else {}
-        validate_handler_contract(target, imports=imported)
+        nearest_outer_prompt = None
+        if document.get("artifact") == "CireHandlerContractOracleV2":
+            prompt_slots = [binder["prompt_slot"] for binder in document["binders"]["prompt_binders"]]
+            current_index = prompt_slots.index(target["prompt_slot"])
+            if current_index + 1 < len(prompt_slots):
+                nearest_outer_prompt = prompt_slots[current_index + 1]
+        validate_handler_contract(
+            target, imports=imported,
+            nearest_outer_prompt_slot=nearest_outer_prompt,
+        )
     else:
         raise AssertionError(f"unknown mutation decoder: {decoder}")
 
@@ -2192,6 +2530,7 @@ def state_text(state: tuple[str, int]) -> str:
 def validate_runtime_oracle(oracle: dict[str, Any]) -> int:
     exact_fields(oracle, {"artifact", "profile", "schema_version", "subject", "initial_state", "transition_table", "traces"}, "CireRuntimeModelOracleV2")
     require(oracle.get("artifact") == "CireRuntimeModelOracleV2" and oracle.get("profile") == PROFILE, "runtime oracle header")
+    reject(oracle.get("schema_version") != 2, "packed-next-runtime-protocol-mismatch")
     exact_fields(oracle["initial_state"], {"kind", "leases"}, "PackedNextRuntimeStateV2")
     reject(oracle["initial_state"] != {"kind": "Open", "leases": 0}, "packed-next-runtime-protocol-mismatch")
     package_oracle = load_json(INTERFACES / "clock-package-paths.json")

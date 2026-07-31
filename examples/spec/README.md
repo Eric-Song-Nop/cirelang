@@ -78,10 +78,13 @@ JCS hash，覆盖 row/demand/suspension/ordered-summary/usage/phase/Q/Lambda，
 不是“两次调用”的布尔断言或 outcome label列表。
 `interfaces/local-function-call.json` 固定 `LocalFunctionRefV2` 的 module-local
 declaration-slot resolution，并对同一 T-App算法提供 exact callee
-`FunctionTypeV2`、actual arity与逐位 type正例。
+`FunctionTypeV2`、actual arity与逐位 type正例；deterministic evaluator也实际
+解析该 local declaration。其 composition probe另外固定 NextWorld+SameWorld、
+Once+Once=Many，以及覆盖 prompt slot的 collision-free application/local-id
+pairing。
 `interfaces/flow-abort-transfer-owner.json` 则逐 variant固定 `AbortsV2`、
 `TransfersV2(ParkContractV2)`、`OwnerBoundV1`、root route以及
-Owner/generation-CAS wire形状。它显式使用 `A=Int`、`B=Array[Int]`，要求
+sealed Park summary、required phase与 Owner/generation-CAS wire形状。它显式使用 `A=Int`、`B=Array[Int]`，要求
 source/port/resumption argument三者一致，并保留完整 `ResumeTypeV2`、
 `SuffixContractV2` continuation/live evidence。fixture故意让 parked Owner与
 保存的 resumption Owner不同，并以
@@ -97,12 +100,16 @@ lost-acquire `MayReturn`，以及实际 Returns/Aborts/两个完整
 allocation，且 Aborts/Transfers在相同 terminal tag前恰好追加一次非 Pure
 terminal-close；ordered summary删除 Pure identity/flatten sequence，pack输出
 phase还必须是 body phase与 Action + storage OwnerAuthority/current Owner的
-`RequireBoth`。
+`RequireBoth`。package的 outer storage Owner binder、first-party sealed origin、
+allocate/terminal-close exact certificate trust与 runtime schema V2同样由 oracle
+decoder验证，不能从被验证 certificate自身反向提取信任。
 `interfaces/handler-forward-contract.json` 是正向
 `HandlerContractV2`/`DelegatesV2`/`ForwardContractV2` fixture：handler-level
 application ledger、clause disposition lexical scope、exclusive
 Open→Forwarded evidence，以及 return-bound Resume在 path usage、live-site
-usage和 V2 Q slot中的引用全部由同一 context-sensitive decoder检查。
+usage和 V2 Q slot中的引用全部由同一 context-sensitive decoder检查。Forward
+route必须是 nearest lexical outer prompt；entry/operation使用封闭 variant，且
+mode quantity精确为 fun/once→Once、ctl→Many、abort→Zero。
 `runtime/packed-next-lease-runtime.json` 的 transition table由
 `PackedNextPackageV2.control_protocol` JSON逐条导出，不含第二份 hardcoded
 lease machine；它覆盖 dispose/acquire线性化、active
@@ -112,7 +119,10 @@ acquire存活、两个同时 lease 的 Closing递减、幂等 dispose与 unique 
 tag，并拒绝 terminal bind、Q stage、Lambda key、full-observer HOF hash、Pure
 sequence identity、unbound SuffixLive、Forward operation/route/signature、
 import/local ContractRef、T-App arity/type、Park CAS/state/phase/Outlives、unpacked
-Park observer、package control protocol及runtime initial/table破坏。JSON oracle的 `canonical_json`
+Park observer、general Park observer、row/substitution domain、PathBind binder与
+observer algebra、local evaluation、Forward prompt/variant/abort quantity、package
+origin/outer Owner/certificate trust、control protocol及runtime schema/initial/table
+破坏。JSON oracle的 `canonical_json`
 expectation固定 schema规定的
 `RFC8785-JCS+NFC-V1` serializer；repository中的 oracle envelope保留
 human-readable layout，本身不是 raw artifact byte golden。

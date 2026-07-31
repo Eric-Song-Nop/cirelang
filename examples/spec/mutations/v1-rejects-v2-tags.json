@@ -301,6 +301,180 @@
       "diagnostic": "packed-next-runtime-protocol-mismatch",
       "mutations": [{ "op": "replace", "path": "/transition_table/0/to", "value": "Open(n+2)" }],
       "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/q-lambda-call-install.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "/contract",
+      "diagnostic": "path-bind-return-binder-mismatch",
+      "mutations": [{ "op": "replace", "path": "/contract/computation/return_binder/type/value/name", "value": "Bool" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/hof-mixed-later.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "/contract",
+      "diagnostic": "contract-parameter-inconsistent-instantiation",
+      "mutations": [{ "op": "add", "path": "/contract/applications/0/substitution/type_arguments/-", "value": { "binder_slot": 999, "value": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } } }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/hof-mixed-later.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "/contract",
+      "diagnostic": "contract-parameter-inconsistent-instantiation",
+      "mutations": [{ "op": "add", "path": "/contract/applications/0/substitution/row_arguments/-", "value": { "binder_slot": 999, "value": { "kind": "BogusRowV9" } } }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/local-function-call.json",
+      "decoder": "CireLocalContractOracleV2",
+      "decoder_target": "",
+      "diagnostic": "contract-component-kind-mismatch",
+      "mutations": [{ "op": "add", "path": "/contract/binders/parameter_binders/-", "value": { "slot": 999, "type": { "contract": { "declaration_slot": 0, "kind": "LocalFunctionRefV2" }, "kind": "FunctionTypeV2", "parameter": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "String" } }, "result": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "String" } } } } }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/local-function-call.json",
+      "decoder": "CireLocalContractOracleV2",
+      "decoder_target": "",
+      "diagnostic": "local-function-evaluation-mismatch",
+      "mutations": [{ "op": "replace", "path": "/expectation/evaluated_outcomes/0", "value": "AbortsV2" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/local-function-call.json",
+      "decoder": "CireLocalContractOracleV2",
+      "decoder_target": "",
+      "diagnostic": "path-bind-observer-composition-mismatch",
+      "mutations": [{ "op": "replace", "path": "/expectation/composition_probe/next_then_same", "value": { "kind": "SameWorldV1" } }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/local-function-call.json",
+      "decoder": "CireLocalContractOracleV2",
+      "decoder_target": "",
+      "diagnostic": "path-bind-observer-composition-mismatch",
+      "mutations": [{ "op": "replace", "path": "/expectation/composition_probe/once_then_once", "value": "Once" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/local-function-call.json",
+      "decoder": "CireLocalContractOracleV2",
+      "decoder_target": "",
+      "diagnostic": "path-bind-observer-composition-mismatch",
+      "mutations": [{ "op": "replace", "path": "/expectation/composition_probe/qualified_prompt_slots", "value": [2000, 2000] }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/handler-forward-contract.json",
+      "decoder": "HandlerContractV2",
+      "decoder_target": "/handler_contract",
+      "diagnostic": "forward-route-mismatch",
+      "mutations": [{ "op": "replace", "path": "/handler_contract/clause_computations/0/computation/continuation/paths/0/outcome/forward_contract/route/prompt_slot", "value": 999 }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/handler-forward-contract.json",
+      "decoder": "HandlerContractV2",
+      "decoder_target": "/handler_contract",
+      "diagnostic": "forward-operation-mismatch",
+      "mutations": [
+        { "op": "replace", "path": "/handler_contract/clause_computations/0/operation/kind", "value": "BogusOperationV9" },
+        { "op": "replace", "path": "/handler_contract/clause_computations/0/computation/continuation/paths/0/outcome/forward_contract/operation/kind", "value": "BogusOperationV9" }
+      ],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/handler-forward-contract.json",
+      "decoder": "HandlerContractV2",
+      "decoder_target": "/handler_contract",
+      "diagnostic": "handler-disposition-escapes-scope",
+      "mutations": [{ "op": "replace", "path": "/handler_contract/clause_computations/0/computation/continuation/paths/0/LatentSites/0/suffix/live_bindings/0/slot", "value": { "kind": "LegacySlotRefV2", "value": { "namespace": "SuffixLive", "slot": 999 } } }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/handler-forward-contract.json",
+      "decoder": "HandlerContractV2",
+      "decoder_target": "/handler_contract",
+      "diagnostic": "forward-disposition-quantity-mismatch",
+      "mutations": [
+        { "op": "replace", "path": "/handler_contract/clause_computations/0/computation/continuation/paths/0/outcome/forward_contract/instantiated_signature/mode", "value": "abort" },
+        { "op": "replace", "path": "/handler_contract/clause_computations/0/disposition_binder/type/value/usage", "value": "Once" }
+      ],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/mixed-next-callback-function-contract.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "",
+      "diagnostic": "park-path-observer-mismatch",
+      "mutations": [{ "op": "replace", "path": "/computation/continuation/paths/2/suspension", "value": { "atoms": [], "grade": "NoSuspend" } }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/mixed-next-callback-function-contract.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "",
+      "diagnostic": "park-path-observer-mismatch",
+      "mutations": [{ "op": "replace", "path": "/computation/continuation/paths/2/semantic_summary", "value": { "kind": "PureV1" } }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/mixed-next-callback-function-contract.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "",
+      "diagnostic": "park-path-observer-mismatch",
+      "mutations": [{ "op": "replace", "path": "/computation/continuation/paths/2/required_phase/current_owner", "value": null }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/flow-abort-transfer-owner.json",
+      "decoder": "CireSpecWireVariantOracleV2",
+      "decoder_target": "",
+      "diagnostic": "park-path-observer-mismatch",
+      "mutations": [{ "op": "replace", "path": "/suspension", "value": { "atoms": [], "grade": "NoSuspend" } }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/clock-package-paths.json",
+      "decoder": "PackedNextPackageV2",
+      "decoder_target": "/package",
+      "diagnostic": "packed-next-sealed-origin-mismatch",
+      "mutations": [{ "op": "replace", "path": "/package/sealed_origin", "value": "attacker:pack_next" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/clock-package-paths.json",
+      "decoder": "CireClockPackageOracleV2",
+      "decoder_target": "",
+      "diagnostic": "packed-next-owner-scope-mismatch",
+      "mutations": [{ "op": "remove", "path": "/binders/owner_binders/0" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/clock-package-paths.json",
+      "decoder": "CireClockPackageOracleV2",
+      "decoder_target": "",
+      "diagnostic": "packed-next-observer-trust-mismatch",
+      "mutations": [{ "op": "replace", "path": "/pack_observers/0/semantic_summary/trust", "value": { "kind": "Derived" } }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/clock-package-paths.json",
+      "decoder": "CireClockPackageOracleV2",
+      "decoder_target": "",
+      "diagnostic": "packed-next-observer-trust-mismatch",
+      "mutations": [{ "op": "replace", "path": "/pack_observers/1/semantic_summary/members/1/trust", "value": { "kind": "Derived" } }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../runtime/packed-next-lease-runtime.json",
+      "decoder": "CireRuntimeModelOracleV2",
+      "decoder_target": "",
+      "diagnostic": "packed-next-runtime-protocol-mismatch",
+      "mutations": [{ "op": "replace", "path": "/schema_version", "value": 1 }],
+      "result": "reject"
     }
   ],
   "profile": "Cire-TR₀/2026-08-01",
