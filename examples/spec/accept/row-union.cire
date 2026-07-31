@@ -1,4 +1,4 @@
-// profile: Cire-TR₀/2026-07-31
+// profile: Cire-TR₀/2026-08-01
 // expect: accept
 // rule: RowExpr kinding and union normalization
 // oracle: subject=compose; ambient=rigid EffectRow E1/E2; type=(A)->C!(E1|E2); immediate_row={}; returned_function_latent_row=E1|E2; constraints=kind(E1)=kind(E2)=EffectRow

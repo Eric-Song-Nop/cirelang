@@ -1,0 +1,114 @@
+{
+  "artifact": "CireSpecInterfaceOracleV2",
+  "contract": {
+    "applications": [
+      {
+        "actual_arguments": [
+          {
+            "capture": { "kind": "NoCaptureV1" },
+            "nominal_index": { "kind": "NoNominalIndexV1" },
+            "origin": "consumer.cire:value",
+            "provenance": { "kind": "StableV1" },
+            "source": null,
+            "type": {
+              "kind": "LegacyTypeRefV2",
+              "value": { "kind": "BuiltinTypeV1", "name": "Int" }
+            },
+            "usage": null
+          }
+        ],
+        "application_slot": 0,
+        "callee_summary": {
+          "capture": { "kind": "NoCaptureV1" },
+          "nominal_index": { "kind": "NoNominalIndexV1" },
+          "origin": "consumer.cire:callback",
+          "provenance": { "kind": "StableV1" },
+          "source": null,
+          "type": {
+            "contract": {
+              "kind": {
+                "kind": "FunctionContractKindV2",
+                "parameter_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+                "result_type": {
+                  "clock": { "namespace": "Clock", "slot": 0 },
+                  "kind": "NextTypeV2",
+                  "later_contract": { "capture": { "kind": "NoCaptureV1" }, "provenance": { "kind": "StableV1" }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } },
+                  "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }
+                },
+                "visible_row": { "entries": [{ "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "AnonV1" }], "kind": "ClosedV1" }
+              },
+              "slot": 0
+            },
+            "kind": "FunctionTypeV2",
+            "parameter": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+            "result": {
+              "clock": { "namespace": "Clock", "slot": 0 },
+              "kind": "NextTypeV2",
+              "later_contract": { "capture": { "kind": "NoCaptureV1" }, "provenance": { "kind": "StableV1" }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } },
+              "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }
+            }
+          },
+          "usage": null
+        },
+        "contract": {
+          "kind": "ContractParameterRefV2",
+          "parameter": {
+            "kind": {
+              "kind": "FunctionContractKindV2",
+              "parameter_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+              "result_type": {
+                "clock": { "namespace": "Clock", "slot": 0 },
+                "kind": "NextTypeV2",
+                "later_contract": { "capture": { "kind": "NoCaptureV1" }, "provenance": { "kind": "StableV1" }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } },
+                "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }
+              },
+              "visible_row": { "entries": [{ "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "AnonV1" }], "kind": "ClosedV1" }
+            },
+            "slot": 0
+          }
+        },
+        "entry_world": { "application_slot": 0, "kind": "ApplicationEntryWorldV2" },
+        "origin": "consumer.cire:callback-call",
+        "substitution": { "clock_arguments": [], "contract_arguments": [], "identity_arguments": [], "owner_arguments": [], "row_arguments": [], "type_arguments": [] }
+      }
+    ],
+    "artifact": "FunctionContractV2",
+    "binders": {
+      "clock_binders": [{ "identity": { "namespace": "Identity", "slot": 0 }, "owner": { "namespace": "Owner", "slot": 0 }, "slot": 0 }],
+      "contract_binders": [
+        {
+          "kind": "FunctionContractBinderV2",
+          "parameter_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+          "result_type": {
+            "clock": { "namespace": "Clock", "slot": 0 },
+            "kind": "NextTypeV2",
+            "later_contract": { "capture": { "kind": "NoCaptureV1" }, "provenance": { "kind": "StableV1" }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } },
+            "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }
+          },
+          "slot": 0,
+          "visible_row": { "entries": [{ "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "AnonV1" }], "kind": "ClosedV1" }
+        }
+      ],
+      "identity_binders": [{ "binder": "FreshCap", "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["cire", "temporal"], "name": "FrameClock" }, "identity_slot": 0, "owner": { "namespace": "Owner", "slot": 0 } }],
+      "owner_binders": [{ "slot": 0, "source": { "namespace": "Parameter", "slot": 0 } }],
+      "parameter_binders": [{ "slot": 0, "type": { "kind": "OwnerTypeV2", "owner": { "namespace": "Owner", "slot": 0 } } }],
+      "prompt_binders": [],
+      "row_binders": [],
+      "type_binders": []
+    },
+    "closure_environment": [],
+    "computation": { "application_slot": 0, "kind": "InvokeV2" },
+    "profile": "Cire-TR₀/2026-08-01",
+    "schema_version": 2
+  },
+  "expectation": {
+    "callback_flow": ["ReturnsV2(Next[clock,Int,L])", "AbortsV2", "TransfersV2"],
+    "later_contract_preserved": true,
+    "single_atomic_application": 0,
+    "terminal_paths_bypass_caller_suffix": true,
+    "visible_row_exact": "{Branch}"
+  },
+  "profile": "Cire-TR₀/2026-08-01",
+  "schema_version": 2,
+  "subject": "cross-module-HOF-mixed-flow-Later-result"
+}

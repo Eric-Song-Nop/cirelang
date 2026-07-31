@@ -1,0 +1,15 @@
+// profile: Cire-TR₀/2026-08-01
+// expect: accept
+// rule: T-Dispose-PackedNext + T-Try-With-PackedNext-Paths
+// oracle: subject=open_after_dispose; ambient=sealed @temporal intrinsics/Owner prelude; type=Option[Int]; runtime_result=None; flow={Returns(None),Returns(Some(Int))}; normal_return=MayReturn; dispose=NoSuspend+idempotent
+
+def open_after_dispose(owner : Owner) -> Option[Int] {
+  let packed = @temporal::pack_next(under=owner) { frame =>
+    delay[frame] { 42 }
+  }
+  @temporal::dispose(packed)
+  @temporal::try_with_packed_next(packed) { frame, pending =>
+    frame.yield()
+    advance(pending)
+  }
+}

@@ -1,6 +1,6 @@
 # 相关语言与设计先例
 
-> **Rationale:** 本文记录 [`Cire-TR₀/2026-07-31`](spec-status.md) 的外部
+> **Rationale:** 本文记录 [`Cire-TR₀/2026-08-01`](spec-status.md) 的外部
 > 设计依据，不独立定义 Cire。
 
 ## 1. 结论

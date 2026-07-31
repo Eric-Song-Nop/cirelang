@@ -1,0 +1,23 @@
+// profile: Cire-TR₀/2026-08-01
+// expect: reject
+// rule: T-Park — source.value_type must equal resumption.argument A
+// oracle: subject=bad_park_payload; ambient=CompletionSource/Owner/Task prelude; diagnostic=park-source-payload-mismatch; reject_at=source.park; operation_result=Int; source_payload=Array[Int]; handler_answer=Array[Int]
+
+effect Async {
+  once[A] await(task : Task[A]) -> A may_suspend
+}
+
+def bad_park_payload(
+  task : Task[Int],
+  source : CompletionSource[Array[Int]],
+  owner : Owner,
+) -> Array[Int] {
+  with handler Async {
+    once await(_task) as k =>
+      source.park(k, under = owner)
+    return(value) => [value]
+  }
+  in {
+    Async::await(task)
+  }
+}

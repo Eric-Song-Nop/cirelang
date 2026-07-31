@@ -1,11 +1,11 @@
 # 多态与 effect abstraction 设计
 
-> **Normative companion:** [`Cire-TR₀/2026-07-31`](spec-status.md)。表面的
+> **Normative companion:** [`Cire-TR₀/2026-08-01`](spec-status.md)。表面的
 > `[...]` / `![...]` 是分域形参列表；只有 Core/generalization 才使用量词术语。
 
 ## 1. 文档状态
 
-本文记录 `Cire-TR₀/2026-07-31` 的多态设计基线。
+本文记录 `Cire-TR₀/2026-08-01` 的多态设计基线。
 
 当前状态分成三层：
 

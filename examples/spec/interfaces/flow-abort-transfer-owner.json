@@ -1,4 +1,5 @@
 {
+  "artifact": "CireSpecWireVariantOracleV2",
   "binders": {
     "clock_binders": [],
     "contract_binders": [],
@@ -6,21 +7,15 @@
     "owner_binders": [
       {
         "slot": 0,
-        "source": {
-          "namespace": "Parameter",
-          "slot": 0
-        }
+        "source": { "namespace": "Parameter", "slot": 0 }
       }
     ],
     "parameter_binders": [
       {
         "slot": 0,
         "type": {
-          "kind": "OwnerTypeV1",
-          "owner": {
-            "namespace": "Owner",
-            "slot": 0
-          }
+          "kind": "OwnerTypeV2",
+          "owner": { "namespace": "Owner", "slot": 0 }
         }
       }
     ],
@@ -30,29 +25,26 @@
   },
   "expectation": {
     "canonical_json": "RFC8785-JCS+NFC-V1",
-    "continuation_projection": "full-SuffixContractV1",
-    "disposition_states": [
-      "Unclaimed",
-      "Completed",
-      "Finalized"
-    ],
-    "flow_variants": [
-      "Aborts",
-      "Transfers"
-    ],
+    "continuation_projection": "full-SuffixContractV2",
+    "disposition_states": ["Unclaimed", "Completed", "Finalized"],
+    "flow_variants": ["AbortsV2", "TransfersV2"],
+    "non_identity_park": {
+      "answer": "Array[Int]",
+      "argument": "Int",
+      "completion_port_value": "Int",
+      "source_value": "Int"
+    },
     "owner_generation_protocol": "completion-current-or-finalize-retire-shared-claim-cell-CAS",
-    "suspension_variants": [
-      "OwnerBoundV1"
-    ],
+    "suspension_variants": ["OwnerBoundV1"],
     "unknown_tags": "reject"
   },
   "flow_summary": [
     {
-      "kind": "Aborts",
+      "kind": "AbortsV2",
       "origin": "wire-variants.cire:abort-branch"
     },
     {
-      "kind": "Transfers",
+      "kind": "TransfersV2",
       "park_contract": {
         "claim": {
           "claim_cell_slot": 0,
@@ -67,186 +59,142 @@
         "claim_cell_slot": 0,
         "completion_port": {
           "claim_cell_slot": 0,
-          "owner": {
-            "namespace": "Owner",
-            "slot": 0
-          },
+          "owner": { "namespace": "Owner", "slot": 0 },
           "port_slot": 0,
-          "result_type": {
-            "kind": "BuiltinTypeV1",
-            "name": "Int"
+          "value_type": {
+            "kind": "LegacyTypeRefV2",
+            "value": { "kind": "BuiltinTypeV1", "name": "Int" }
           }
         },
         "disposition": {
           "claim_cell_slot": 0,
           "completion_transition": "UnclaimedToCompleted",
-          "continuation": {
-            "attributed_demand": [],
-            "cleanup": {
-              "attributed_demand": [],
-              "residual_row": {
-                "kind": "EmptyV1"
-              },
-              "semantic_summary": {
-                "kind": "PureV1"
-              },
-              "suspension": {
-                "atoms": [],
-                "grade": "NoSuspend"
-              },
-              "transition": {
-                "kind": "SameWorldV1"
-              }
-            },
-            "flow": [
-              {
-                "kind": "Returns",
-                "result_transformer": {
-                  "capture": {
-                    "kind": "NoCaptureV1"
-                  },
-                  "kind": "ParametricResultV1",
-                  "provenance": {
-                    "kind": "StableV1"
-                  }
-                },
-                "transition": {
-                  "kind": "SameWorldV1"
-                }
-              }
-            ],
-            "live_bindings": [
-              {
-                "capture": {
-                  "kind": "CaptureSlotsV1",
-                  "slots": [
-                    {
-                      "namespace": "Owner",
-                      "slot": 0
-                    }
-                  ]
-                },
-                "provenance": {
-                  "kind": "GenerationBoundV1",
-                  "owner": {
-                    "namespace": "Owner",
-                    "slot": 0
-                  }
-                },
-                "slot": {
-                  "namespace": "SuffixLive",
-                  "slot": 0
-                },
-                "type": {
-                  "kind": "BuiltinTypeV1",
-                  "name": "Int"
-                },
-                "usage": {
-                  "kind": "Once",
-                  "slot": {
-                    "namespace": "SuffixLive",
-                    "slot": 0
-                  }
-                }
-              }
-            ],
-            "required_phase": {
-              "allowed_phases": [
-                "Pure",
-                "Compute",
-                "Action",
-                "Commit"
-              ],
-              "current_owner": null,
-              "required_authorities": []
-            },
-            "residual_row": {
-              "kind": "EmptyV1"
-            },
-            "result_transformer": {
-              "capture": {
-                "kind": "NoCaptureV1"
-              },
-              "kind": "ParametricResultV1",
-              "provenance": {
-                "kind": "StableV1"
-              }
-            },
-            "semantic_summary": {
-              "kind": "PureV1"
-            },
-            "suspension": {
-              "atoms": [],
-              "grade": "NoSuspend"
-            },
-            "transition": {
-              "kind": "SameWorldV1"
-            }
-          },
           "continuation_site_slot": 0,
           "finalization_transition": "UnclaimedToFinalized",
-          "states": [
-            "Unclaimed",
-            "Completed",
-            "Finalized"
-          ]
+          "resumption": {
+            "answer": {
+              "kind": "LegacyTypeRefV2",
+              "value": {
+                "arguments": [{ "kind": "BuiltinTypeV1", "name": "Int" }],
+                "constructor": { "kind": "BuiltinConstructorV1", "name": "Array" },
+                "kind": "ApplyTypeV1"
+              }
+            },
+            "argument": {
+              "kind": "LegacyTypeRefV2",
+              "value": { "kind": "BuiltinTypeV1", "name": "Int" }
+            },
+            "continuation": {
+              "answer_type": {
+                "kind": "LegacyTypeRefV2",
+                "value": {
+                  "arguments": [{ "kind": "BuiltinTypeV1", "name": "Int" }],
+                  "constructor": { "kind": "BuiltinConstructorV1", "name": "Array" },
+                  "kind": "ApplyTypeV1"
+                }
+              },
+              "applications": [],
+              "cleanup": {
+                "attributed_demand": [],
+                "residual_row": { "kind": "EmptyV1" },
+                "semantic_summary": { "kind": "PureV1" },
+                "suspension": { "atoms": [], "grade": "NoSuspend" },
+                "transition": { "kind": "SameWorldV1" }
+              },
+              "computation": {
+                "kind": "LiteralPathsV2",
+                "paths": [
+                  {
+                    "LatentSites": [],
+                    "ParametricObligations": [],
+                    "attributed_demand": [],
+                    "outcome": {
+                      "kind": "ReturnsV2",
+                      "result_transformer": {
+                        "capture": { "kind": "NoCaptureV1" },
+                        "kind": "ParametricResultV1",
+                        "provenance": { "kind": "StableV1" }
+                      },
+                      "transition": { "kind": "SameWorldV1" }
+                    },
+                    "required_phase": {
+                      "allowed_phases": ["Pure", "Compute", "Action", "Commit"],
+                      "current_owner": null,
+                      "required_authorities": []
+                    },
+                    "residual_row": { "kind": "EmptyV1" },
+                    "semantic_summary": { "kind": "PureV1" },
+                    "suspension": { "atoms": [], "grade": "NoSuspend" },
+                    "usage": []
+                  }
+                ]
+              },
+              "live_bindings": [
+                {
+                  "capture": {
+                    "kind": "CaptureSlotsV1",
+                    "slots": [{ "namespace": "Owner", "slot": 0 }]
+                  },
+                  "provenance": {
+                    "kind": "GenerationBoundV1",
+                    "owner": { "namespace": "Owner", "slot": 0 }
+                  },
+                  "slot": { "namespace": "SuffixLive", "slot": 0 },
+                  "type": {
+                    "kind": "LegacyTypeRefV2",
+                    "value": { "kind": "BuiltinTypeV1", "name": "Int" }
+                  },
+                  "usage": {
+                    "kind": "Once",
+                    "slot": { "namespace": "SuffixLive", "slot": 0 }
+                  }
+                }
+              ]
+            },
+            "live_capture": {
+              "kind": "CaptureSlotsV1",
+              "slots": [{ "namespace": "Owner", "slot": 0 }]
+            },
+            "live_provenance": {
+              "kind": "GenerationBoundV1",
+              "owner": { "namespace": "Owner", "slot": 0 }
+            },
+            "owner": { "namespace": "Owner", "slot": 0 },
+            "usage": "Once"
+          },
+          "states": ["Unclaimed", "Completed", "Finalized"]
         },
         "origin": "wire-variants.cire:park-branch",
         "owner_slot": 0,
         "required_phase": {
-          "allowed_phases": [
-            "Action"
-          ],
-          "current_owner": {
-            "namespace": "Owner",
-            "slot": 0
-          },
+          "allowed_phases": ["Action"],
+          "current_owner": { "namespace": "Owner", "slot": 0 },
           "required_authorities": [
             {
               "kind": "OwnerAuthorityV1",
-              "owner": {
-                "namespace": "Owner",
-                "slot": 0
-              }
+              "owner": { "namespace": "Owner", "slot": 0 }
             }
           ]
         },
         "site_slot": 0,
         "source": {
           "generation_model": "Unsigned64NoWrap",
-          "owner": {
-            "namespace": "Owner",
-            "slot": 0
-          },
+          "owner": { "namespace": "Owner", "slot": 0 },
           "value_type": {
-            "kind": "BuiltinTypeV1",
-            "name": "Int"
+            "kind": "LegacyTypeRefV2",
+            "value": { "kind": "BuiltinTypeV1", "name": "Int" }
           },
           "write_authority": "OwnerExecutorOnly"
         }
       }
     }
   ],
-  "no_return_projection": {
-    "result_transformer": {
-      "kind": "BottomResultV1"
-    },
-    "transition": {
-      "kind": "BottomTransitionV1"
-    }
-  },
-  "oracle_schema": "CireSpecWireVariantOracleV1",
-  "profile": "Cire-TR₀/2026-07-31",
+  "profile": "Cire-TR₀/2026-08-01",
   "route_examples": [
-    {
-      "kind": "ResolveAtCallV1",
-      "on_missing": "RootOfEntryV1"
-    },
-    {
-      "kind": "RootOfEntryV1"
-    }
+    { "kind": "ResolveAtCallV1", "on_missing": "RootOfEntryV1" },
+    { "kind": "RootOfEntryV1" }
   ],
-  "schema_version": 1,
+  "schema_version": 2,
   "suspension": {
     "atoms": [
       {

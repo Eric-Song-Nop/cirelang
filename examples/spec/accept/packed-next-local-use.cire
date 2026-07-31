@@ -1,0 +1,15 @@
+// profile: Cire-TR₀/2026-08-01
+// expect: accept
+// rule: T-Try-With-PackedNext-Paths — private clock evidence is fully consumed
+// oracle: subject=consume_packed_locally; ambient=sealed @temporal intrinsics/Owner prelude; type=Option[Unit]; private_clock_outward_fv={}; lease_release=exactly-once-per-won-path
+
+def consume_packed_locally(owner : Owner) -> Option[Unit] {
+  let packed = @temporal::pack_next(under=owner) { frame =>
+    delay[frame] { 42 }
+  }
+  @temporal::try_with_packed_next(packed) { frame, pending =>
+    frame.yield()
+    let _value = advance(pending)
+    ()
+  }
+}

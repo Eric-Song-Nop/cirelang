@@ -1,6 +1,6 @@
 # 09　具名 capability
 
-> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) 教程基线。
+> 本章示例属于 [`Cire-TR₀/2026-08-01`](../spec-status.md) 教程基线。
 
 ## 1. 先记住一句话
 

@@ -1,6 +1,6 @@
 # 第一方增量计算库
 
-> **First-party contract:** [`Cire-TR₀/2026-07-31`](spec-status.md)。本文定义
+> **First-party contract:** [`Cire-TR₀/2026-08-01`](spec-status.md)。本文定义
 > `Source`/`Live` replacement 协议，不把它们变成语言关键字。
 
 ## 1. 定位

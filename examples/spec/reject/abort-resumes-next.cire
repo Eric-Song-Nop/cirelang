@@ -1,4 +1,4 @@
-// profile: Cire-TR₀/2026-07-31
+// profile: Cire-TR₀/2026-08-01
 // expect: reject
 // rule: Operation contract — abort has no successful resumption transition
 // oracle: subject=BadClock.stop; ambient=none; reject_at=OperationContract; diagnostic=abort-has-no-resume-transition

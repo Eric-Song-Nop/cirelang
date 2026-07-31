@@ -1,6 +1,6 @@
 # 07　Effect 多态与 ability
 
-> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) 教程基线。
+> 本章示例属于 [`Cire-TR₀/2026-08-01`](../spec-status.md) 教程基线。
 
 ## 1. 高阶函数为什么需要 effect 多态
 

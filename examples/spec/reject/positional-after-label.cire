@@ -1,4 +1,4 @@
-// profile: Cire-TR₀/2026-07-31
+// profile: Cire-TR₀/2026-08-01
 // expect: reject
 // rule: Surface grammar / CallArguments — positional arguments precede labels
 // oracle: subject=bad; ambient=connect signature; reject_at=third-argument; diagnostic=positional-after-labelled; labels={secure}

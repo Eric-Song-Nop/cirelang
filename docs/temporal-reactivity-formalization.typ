@@ -61,7 +61,7 @@
   #text(size: 15pt)[版本化类型形式化、算法化检查与 PEG 语法]
 
   #v(14pt)
-  #text(fill: luma(90))[Canonical design profile · $"Cire-TR"_0$ · 2026-07-31]
+  #text(fill: luma(90))[Canonical design profile · $"Cire-TR"_0$ · 2026-08-01]
 ]
 
 #v(18pt)
@@ -69,7 +69,7 @@
 #status(
   [文档状态],
   [
-    本文是 `Cire-TR₀/2026-07-31` 的 canonical semantic baseline。它固定术语、
+    本文是 `Cire-TR₀/2026-08-01` 的 canonical semantic baseline。它固定术语、
     judgment、规则边界、PEG 识别形状和待证明性质；仍开放的选择被显式参数化。
     其中的 theorem 是陈述或证明义务，不代表已经完成机械化证明。
 
@@ -476,7 +476,7 @@ lookahead还丢弃内部 expectation。
 == Calculus 使用的 canonical grammar import
 
 本 calculus 不复制第二份 PEG。它按 profile id
-`Cire-TR₀/2026-07-31` 导入 `surface-grammar.md` 的 token/rule table，并只对
+`Cire-TR₀/2026-08-01` 导入 `surface-grammar.md` 的 token/rule table，并只对
 下列 canonical rule产生的 CST node定义 elaboration：
 
 ```text
@@ -513,7 +513,7 @@ resolver识别 sealed constructor，不另建 parser branch。
 == Profile boundary
 
 #warning([
-  `Cire-TR₀/2026-07-31` 只接受 canonical `with ... in ...` chain，不接受历史
+  `Cire-TR₀/2026-08-01` 只接受 canonical `with ... in ...` chain，不接受历史
   `with operand { block }` 形状。实现若需要迁移诊断，应把 legacy token
   sequence作为拒绝 case，而不是并行的语言 profile。
 ])
@@ -544,9 +544,10 @@ $
 $
 
 `CapId(F,ρ)` 是一般、受限的生成式 capability identity kind；只有
-`freshcap`/handler application可以引入。`ClockId(ρ)` 是
-`CapId(F,ρ)` 连同 sealed `F : FrameClock` evidence 的 refinement，不是所有
-capability的共同 kind。普通 term 不能出现在 type 中。
+`freshcap`/handler application可以引入。TR₀ 的 `ClockId(FrameClock,ρ)` 是
+`CapId(FrameClock,ρ)` 连同 canonical sealed `FrameClock` family witness 的
+refinement；普通 effect、同名用户类型或裸 `clock_refinement` 都不够。
+普通 term 不能出现在 type 中。
 
 == Core types
 
@@ -560,7 +561,7 @@ $
   $A,B ::= alpha | "Unit" | "Never"
     | forall i:"CapId"(F,rho).A
     | forall p:P.A
-    | exists i:"CapId"(F,rho),
+    | exists i:"ClockId"("FrameClock",rho),
         S:"ClockPackageSummary"(i,A).A$ \
   $quad | forall rho:"OwnerRegion".A
     | A arrow.r.long^(C) B
@@ -576,6 +577,7 @@ $
     | "Owner"[rho]$ \
   $quad | "CompletionSource"[rho,R]
     | "CompletionPort"[rho,R]
+    | "PackedNext"[rho,A]
     | "CommitTicket"[rho] | "CommitGate"[rho]
     | "Resume"[q,D,A,B,Pi,chi,rho]
     | "HandlerTemplate"[F,rho,A,B,epsilon,(S,p,a).C,P]$
@@ -606,12 +608,14 @@ Surface function type 通常只显示 $epsilon$；其余字段必须写入 Typed
 与 interface artifact。
 
 每个 $C$ 还带派生但必须序列化的
-$"flow"(C):"FlowSetV1"$：`r_f=MayReturn` 当且仅当该 set含 `Returns`，
+$"flow"(C):"FlowSetV2"$：`r_f=MayReturn` 当且仅当该 set含 `Returns`，
 `NoReturn` 当且仅当不含；`Aborts/Transfers` entries无论是否同时存在 normal
 return都保留。$hat(zeta)$ 与 $hat(R)_"out"$ 只描述 Returns projection，
 不能替代整个 flow set。
 
-跨模块 artifact 不以裸字母作为 wire format。第一版稳定 schema 为：
+跨模块 artifact 不以裸字母作为 wire format。新 profile使用原子 contract
+application/computation schema；V1 concrete field envelope只作为显式 legacy
+输入，不能原地接受 V2 tag。稳定 schema 为：
 
 ```text
 FunctionContractV1 {
@@ -632,6 +636,109 @@ FunctionContractV1 {
   binders: DeclarationBindersV1
 }
 
+FunctionContractV2 {
+  artifact: "FunctionContractV2"
+  profile: "Cire-TR₀/2026-08-01"
+  schema_version: 2
+  binders: DeclarationBindersV2
+  applications: [AppliedContractV2]
+  computation: ContractComputationV2
+  closure_environment: [EnvironmentBindingV2]
+}
+
+AppliedContractV2 {
+  application_slot: u32
+  contract: ContractRefV2
+  callee_summary: ValueSummaryExprV2
+  actual_arguments: [ValueSummaryExprV2]
+  substitution: ContractSubstitutionV2
+  entry_world: WorldExprV2
+  origin: SourceOriginV2
+}
+
+ContractRefV2 =
+    ContractParameterRefV2 { parameter: ContractParameterV2 }
+  | ImportedFunctionRefV2 {
+      module: ModulePathV1,
+      name: IdentifierV1,
+      artifact_hash: StringV1
+    }
+  | LocalFunctionRefV2 { declaration_slot: u32 }
+
+ContractSubstitutionV2 {
+  type_arguments: [TypeSubstitutionV2]
+  row_arguments: [RowSubstitutionV2]
+  contract_arguments: [ContractSubstitutionEntryV2]
+  owner_arguments: [OwnerSubstitutionV2]
+  identity_arguments: [IdentitySubstitutionV2]
+  clock_arguments: [ClockSubstitutionV2]
+}
+
+TypeSubstitutionV2 { binder_slot: u32, value: TypeRefV2 }
+RowSubstitutionV2 { binder_slot: u32, value: RowExprV1 }
+ContractSubstitutionEntryV2 { binder_slot: u32, application_slot: u32 }
+OwnerSubstitutionV2 { binder_slot: u32, value: SlotRefV1 }
+IdentitySubstitutionV2 { binder_slot: u32, value: SlotRefV1 }
+ClockSubstitutionV2 { binder_slot: u32, value: SlotRefV1 }
+
+ValueSummaryExprV2 {
+  source: SlotRefV1 | null
+  type: TypeRefV2
+  nominal_index: NominalIndexExprV1
+  provenance: ProvenanceExprV1
+  capture: CaptureExprV1
+  usage: UsageV1 | null
+  origin: SourceOriginV1
+}
+
+WorldExprV2 =
+    LegacyWorldExprV2 { value: WorldExprV1 }
+  | ReturnWorldV2 { return_slot: u32 }
+  | ApplicationEntryWorldV2 { application_slot: u32 }
+  | ApplyWorldTransitionV2 {
+      input: WorldExprV2,
+      transition: TransitionV1
+    }
+  | JoinWorldsV2 { members: [WorldExprV2] }
+
+ContractComputationV2 =
+    LiteralPathsV2 { paths: nonempty [PathContractV2] }
+  | InvokeV2 { application_slot: u32 }
+  | PathBindV2 {
+      prefix: ContractComputationV2,
+      return_binder: ReturnBinderV2,
+      continuation: ContractComputationV2
+    }
+  | JoinV2 { members: nonempty [ContractComputationV2] }
+
+ReturnBinderV2 {
+  slot: u32
+  type: TypeRefV2
+  world: WorldExprV2
+  provenance: ProvenanceExprV1
+  capture: CaptureExprV1
+}
+
+PathContractV2 {
+  outcome: PathOutcomeV2
+  residual_row: RowExprV1
+  attributed_demand: [DemandV1]
+  suspension: SuspensionV1
+  semantic_summary: SummaryV1
+  usage: [UsageV1]
+  required_phase: PhaseRequirementV1
+  ParametricObligations: [ObligationV2]
+  LatentSites: [LatentSiteV2]
+}
+
+PathOutcomeV2 =
+    ReturnsV2 {
+      transition: TransitionV1,
+      result_transformer: ResultTransformerV1
+    }
+  | AbortsV2 { origin: SourceOriginV1 }
+  | TransfersV2 { park_contract: ParkContractV2 }
+
 DeclarationBindersV1 {
   parameter_binders: [ParameterBinderV1]
   type_binders: [TypeBinderV1]
@@ -643,7 +750,19 @@ DeclarationBindersV1 {
   prompt_binders: [PromptSlotDeclV1]
 }
 
+DeclarationBindersV2 {
+  parameter_binders: [ParameterBinderV2]
+  type_binders: [TypeBinderV1]
+  row_binders: [RowBinderV1]
+  contract_binders: [ContractBinderV2]
+  owner_binders: [OwnerBinderV1]
+  clock_binders: [ClockBinderV1]
+  identity_binders: [IdentitySlotDeclV1]
+  prompt_binders: [PromptSlotDeclV1]
+}
+
 ParameterBinderV1 { slot: u32, type: TypeRefV1 }
+ParameterBinderV2 { slot: u32, type: TypeRefV2 }
 TypeBinderV1     { slot: u32, kind: Type | Effect | OwnerRegion }
 RowBinderV1      { slot: u32, lacks: [EffectEntrySelectorV1] }
 ContractBinderV1 =
@@ -661,6 +780,30 @@ ContractBinderV1 =
   | HandlerContractBinderV1 {
       slot: u32, family: TypeRefV1,
       input_type: TypeRefV1, answer_type: TypeRefV1
+    }
+
+ContractBinderV2 =
+    FunctionContractBinderV2 {
+      slot: u32,
+      parameter_type: TypeRefV2,
+      result_type: TypeRefV2,
+      visible_row: RowExprV1
+    }
+  | LaterContractBinderV2 {
+      slot: u32,
+      clock: SlotRefV1,
+      payload_type: TypeRefV2
+    }
+  | ContinuationContractBinderV2 {
+      slot: u32,
+      argument_type: TypeRefV2,
+      answer_type: TypeRefV2
+    }
+  | HandlerContractBinderV2 {
+      slot: u32,
+      family: TypeRefV2,
+      input_type: TypeRefV2,
+      answer_type: TypeRefV2
     }
 OwnerBinderV1    { slot: u32, source: SlotRefV1 }
 ClockBinderV1 {
@@ -738,6 +881,13 @@ CaptureExprV1 =
 EnvironmentBindingV1 {
   slot: SlotRefV1
   type: TypeRefV1
+  provenance: ProvenanceExprV1
+  capture: CaptureExprV1
+}
+
+EnvironmentBindingV2 {
+  slot: SlotRefV1
+  type: TypeRefV2
   provenance: ProvenanceExprV1
   capture: CaptureExprV1
 }
@@ -841,6 +991,57 @@ TypeRefV1 =
       body: TypeRefV1
     }
 
+TypeRefV2 =
+    LegacyTypeRefV2 { value: TypeRefV1 }
+  | TypeParameterV2 { slot: u32 }
+  | NominalTypeV2 {
+      module: ModulePathV1,
+      name: IdentifierV1,
+      arguments: [TypeRefV2]
+    }
+  | ApplyTypeV2 {
+      constructor: TypeConstructorRefV1,
+      arguments: [TypeRefV2]
+    }
+  | FunctionTypeV2 {
+      parameter: TypeRefV2,
+      result: TypeRefV2,
+      contract: FunctionContractV2 | ContractParameterV2
+    }
+  | CapabilityTypeV2 {
+      identity: SlotRefV1,
+      family: TypeRefV2
+    }
+  | NextTypeV2 {
+      clock: SlotRefV1,
+      payload: TypeRefV2,
+      later_contract: LaterContractV1 | ContractParameterV2
+    }
+  | OwnerTypeV2 { owner: SlotRefV1 }
+  | OwnerIndexedTypeV2 {
+      constructor: Task | Source | Live | Event
+                 | CompletionSource | CompletionPort
+                 | CommitTicket | CommitGate,
+      owner: SlotRefV1,
+      payload: TypeRefV2 | null
+    }
+  | SignalTypeV2 { clock: SlotRefV1, payload: TypeRefV2 }
+  | PlanTypeV2 { payload: TypeRefV2 }
+  | ResumeTypeRefV2 { value: ResumeTypeV2 }
+  | ForAllContractTypeV2 {
+      binder: QuantifiedContractBinderV2,
+      body: TypeRefV2
+    }
+  | ExistsClockPackageTypeV2 {
+      clock_binder: QuantifiedClockBinderV2,
+      summary_binder: QuantifiedContractBinderV2,
+      body: TypeRefV2
+    }
+  | PackedNextTypeV2 {
+      owner: SlotRefV1,
+      payload: TypeRefV2
+    }
+
 QuantifiedIdentityBinderV1 {
   identity_slot: u32
   clock_refinement: QuantifiedClockRefinementV1 | null
@@ -858,6 +1059,19 @@ QuantifiedClockBinderV1 {
 QuantifiedClockRefinementV1 {
   clock_slot: u32
   identity: SlotRefV1                    // local paired Identity namespace
+}
+
+ClockFamilyWitnessV2 = CanonicalFrameClockV2 {
+  module: ["cire", "temporal"],
+  name: "FrameClock",
+  sealed_origin: SourceOriginV1
+}
+
+QuantifiedClockBinderV2 {
+  identity_slot: u32
+  clock_refinement: QuantifiedClockRefinementV1
+  family_witness: ClockFamilyWitnessV2
+  owner: SlotRefV1                       // enclosing Owner namespace
 }
 
 QuantifiedOwnerBinderV1 { owner_slot: u32 }
@@ -879,6 +1093,24 @@ QuantifiedContractBinderV1 {
       }
 }
 
+QuantifiedContractBinderV2 {
+  contract_slot: u32
+  kind:
+      FunctionContractKindV2 {
+        parameter_type: TypeRefV2,
+        result_type: TypeRefV2,
+        visible_row: RowExprV1
+      }
+    | LaterContractKindV2 {
+        clock: SlotRefV1,
+        payload_type: TypeRefV2
+      }
+    | ClockPackageSummaryKindV2 {
+        clock: SlotRefV1,
+        payload_type: TypeRefV2
+      }
+}
+
 TypeConstructorRefV1 =
     BuiltinConstructorV1 { name: Array | Option | Result }
   | NominalConstructorV1 {
@@ -889,6 +1121,33 @@ TypeConstructorRefV1 =
 ContractParameterV1 {
   slot: u32
   kind: Function | Later | Continuation | Handler | ClockPackageSummary
+}
+
+ContractParameterV2 {
+  slot: u32
+  kind:
+      FunctionContractKindV2 {
+        parameter_type: TypeRefV2,
+        result_type: TypeRefV2,
+        visible_row: RowExprV1
+      }
+    | LaterContractKindV2 {
+        clock: SlotRefV1,
+        payload_type: TypeRefV2
+      }
+    | ContinuationContractKindV2 {
+        argument_type: TypeRefV2,
+        answer_type: TypeRefV2
+      }
+    | HandlerContractKindV2 {
+        family: TypeRefV2,
+        input_type: TypeRefV2,
+        answer_type: TypeRefV2
+      }
+    | ClockPackageSummaryKindV2 {
+        clock: SlotRefV1,
+        payload_type: TypeRefV2
+      }
 }
 LaterContractV1 {
   provenance: ProvenanceExprV1
@@ -942,9 +1201,25 @@ OperationSignatureV1 {
   secondary_sites: SecondarySiteSetV1
 }
 
+OperationSignatureV2 {
+  type_binders: [TypeBinderV1]
+  parameters: [TypeRefV2]
+  result: TypeRefV2
+  mode: fun | once | ctl | abort
+  transition: TransitionV1
+  suspension: SuspensionV1
+  result_transformer: ResultTransformerV1
+  required_phase: PhaseRequirementV1
+  obligation_ids: [u32]
+  secondary_sites: SecondarySiteSetV1
+}
+
 SourceOriginV1 = canonical `file:subject` StringV1
+SourceOriginV2 = SourceOriginV1
 
 FlowSetV1 = nonempty [FlowPathV1]
+
+FlowSetV2 = normalize(nonempty [PathOutcomeV2])
 
 FlowPathV1 =
     Returns {
@@ -970,6 +1245,18 @@ ParkContractV1 {
   origin: SourceOriginV1
 }
 
+ParkContractV2 {
+  owner_slot: u32
+  site_slot: u32
+  claim_cell_slot: u32
+  source: SourceContractV2
+  completion_port: CompletionPortV2
+  claim: GenerationCASV1
+  disposition: OneShotDispositionV2
+  required_phase: PhaseRequirementV1
+  origin: SourceOriginV1
+}
+
 SourceContractV1 {
   owner: SlotRefV1              // Owner namespace
   value_type: TypeRefV1
@@ -980,6 +1267,20 @@ SourceContractV1 {
 CompletionPortV1 {
   owner: SlotRefV1              // same Owner as source
   result_type: TypeRefV1
+  port_slot: u32
+  claim_cell_slot: u32
+}
+
+SourceContractV2 {
+  owner: SlotRefV1              // Owner namespace
+  value_type: TypeRefV2         // exact resumption argument A
+  generation_model: MonotoneGenerationV1
+  write_authority: SingleWriterV1
+}
+
+CompletionPortV2 {
+  owner: SlotRefV1              // same Owner as source
+  value_type: TypeRefV2         // exact resumption argument A
   port_slot: u32
   claim_cell_slot: u32
 }
@@ -1003,6 +1304,25 @@ OneShotDispositionV1 {
   states: [Unclaimed, Completed, Finalized]
   completion_transition: UnclaimedToCompleted
   finalization_transition: UnclaimedToFinalized
+}
+
+OneShotDispositionV2 {
+  continuation_site_slot: u32
+  claim_cell_slot: u32
+  resumption: ResumeTypeV2
+  states: [Unclaimed, Completed, Finalized]
+  completion_transition: UnclaimedToCompleted
+  finalization_transition: UnclaimedToFinalized
+}
+
+ResumeTypeV2 {
+  usage: Once
+  continuation: SuffixContractV2
+  argument: TypeRefV2
+  answer: TypeRefV2
+  live_provenance: ProvenanceExprV1
+  live_capture: CaptureExprV1
+  owner: SlotRefV1                  // Owner namespace
 }
 
 MonotoneGenerationV1 = Unsigned64NoWrap
@@ -1136,6 +1456,14 @@ LiveAcrossSiteV1 {
   usage: UsageV1
 }
 
+LiveAcrossSiteV2 {
+  slot: SlotRefV1              // SuffixLive namespace
+  type: TypeRefV2
+  provenance: ProvenanceExprV1
+  capture: CaptureExprV1
+  usage: UsageV1
+}
+
 CleanupContractV1 {
   residual_row: RowExprV1
   attributed_demand: [DemandV1]
@@ -1157,7 +1485,16 @@ SuffixContractV1 {
   live_bindings: [LiveAcrossSiteV1]
 }
 
+SuffixContractV2 {
+  answer_type: TypeRefV2
+  applications: [AppliedContractV2]
+  computation: ContractComputationV2
+  cleanup: CleanupContractV1
+  live_bindings: [LiveAcrossSiteV2]
+}
+
 ContinuationContractV1 = SuffixContractV1
+ContinuationContractV2 = SuffixContractV2
 
 CaptureSlotV1 {
   slot: SlotRefV1            // namespace must be ClosureCapture
@@ -1210,6 +1547,14 @@ ObligationV1 =
       origin: SourceOriginV1
     }
 
+ObligationV2 =
+    LegacyObligationV2 { value: ObligationV1 }
+  | StableAcrossV2 {
+      id: u32, stage: StageV1, slots: [SlotRefV1],
+      clock_slot: SlotRefV1, worlds: [WorldExprV2],
+      origin: SourceOriginV2
+    }
+
 BoundaryKindV1 =
     CallArgument | Return | Closure | Aggregate | OwnerStorage
   | ContinuationCapture | TemporalLock | Suspension | FFI
@@ -1227,6 +1572,21 @@ LatentSiteV1 {
   call_obligation_ids: [u32]
   install_obligation_ids: [u32]
   origin: SourceOriginV1
+}
+
+LatentSiteV2 {
+  site_slot: u32
+  stage: Call | HandlerInstall
+  receiver: EffectEntrySelectorV1
+  operation: OperationSelectorV1
+  route: RouteSelectorV1
+  actual_arguments: [ValueSummaryExprV2]
+  instantiated_signature: OperationSignatureV2
+  suffix: SuffixContractV2
+  secondary_sites: SecondarySiteSetV1
+  call_obligation_ids: [u32]
+  install_obligation_ids: [u32]
+  origin: SourceOriginV2
 }
 
 SecondarySiteSetV1 {
@@ -1254,6 +1614,39 @@ RouteSelectorV1 =
 MissingRoutePolicyV1 = RootOfEntryV1
 StageV1 = Call | HandlerInstall
 ```
+
+`Cire-TR₀/2026-08-01` 的 canonical envelope 是
+`FunctionContractV2`。`FunctionContractV1` 只描述 fully concrete legacy
+artifact；V1 decoder遇到 V2 field/tag必须拒绝。V2 importer先以
+`application_slot` 建立每个 `AppliedContractV2` 的唯一原子 application：
+contract ref、callee/argument summary、完整 type/row/contract/Owner/
+identity/clock substitution与 entry world必须一起通过 kind/scope检查，任何
+field都不能携带第二套 actuals。随后验证 `ContractComputationV2` 是无环有根
+term，并从同一 term派生以下 observers：
+
+```text
+flow(C), row(C), demand(C), normal_return(C), suspension(C), summary(C),
+usage(C), phase(C), obligations(C), latent_sites(C)
+```
+
+`LiteralPathsV2` 给出完整 path bundle；`InvokeV2` 只引用已验证的同一
+application；`JoinV2` 在保留 path-local evidence后做 canonical union。
+`PathBindV2(F,x.G)` 逐个处理 $F$ 的 reachable path：Aborts/Transfers连同
+其 row/demand、suspension、summary、usage、phase、Q/$Lambda$ byte-for-byte
+旁路；只有 Returns path把该 path自己的 world/provenance/capture绑定到 $x$
+并进入 $G$。Returns→Returns顺序组合 world/result，$G$ 产生的 terminal tag
+保持 terminal。全部 path-local ContractWF/AttributedOK/nonescape通过后才能
+对 observers做 ACI normalization；top-level transition/result不是可独立写入
+的第二事实。
+
+每次 `InvokeV2` alpha-refresh site/prompt/Q ids；投影 id以
+`(application_slot, local_id)` qualified，在完整实例化后才 flatten。
+Call-stage Q在 invocation处 discharge；HandlerInstall-stage Q与 exact
+$Lambda$ application key一起保留到 fresh prompt存在。`FunctionContractKindV2`
+把 visible row与 parameter/result type一起匹配；依赖求解顺序固定为
+type/Owner/identity+clock/row，再 contract binder，再全 term substitution与
+normalization。occurs-check、forward ref、cross-kind projection或 scope escape
+一律拒绝。
 
 本文内部仍用 $Q/Lambda$ 简写这两个字段。`id`、capture/site/prompt slot
 都在 declaration boundary按 source order alpha-normalize；wire equality不依赖
@@ -1289,14 +1682,16 @@ type逐项验证。
 冗余的 `DirectV1(NoSuspend)` 制造第二种相等表示。operation site即使声明
 `NoSuspend` 也必须保留其 `RequestV1(NoSuspend)` attribution。每个
 `RequestV1` 必须与同一
-site/route/entry/operation/role 的 attributed demand或 `LatentSiteV1`
+site/route/entry/operation/role 的 attributed demand或对应 schema version的
+`LatentSiteV1`/`LatentSiteV2`
 一一对应；`OwnerBoundV1` 必须与同一 park/Owner slot 的 `ParkContractV1`
-对应。wire不序列化 runtime prompt地址。
+或 `ParkContractV2` 对应。wire不序列化 runtime prompt地址。
 `SuffixContractV1` 是 $D_k,Pi_k,chi_k,u_k$ 的确定性 wire projection：
 residual row/demand、flow/world、suspension、summary/result、phase、cleanup
 与全部 live binding缺一不可。`cleanup` 的 demand/suspension同样必须通过
 `AttributedOK`。
-`LatentSiteV1.instantiated_signature`、actual arguments与 selector必须相容；
+`LatentSiteV1`/`LatentSiteV2` 的 instantiated signature、actual arguments与
+selector必须相容；
 call/install id分别只能引用 `ParametricObligations` 中同 stage的 obligation。
 importer把这些 ids 与本 site的 actual summaries/entry world一起解析成内部
 `κ.call_obligations` / `κ.install_obligations`；前者必须附 sealed
@@ -1317,7 +1712,7 @@ stage=HandlerInstall；两者在指定 stage选择 stack中 nearest exact entry�
 exact-entry prompt，否则 artifact ill-formed；不能悄悄 fallback到 root。
 `FlowSetV1` 保持每个 tagged path；同一 contract可有多个不同
 `Transfers`。`Delegates` 只存在于 handler 的 `ClauseFlowPathV1`，
-不进入 FunctionContractV1 的 public flow。每个 `Delegates` 必须带
+不进入 FunctionContractV2 的 public flow。每个 `Delegates` 必须带
 `ForwardDispositionEvidenceV1`：`inner_disposition` 必须解析到该 clause
 所在 `ClauseFlowSetV1.disposition_binder` 所声明的
 `SlotRefV1 { namespace: SuffixLive, slot: disposition_binder.slot }`，不得从
@@ -1331,28 +1726,28 @@ input/output固定为
 `ForwardContractV1.secondary_sites` 是 routed contract的必填 sealed
 `Closed` set；所有 secondary demand/request side evidence必须由它唯一投影
 且逐字段相等，不能只存在于 local side node而让 serialized contract缺失。
-`ParkContractV1` 序列化
-alpha-normalized Owner/site/claim-cell slot、完整 continuation与
-generation-CAS protocol，不序列化某次运行时 generation值或地址。
-`ParkContractV1.source.owner`、`completion_port.owner` 与 `owner_slot`
-必须相同；source/port result type一致；park、port、CAS与 disposition
+`ParkContractV2` 序列化 alpha-normalized Owner/site/claim-cell slot、完整
+`ResumeTypeV2` 与 generation-CAS protocol，不序列化某次运行时 generation
+值或地址。`ParkContractV1` 只属于 legacy V1。
+`ParkContractV2.source.owner`、`completion_port.owner` 与 `owner_slot`
+必须相同；source/port `value_type` 必须相同且精确等于
+`disposition.resumption.argument`；park、port、CAS与 disposition
 必须逐字段引用同一个 `claim_cell_slot`。completion只在 source generation
 等于 current Owner generation时竞争；finalize在 Owner仍 current时使用同一
 equality gate，或在 close/revoke已推进 generation后凭该 Owner sealed retire
 authority竞争同一 claim cell。两条路径都不递增 generation；
 completion与 finalize分别竞争
 `Unclaimed→Completed` / `Unclaimed→Finalized`，失败不改变 generation、
-source或 disposition。`OneShotDispositionV1.continuation` 是完整
-`SuffixContractV1`（包含 flow/world/phase/result/cleanup/live bindings），
-不是仅 cleanup。其
+source或 disposition。`OneShotDispositionV2.resumption` 必须是 usage=Once
+的完整 `ResumeTypeV2`；它显式保存 argument $A$、answer $B$、精确
+`SuffixContractV2` $D_k$、live provenance/capture与 Owner。source/port只接收
+$A$；completion成功后由 $D_k:A→B$ 产生 answer，不能把 $B$ 当 host payload。
+若 clause disposition binder存在，其 Resume type必须 alpha-equal。其
 `required_phase` 必须覆盖 T-Park 的 Action/Owner authority gate。
-顶层 `transition/result_transformer` 是所有 `Returns` paths的 normalized
-projection：importer按 canonical path encoding排序 Returns，再以
-`NormalizeReturnProjectionV1` 做逐字段 idempotent join；相同 scalar保持
-scalar，不同但可 join的分支分别编码为显式
-`PathJoinTransitionV1`/`PathJoinResultV1`，不可 join则拒绝。
-结果必须与 `flow_summary` 中 corresponding fields一致；没有
-Returns时使用显式 bottom variants，不能伪造 identity。
+V2 normal transition/result只允许由 `normal_return(computation)` 派生；
+importer不得接受独立可写的第二份 top-level projection。legacy V1仍用
+`NormalizeReturnProjectionV1` 检查 concrete fields，但不能表达 symbolic
+application/PathBind。
 
 `NormalizeReturnProjectionV1(flow)` 的定义是：按 canonical byte encoding
 排序并去重 `Returns` paths；零项产生两个 bottom variant，一项直接投影，
@@ -1374,7 +1769,7 @@ union与相容的单一 current Owner，不相容则拒绝。
 `required_authorities=[AnonymousEffectAuthorityV1(Commit)]` 且
 `current_owner=ρ`；三个轴都必须保留。
 
-V1 canonical bytes是 RFC 8785 JSON Canonicalization Scheme (JCS) 的完整
+V1/V2 canonical bytes都是 RFC 8785 JSON Canonicalization Scheme (JCS) 的完整
 UTF-8输出：无 BOM/多余 whitespace，object property按 JCS规则排序，
 number/string escaping严格采用 JCS serializer。所有 identifier、module
 component、origin与其他 string在进入 serializer前必须已经是 Unicode NFC；
@@ -1383,8 +1778,10 @@ encoding” 唯一指 `JCS(NFC-validated value)`，不依赖宿主 JSON pretty p
 schema列出的字段
 必须且只能出现一次；duplicate key、unknown field/tag、非最小整数、悬空
 slot/id、非 canonical collection或另一种等价 encoding一律拒绝。
-`TypeRefV1` 的 identity/Owner/clock/contract-bearing variants可递归出现在
+`TypeRefV2` 的 identity/Owner/clock/contract-bearing variants可递归出现在
 任意 nested type；旁表 binder只提供引用作用域，不能替 type本身补猜 index。
+`LegacyTypeRefV2` 只能封装 V1-representable concrete type；包含 symbolic V2
+application/computation的 contract不能 downgrade。
 `LaterContractBinderV1.clock` 与 nested `LaterContractKindV1.clock` 都必须
 是当前 lexical scope中的 live Clock-namespace ref；其 identity必须与
 `LaterContract(i,A)`/对应 `NextTypeV1.clock` 的 $i$ 相同，payload type也
@@ -1392,7 +1789,7 @@ slot/id、非 canonical collection或另一种等价 encoding一律拒绝。
 四个 quantified variants在 `TypeRefV1` 内建立 lexical nested scope；
 `ForAllIdentityTypeV1`、`ForAllContractTypeV1`、`ForAllOwnerTypeV1`
 分别编码 Core 的 `forall i`、`forall p`、`forall ρ`，
-`ExistsClockPackageTypeV1` 同时绑定 generative clock identity与依赖它的
+legacy `ExistsClockPackageTypeV1` 同时绑定 generative clock identity与依赖它的
 `ClockPackageSummary` evidence。importer必须按 binder出现顺序检查 kind、
 依赖与 body，禁止把 nested existential/universal无条件全提到 declaration
 binder table。
@@ -1405,7 +1802,10 @@ Clock view；declaration-level `IdentitySlotDeclV1`/`ClockBinderV1.identity`
 使用同一关系。于是 `Cap[i,FrameClock]` 引用 Identity view，`Next[i,A]` 与
 `LaterContract(i,A)` 引用 paired Clock view；importer只沿显式 witness校验同一
 nominal identity，绝不按相同数值 slot或 source spelling猜 alias。
-existential的 `summary_binder.kind.ClockPackageSummaryKindV1.clock` 必须恰好
+V2 canonical existential使用 `ExistsClockPackageTypeV2`；其
+`QuantifiedClockBinderV2.family_witness` 必须解析为 sealed
+`CanonicalFrameClockV2`，不能从任意 `family: Effect` 或裸 refinement推断。
+existential的 `summary_binder.kind.ClockPackageSummaryKindV2.clock` 必须恰好
 引用这个 paired Clock view，不能另指 declaration或 outer clock；其
 `payload_type` 必须与 imported `body` alpha-equal。summary Contract slot即使
 不自由出现于 payload type，也必须在 body import前声明，因为它是 unpack时
@@ -1424,27 +1824,31 @@ import_quantified_identity(binder, body, scope):
     body_scope += c
   return import_type(body, body_scope)
 
-import_clock_package(clock_binder, summary_binder, body, scope):
+import_clock_package_v2(clock_binder, summary_binder, body, scope):
+  require clock_binder.family_witness ==
+    sealed CanonicalFrameClockV2("cire.temporal", "FrameClock")
   i = scope.declare(Identity, clock_binder.identity_slot,
-                    clock_binder.family, clock_binder.owner)
+                    FrameClock, clock_binder.owner)
   r = clock_binder.clock_refinement
   require r.identity ==
     SlotRefV1(Identity, clock_binder.identity_slot)
   c = (scope + i).declare(Clock, r.clock_slot,
                           same_nominal_identity = i)
-  require summary_binder.kind is ClockPackageSummaryKindV1
+  require summary_binder.kind is ClockPackageSummaryKindV2
   require summary_binder.kind.clock ==
     SlotRefV1(Clock, r.clock_slot)
   A = import_type(summary_binder.kind.payload_type, scope + i + c)
   L = (scope + i + c).declare(
     Contract, summary_binder.contract_slot,
-    ClockPackageSummaryKindV1(clock = c, payload_type = A))
+    ClockPackageSummaryKindV2(clock = c, payload_type = A))
   imported_body = import_type(body, scope + i + c + L)
   require alpha_equal(imported_body, weaken(A, L))
   return imported_body
 
-serialize_clock_package(scope, i, c, L, A, body):
+serialize_clock_package_v2(scope, i, c, L, A, body):
   require i is a live Identity binding in scope
+  require family(i) is sealed canonical FrameClock and
+    clock_family_witness(i) == CanonicalFrameClockV2
   require c is the paired Clock view of i
   require exact_internal_contract_binding(L) ==
     SealedClockPackageSummary(
@@ -1455,16 +1859,22 @@ serialize_clock_package(scope, i, c, L, A, body):
     well_formed(body, scope + i + c + L)
   emit clock_binder with identity_slot = slot(i),
     clock_refinement = { clock_slot: slot(c), identity: ref(i) },
-    family = family(i), owner = owner(i)
+    family_witness = CanonicalFrameClockV2, owner = owner(i)
   emit summary_binder with contract_slot = slot(L),
-    kind = ClockPackageSummaryKindV1(clock = ref(c), payload_type = A)
+    kind = ClockPackageSummaryKindV2(clock = ref(c), payload_type = A)
   require alpha_equal(body, weaken(A, L))
   emit body under scopes i, c and L
 ```
 
 `OwnerIndexedTypeV1.payload=null` 当且仅当 constructor是
 `CommitTicket/CommitGate`；其余 owner-indexed constructors必须带 payload。
-每个 `ContractParameterV1` 必须按 lexical scope解析到唯一 binder，再同时
+V2 `PackedNextTypeV2` 始终带 Owner ref与 payload；importer还必须验证其
+sealed origin，不接受用户 nominal type冒充。
+`LegacyTypeRefV2` 只包装一个完全不含 V2 node的旧 type tree；一旦
+Function/PackedNext/Resume等 V2 node嵌在 nominal、builtin application、Next
+或 Owner-indexed type内部，serializer必须递归使用对应 V2 variant，不能把
+subtree藏进 `TypeRefV1`。`OwnerIndexedTypeV2.payload=null` 的条件与 V1相同。
+每个 `ContractParameterV2` 必须按 lexical scope解析到唯一 binder，再同时
 匹配 use site与 binder family。declaration table中的 `ContractBinderV1`
 只提供 Function/Later/Continuation/Handler；enclosing
 `QuantifiedContractBinderV1.kind` 只提供 Function/Later/ClockPackageSummary。
@@ -1472,17 +1882,30 @@ serialize_clock_package(scope, i, c, L, A, body):
 `ClockPackageSummaryKindV1`，不能要求或伪造一个不存在的 declaration
 variant；Function/Later可来自两类 binder，Continuation/Handler只来自
 declaration binder。shadowing按最内层 exact Contract slot处理，跨 family或
-跨 scope同 slot数字不匹配。
+跨 scope同 slot数字不匹配。Function kind还必须逐字段匹配 visible row；
+`AppliedContractV2` 的 application slot是 projection唯一入口。
 
 `Call` obligation 在 T-App 实例化和 discharge；`HandlerInstall`
-obligation与对应 `LatentSiteV1` 原样保留到 fresh delimiter prompt存在时的
+obligation与对应 `LatentSiteV2` 原样保留到 fresh delimiter prompt存在时的
 `InstallOK`。调用者不得仅因跨模块 call成功就把后一阶段清空。
+
+新 profile 的 stable diagnostic registry是
+`examples/spec/diagnostics-v2.json`。Clock/PackedNext importer至少区分
+`clock-package-private-identity-escape`、
+`clock-package-transfer-captures-private-identity`、
+`clock-package-family-not-clock-indexing`、
+`packed-next-builder-result-mismatch`；Park exactness区分
+`park-source-payload-mismatch` 与 `park-resumption-type-mismatch`；contract
+term区分 kind/instantiation/scope/cycle、terminal bind、return-flow、Q stage
+与 Lambda key错误。V1 decoder看到 V2 field/tag必须产生
+`unsupported-contract-schema-version`，不能忽略或回填。
 
 与 hidden $L$ 相同，surface `(A) -> B ! ε` 先 elaboration为
 $A arrow.r.long^(?C) B$，不是把未显示字段填成 `pure/same`。有 initializer
 的 declaration求解 $?C$；高阶 input binder把未由 annotation约束的字段
-泛化为 rigid contract parameter，并把调用时用到的 row、world、phase、
-result transformer、$Q/Lambda$ 投影进 enclosing function contract。
+泛化为 rigid contract parameter，并创建单一 `AppliedContractV2`，把调用时
+用到的 row/world/flow/result/suspension/summary/usage/phase、$Q/Lambda$ 通过
+同一 `InvokeV2`/`PathBindV2` computation投影进 enclosing function contract。
 Declaration boundary不能留下未解 metavariable，interface必须序列化 solved
 contract或其显式 quantified binder。
 
@@ -1738,7 +2161,7 @@ $
     | "let" x=e_1;e_2$ \
   $quad | "CapAbs"(i,v) | v[j]
     | "packClock"[j](v) " as "
-        (exists i:"CapId"(F,rho),
+        (exists i:"ClockId"("FrameClock",rho),
           S:"ClockPackageSummary"(i,A).A)$ \
   $quad | "unpackClock" [i,x]=p " in " e
     | "OwnerAbs"(rho,v) | v[rho]$ \
@@ -1819,7 +2242,20 @@ frame.yield()
 
 live { e }
   ↦ first-party intrinsic/library boundary, not a new parser form
+
+@temporal::pack_next(under=owner) { frame => e }
+  ↦ contextual intrinsic PackNext(owner, frame, e)
+
+@temporal::try_with_packed_next(packed) { frame, pending => e }
+  ↦ contextual intrinsic TryOpenPackedNext(packed, frame, pending, e)
+
+@temporal::dispose(packed)
+  ↦ contextual intrinsic DisposePackedNext(packed)
 ```
+
+Only the resolved sealed first-party origin receives these lowerings. A user
+function or dependency alias with the same final identifier remains an ordinary
+call/trailing lambda and cannot introduce fresh frame/lease binders.
 
 `with ... as cap` 的 identity 不能按普通 lambda parameter generalize。
 Surface HIR先保留统一的 `ScopedApply`，以保证 operand evaluation order与
@@ -2178,10 +2614,15 @@ $
 下文使用 capture-avoiding abbreviation：
 
 $
-  "ClockPkg"[F,rho,A]
-  = exists i:"CapId"(F,rho),
+  "ClockPkg"[rho,A]
+  = exists i:"ClockId"("FrameClock",rho),
       S:"ClockPackageSummary"(i,A).A
 $
+
+`ClockId(FrameClock,ρ)` formation需要 resolver给出的 sealed
+`CanonicalFrameClockV2` witness。普通 $F:"Effect"$、同名用户 effect或伪造的
+`clock_refinement` 都不能创建 Clock namespace；未来其它 clock family必须以
+新 schema加入显式 `ClockFamilyWitness`。
 
 #irule(
   [K-Cap-All],
@@ -2203,14 +2644,15 @@ $
 )
 
 #irule(
-  [K-Cap-Exists],
+  [K-Clock-Exists],
   (
-    [$K ⊢ F:"Effect" quad K ⊢ rho:"OwnerRegion"$],
+    [$K ⊢ rho:"OwnerRegion"$],
+    [$"ClockFamilyWitness"("FrameClock")="CanonicalFrameClockV2"$],
     [$i ∉ "dom"(I)$],
-    [$K;I,i:F@rho ⊢ A:"Type"$],
-    [$K;I,i:F@rho ⊢ "ClockPackageSummary"(i,A):"Evidence"$],
+    [$K;I,i:"FrameClock"@rho ⊢ A:"Type"$],
+    [$K;I,i:"FrameClock"@rho ⊢ "ClockPackageSummary"(i,A):"Evidence"$],
   ),
-  [$K;I ⊢ "ClockPkg"[F,rho,A]:"Type"$],
+  [$K;I ⊢ "ClockPkg"[rho,A]:"Type"$],
 )
 
 Evidence kind只量化满足下式的 sealed summary：
@@ -2222,11 +2664,12 @@ $
 $
 
 $P_"owner"$ 证明 shared child-Owner handle、lease acquire/release线性化和
-最终 dispose幂等。因而 T-Clock-Unpack可以保持 body的 $epsilon/s$ 不变，
-但必须把 $delta_"release"$ 组合进输出 summary。
-Normal与 abort escape gate都显式检查 $Delta$；private clock identity即使只藏
-在另一个 entry的 route、actual summary、secondary site或 cleanup demand中，
-也不能借 `eraseDemand` 后的 row逃逸。
+最终 dispose幂等。`ReleaseHidePath` 对每个动态 exit恰好顺序执行一次
+$F_"lease"$；它不增加 row/demand/suspension，但把
+$delta_"release"$ 顺序组合进该 path summary。private clock identity即使只藏
+在另一个 entry的 route、actual summary、secondary site、Q/$Lambda$、
+cleanup/live binding、Park resumption或 contract computation中，也不能借
+public observer normalization逃逸。
 
 #irule(
   [T-Cap-Intro],
@@ -2251,50 +2694,146 @@ Normal与 abort escape gate都显式检查 $Delta$；private clock identity即�
 #irule(
   [T-Clock-Pack],
   (
-    [$I ⊢ j:F@rho$],
+    [$I ⊢ j:"FrameClock"@rho$],
+    [$"ClockFamilyWitness"("FrameClock")="CanonicalFrameClockV2"$],
     [$K;I;Phi@Theta ⊢_v v ⇐ A[j/i] @[pi_v] ▷ chi_v$],
     [$"ClockPackageSafe"(rho,j,A[j/i],pi_v,chi_v) ⇓ S_j$],
     [$S_i="closeClockSummary"(j⇒i,S_j)$],
     [$chi_p="sealClockCapture"(j,rho,chi_v,S_j) quad j ∉ "fv"(chi_p)$],
   ),
-  [$K;I;Phi@Theta ⊢_v "packClock"[j](v) " as " "ClockPkg"[F,rho,A] ⇒ "ClockPkg"[F,rho,A] @["Owner"(rho)] ▷ chi_p$],
+  [$K;I;Phi@Theta ⊢_v "packClock"[j](v) " as " "ClockPkg"[rho,A] ⇒ "ClockPkg"[rho,A] @["Owner"(rho)] ▷ chi_p$],
 )
 
 #irule(
-  [T-Clock-Unpack],
+  [T-Clock-Unpack-Paths],
   (
-    [$K;I;Phi@Theta ⊢_v p ⇒ "ClockPkg"[F,rho,A] @[pi_p] ▷ chi_p$],
+    [$K;I;Phi@Theta ⊢_v p ⇒ "ClockPkg"[rho,A] @[pi_p] ▷ chi_p$],
     [$i ∉ "dom"(I) quad S_k:"ClockPackageSummary"(i,A) " fresh hidden"$],
-    [$"openClockLease"(p,Theta,i,S_k)=Theta_p$],
+    [$"ClockFamilyWitness"("FrameClock")="CanonicalFrameClockV2"$],
+    [$"openClockLease"(p,Theta,i,S_k)=⟨Theta_p,l⟩$],
     [$"packagePayload"(S_k)=(pi_x,chi_x) quad Theta_x="bind"(Theta_p,x:A @[pi_x] ▷ chi_x)$],
-    [$K;I,i:F@rho;Phi;Omega@Theta_x;S ⊢ e ⇒
-      B @[pi_B] ! epsilon;Delta ▷
-      s;delta;chi_B @Theta_e⊣Omega'$],
-    [$i ∉ "fv"(B,pi_B,epsilon,Delta,s,delta,chi_B,Omega')$],
-    [$"PackageResultBoundarySafe"(S_k,B,pi_B,chi_B)$],
-    [$(Theta_o,Omega_o,delta_o)="ClockPackageScopeExit"(S_k,i,"dropBinder"(Theta_e,x),Omega',delta)$],
+    [$K;I,i:"FrameClock"@rho;Phi;Omega@Theta_x;S ⊢ "body"_B(e) ⇓
+      cal(F)_b ! epsilon_b;Delta_b;s_b;delta_b ⊣Omega_b$],
+    [$forall t in cal(F)_b.
+      "ClockPackageOutwardSafe"(i,S_k,B,t,"evidence"(t))$],
+    [$t'="ReleaseHidePath"(S_k,l,i,x,t)
+      quad "tag"(t')="tag"(t)$],
+    [$cal(F)_o="normalize"({t' | t in cal(F)_b})$],
+    [$⟨epsilon_o,Delta_o,s_o,delta_o,Omega_o⟩
+      ="observeReleasedPaths"(cal(F)_o,S_k,Omega_b)$],
   ),
-  [$K;I;Phi;Omega@Theta;S ⊢ "unpackClock"[i,x](p,e) ⇒
-    B @[pi_B] ! epsilon;Delta ▷
-    s;delta_o;chi_B @Theta_o⊣Omega_o$],
+  [$K;I;Phi;Omega@Theta;S ⊢ "body"_B(
+      "unpackClock"[i,x](p,e)) ⇓
+    cal(F)_o ! epsilon_o;Delta_o;s_o;delta_o ⊣Omega_o$],
 )
 
+== Sealed PackedNext surface
+
+Surface `PackedNext[A]` elaborates to opaque Core `PackedNext[ρ,A]`; $rho$ is
+the storage Owner index inferred from `under`, like the hidden Owner index of
+Task/CompletionSource. Its representation is an `ExistsClockPackageTypeV2`
+whose body is exact `Next[i,A,L]`, plus the shared lease state. User code cannot
+construct this nominal type or declare the contextual callback contracts.
+
 #irule(
-  [T-Clock-Unpack-Abort],
+  [K-PackedNext],
   (
-    [$K;I;Phi@Theta ⊢_v p ⇒ "ClockPkg"[F,rho,A] @[pi_p] ▷ chi_p$],
-    [$i ∉ "dom"(I) quad S_k:"ClockPackageSummary"(i,A) " fresh hidden"$],
-    [$"openClockLease"(p,Theta,i,S_k)=Theta_p$],
-    [$"packagePayload"(S_k)=(pi_x,chi_x) quad Theta_x="bind"(Theta_p,x:A @[pi_x] ▷ chi_x)$],
-    [$K;I,i:F@rho;Phi;Omega@Theta_x;S ⊢_"abort" e !
-      epsilon;Delta ▷ s;delta ⊣Omega'$],
-    [$"NoIdentityInAbortEvidence"(
-      i,e,epsilon,Delta,s,delta,Omega')$],
-    [$(Omega_o,delta_o)="AbortClockPackageScopeExit"(S_k,i,Omega',delta)$],
+    [$K ⊢ rho:"OwnerRegion"$],
+    [$K;I ⊢ A:"Type" quad "Shareable"(A)$],
   ),
-  [$K;I;Phi;Omega@Theta;S ⊢_"abort"
-    "unpackClock"[i,x](p,e) !
-    epsilon;Delta ▷ s;delta_o ⊣Omega_o$],
+  [$K;I ⊢ "PackedNext"[rho,A]:"Type"$],
+)
+
+The only privileged surface origins are
+`@temporal::pack_next`, `@temporal::try_with_packed_next`, and
+`@temporal::dispose` after resolver identity checking. A shadowed user function
+with the same text is an ordinary call. Their CST remains ordinary labelled/
+trailing-lambda syntax; resolver creates dedicated contextual HIR nodes.
+
+#irule(
+  [T-Pack-Next-Paths],
+  (
+    [$o:"Owner"[rho] in Theta quad
+      "PhaseAllows"(Phi,"Action") quad "OwnerAuthorized"(Phi,o,rho)$],
+    [$rho_c,i " fresh" quad I' = I,i:"FrameClock"@rho_c$],
+    [$"CreatePackedFrame"(o) ⇓ ⟨rho_c,i,"runner",h⟩$],
+    [$K;I';Phi;Omega@Theta;S ⊢ "body"_("Next"[i,A,L])(e) ⇓
+      cal(F)_b ! epsilon_b;Delta_b;s_b;delta_b ⊣Omega_b$],
+    [$forall t in cal(F)_b.
+      "PackNextPathSafe"(i,h,A,L,t,"evidence"(t))$],
+    [$cal(F)_p="normalize"({"SealOrClosePackPath"(
+      o,rho_c,i,"runner",h,t) | t in cal(F)_b})$],
+  ),
+  [$K;I;Phi;Omega@Theta;S ⊢ "body"_("PackedNext"[rho,A])(
+      "pack_next"(o,{i => e})) ⇓ cal(F)_p !
+    "row"(cal(F)_p);"demand"(cal(F)_p);
+    "suspension"(cal(F)_p);"summary"(cal(F)_p) ⊣
+    "usageOut"(cal(F)_p)$],
+)
+
+On a builder Returns path, `SealOrClosePackPath` requires exact
+`Next[i,A,L]`, constructs `ClockPackageSafe`, and returns `PackedNext[ρ,A]`.
+On Aborts/Transfers it first rejects private-$i$ escape, then closes the new
+runner/child Owner exactly once and preserves the terminal tag. Allocation and
+close are empty-row/NoSuspend sealed summaries, but not `Pure`.
+
+The shared cell is exactly:
+
+```text
+Open(n) | Closing(n) | Closed
+
+acquire: Open(n) -> Open(n+1)
+acquire: Closing(n) | Closed -> None
+dispose: Open(n) -> Closing(n); Open(0) closes immediately
+release: Open(n+1) -> Open(n); Closing(1) -> Closed + unique final close
+```
+
+An acquire that linearized first is not interrupted by dispose. `dispose` is
+idempotent, empty-row and NoSuspend, returns Unit after requesting Closing, and
+does not promise that active leases have drained; its shared-state summary is
+not `Pure`.
+
+#irule(
+  [T-Try-With-PackedNext-Paths],
+  (
+    [$K;I;Phi@Theta ⊢_v p ⇒ "PackedNext"[rho,A] @[pi_p] ▷ chi_p$],
+    [$"tryAcquirePacked"(p) ⇓ "lost" mid
+      "won"(l,i,L,"pending","frame")$],
+    [$K;I,i:"FrameClock"@rho;Phi;Omega@Theta_p;S ⊢ "body"_B(e) ⇓
+      cal(F)_b ! epsilon_b;Delta_b;s_b;delta_b ⊣Omega_b$],
+    [$forall t in cal(F)_b.
+      "ClockPackageOutwardSafe"(i,S_p,B,t,"evidence"(t))$],
+    [$cal(F)_w="normalize"({
+      "ReleaseMapSomePath"(S_p,l,i,t) | t in cal(F)_b})$],
+    [$cal(F)_o="normalize"({"Returns"("None",Theta,pi_"none",chi_"none")}
+      union cal(F)_w)$],
+  ),
+  [$K;I;Phi;Omega@Theta;S ⊢ "body"_("Option"[B])(
+      "try_with_packed_next"(p,{i,"pending" => e})) ⇓
+    cal(F)_o ! "row"(cal(F)_o);"demand"(cal(F)_o);
+    "suspension"(cal(F)_o);"summary"(cal(F)_o) ⊣
+    "usageOut"(cal(F)_o)$],
+)
+
+`ReleaseMapSomePath` maps Returns($b$) to release;Returns(Some($b$)); after the
+full nonescape gate it maps Aborts/Transfers to release followed by the exact
+same terminal tag. The acquire-lost Returns(None) path is always reachable, so
+the outer intrinsic is `MayReturn` even when the open body has no Returns.
+
+#irule(
+  [T-Dispose-PackedNext],
+  (
+    [$K;I;Phi@Theta ⊢_v p ⇒ "PackedNext"[rho,A] @[pi_p] ▷ chi_p$],
+    [$"PhaseAllows"(Phi,"Action")$],
+    [$"requestPackedClose"(p):
+      "Open"(n)↦"Closing"(n),
+      "Closing"(n)↦"Closing"(n),
+      "Closed"↦"Closed"$],
+  ),
+  [$K;I;Phi;Omega@Theta;S ⊢ "dispose_packed_next"(p) ⇒
+    "Unit" @["Stable"] ! emptyset;emptyset ▷
+    "direct"("NoSuspend");delta_"packed-dispose";emptyset
+    @Theta⊣Omega$],
 )
 
 #irule(
@@ -2353,18 +2892,21 @@ raw $j$ capture折叠为 Owner-owned package capture。Evidence binder $S$
 TR₀ 的普通 value可复制，所以 package不是一个伪装成普通值的 affine token。
 `ClockPackageSafe` 必须证明 container强拥有一个可共享的 child-Owner
 handle；alias共享同一 runner，`openClockLease` 取得 scoped lease，
-scope exit只原子 release该 lease。最终 dispose由 child Owner在最后一个
-handle/lease退出后执行且幂等。若未来选择 affine package，必须把 quantity
+scope exit只原子 release该 lease。公开 handle使用
+`Open(n)|Closing(n)|Closed`：dispose幂等地进入 Closing、不等待 active lease；
+最后一个 release唯一关闭 runner/child Owner。若未来选择 affine package，必须把 quantity
 传播到 alias、ADT与 closure；本文不偷偷假设那套尚未定义的规则。
-T-Clock-Unpack 的 non-escape premise保证打开 package后不能把 private
-identity、row entry、lock或 capture再次泄漏出去。正常与 abortive exit
-分别由 `ClockPackageScopeExit` / `AbortClockPackageScopeExit` 执行 $S$
-中的 non-suspending、empty-row lease-release contract并隐藏 identity；
-其 semantic summary仍组合进 $delta_o$。`PackageResultBoundarySafe` 还
-拒绝虽不含 $i$、却借 child Owner/callback越过 lease lifetime的结果。
-generic T-Ctx-Paths不能跳过这个 delimiter。Owner quantifier同样只量化
-静态 region name，不量化 runtime generation。Surface existential省略
-$S$ 的拼写，但 Core binder、变量与 module interface不省略。
+T-Clock-Unpack-Paths 的 nonescape gate递归遍历所有 outward-surviving
+artifacts：result type/provenance/capture/world、row/attributed demand/route、
+operation/secondary sites、suspension/summary/usage/locks、Q/$Lambda$、完整
+ParkContractV2/ResumeTypeV2/suffix cleanup+live bindings，以及
+AppliedContractV2/ContractComputationV2。Returns还执行
+`PackageResultBoundarySafe`；Aborts与Transfers保持原 tag。每个通过 gate的
+path由 `ReleaseHidePath` 恰好 release一次、drop payload binder并隐藏 $i$；
+generic T-Ctx-Paths不能跳过 delimiter。T-Clock-Unpack与
+T-Clock-Unpack-Abort只作为 singleton projections，不再是 normative rule。
+Surface不提供一般 existential spelling；sealed `PackedNext` intrinsic负责
+创建/打开 V2 artifact，Core binder与 module interface evidence仍不省略。
 
 #irule(
   [K-Task],
@@ -4208,14 +4750,14 @@ Handled body使用 path-set辅助 judgment：
 $
   t ::= "Aborts"
     | "Returns"(pi,chi,Theta)
-    | "Transfers"("ParkContract")
+    | "Transfers"("ParkContractV2")
   quad
   cal(F) ::= {t_1,...,t_n}
 $
 
 $cal(F)$ 是 reachable outcomes 的有限非空集合，不是单一 tag；因此同一
 branching computation可以同时保存 `Returns`、`Aborts` 与一个或多个
-`Transfers(ParkContract)`。Normal return entries只有在 result type兼容且
+`Transfers(ParkContractV2)`。Normal return entries只有在 result type兼容且
 world可 join时合并；transfer contract不能被 join成 abort。
 
 $
@@ -4225,7 +4767,7 @@ $
 $
 
 它要求所有 normal path返回 $A$ 并 join其 provenance/capture/world；
-完全 abortive body得到 `${Aborts}`。`Transfers(ParkContract)` 是经过
+完全 abortive body得到 `${Aborts}`。`Transfers(ParkContractV2)` 是经过
 T-Park验证的 terminal ownership transfer，不是 `Unit` result，也不能进入
 sequence 的 suffix。三类 flow都保留 typed Core、operation sites、row、
 suspension、summary 与 attributed demand。$S$ 与 typing context中的 route
@@ -4242,7 +4784,7 @@ $
 `clauseBody` 复用以下 return/abort/transfer/branch/sequence规则，并额外允许
 T-Forward-Delegate/T-Forward-Paths。`Delegates` 只能出现在 handler schema
 内部；它携带 `Forwarded(κf)` disposition evidence，不能进入
-FunctionContractV1.flow_summary。
+`FunctionContractV2.computation` 的 public path set。
 
 #irule(
   [T-Body-Return],
@@ -4385,7 +4927,7 @@ summary与 handler policy；不能用单独的 $P_h$ 替代 $C_h$。
 结果的 provenance/capture不会从 normal body summary中消失。
 `InstallOK` 对 $cal(F)_e$ 逐 path映射：return path应用 return/clause
 contract，abort path保留 `Aborts`，transfer path保留同一个
-`Transfers(ParkContract)` 并验证该 installation不窃取 disposition。它同时
+`Transfers(ParkContractV2)` 并验证该 installation不窃取 disposition。它同时
 要求所有 normal exit产生可 join 的输出 $Theta_o$；没有 normal exit时
 set中仍保留 abort/transfer而不是压成 `NoReturn`。Clause可以通过 full $w_k$ resume到该 world，
 也可执行等价 sealed transition；无 resume 的 abort path若 normal return
@@ -4611,19 +5153,21 @@ $omega$。
 #irule(
   [T-Park],
   (
-    [$"src":"CompletionSource"[rho,B] in Theta$],
+    [$"src":"CompletionSource"[rho,A] in Theta$],
     [$o:"Owner"[rho] in Theta$],
     [$Phi_"park"="Action"
       quad "PhaseAllows"(Phi,Phi_"park")
       quad "OwnerAuthorized"(Phi,o,rho)$],
     [$k:"Resume"[1,D_k,A,B,Pi_k,chi_k,rho_k] quad Omega(k)="Open"(1)$],
+    [$K;I ⊢ D_k:"SuffixContractV2"(A arrow.r B)$],
     [$"Outlives"(rho,rho_k)$],
     [$"SuspensionStable"(rho,"summary"(D_k),Pi_k,chi_k)$],
     [$"OwnerBoundParking"(rho,D_k)$],
-    [$"SealCompletion"("src",o,k) ⇓ ⟨g,c,"port"⟩$],
+    [$"SealCompletion"("src",o,k) ⇓ ⟨g,c,"port":"CompletionPort"[rho,A]⟩$],
+    [$R_k="ResumeTypeV2"(1,D_k,A,B,Pi_k,chi_k,rho_k)$],
     [$kappa_p="freshParkSite"(S)$],
-    [$P="ParkContract"(
-      kappa_p,rho,g,c,"port",D_k,Pi_k,chi_k,Phi_"park")$],
+    [$P="ParkContractV2"(
+      kappa_p,rho,g,c,"src","port",R_k,Phi_"park")$],
     [$s_p="ownerBound"(kappa_p,rho,"MaySuspend")
       quad "Allowed"(Phi,emptyset,s_p,delta_"park")$],
   ),
@@ -4636,9 +5180,12 @@ $omega$。
 Surface 第一方协议把 `source.park(k, under = owner)` elaboration为
 `park(src,o,k)`。它消耗 clause 当前 disposition ownership并终止当前 path；
 因此不能伪装成 `Unit` 后继续执行 suffix。Owner runtime随后只向宿主暴露
-generation-bound `CompletionPort[ρ,B]`，并对 resume/finalize承担唯一责任。
+generation-bound `CompletionPort[ρ,A]`，并对 resume/finalize承担唯一责任。
 Raw `Resume` 不会被普通 host callback捕获；只有 sealed completion source
 能构造 port 和 $P$。
+
+completion只接收 $v:A$；CAS成功后才把 $v$ 交给保存的 $D_k:A→B$，由 suffix
+产生 answer $B$。T-Park本身不运行 $D_k$，也不因此获得 Returns path。
 
 `examples/spec/accept/owner-park.cire` 的关键推导链是：
 
@@ -4647,13 +5194,16 @@ Async::await site
   → Demand(κ, p, Async, await, Primary)
   → once clause owns k : Open(1)
   → T-Park changes k to Transferred(ρ,g,c)
-  → T-Body-Transfer yields {Transfers(ParkContract)}
+  → T-Body-Transfer yields {Transfers(ParkContractV2)}
   → T-Handle-*-Paths preserves that path
   → RowSplit(Δ,p) removes the handled Async demand
   → function body has declared_type Int, flow={Transfers}, row={}
 ```
 
 这里没有任何一步把 transfer构造成 `Unit`、`Returns` 或 `Aborts`。
+`examples/spec/accept/owner-park-nonidentity.cire` 另外固定
+$A="Int" != B="Array"["Int"]$，避免 identity suffix掩盖 source/answer
+接线错误。
 
 TR₀ 只允许 park `once` resumption；
 `ctl` 必须在 clause内同步使用并最终 finalize。若未来要 transfer multi-shot
@@ -5926,7 +6476,7 @@ CheckResult {
   flow: nonempty set of
       Returns(temporal_context_out, provenance, result_captures)
       | Aborts
-      | Transfers(ParkContract)
+      | Transfers(ParkContractV2)
   provenance
   residual_row
   attributed_demand
@@ -5944,7 +6494,7 @@ CheckResult {
 保存在各 return entry并在需要单一 normal结果时 join。`Aborts` 与
 `Transfers` entries仍共享 row、attributed demand、suspension、summary、
 usage、typed Core与 site evidence。`Transfers` 额外保存 sealed
-`ParkContract`。集合可以同时包含 return/abort/transfer；只有 set中确实有
+`ParkContractV2`。集合可以同时包含 return/abort/transfer；只有 set中确实有
 `Returns` 才能读取 normal result，terminal entries永远不会被存在一个
 normal branch的事实抹掉。
 
@@ -6134,39 +6684,54 @@ synth(ctx, e):
       require Fabs.flow_summary == abstract_flow(rb.flow)
       require Fabs.obligations == normalized_union(
         obligations_of_every_path(rb.flow))
-      return value(function_contract(
-        rb.row, Fabs.world_projection, Fabs.returnability,
-        rb.suspension, rb.summary, Πclosure, χclosure,
-        u, Fabs.result_transformer, Φrequired,
-        Fabs.obligations, Λ,
-        flow_summary = Fabs.flow_summary))
+      Cterm = abstract_contract_computation_v2(
+        complete_flow = rb.flow,
+        path_evidence = rb.path_evidence,
+        obligations = Fabs.obligations,
+        latent_sites = Λ)
+      require observers(Cterm) == Fabs
+      return value(function_contract_v2(
+        binders = generalized_binders(symbolic, Fabs),
+        applications = Cterm.applications,
+        computation = Cterm,
+        closure_environment =
+          environment_ledger(Πclosure, χclosure, u)))
 
     App(f, arg):
       return strict_bind(synth(ctx, f), empty_prefix, rf =>:
         (A, contract, B) = instantiate_function(rf.type)
         strict_bind(
           check(context_of(rf), arg, A), prefix(rf), ra =>:
-            require phase_allows(ctx.Φ, contract.required_phase)
+            application = build_applied_contract_v2(
+              contract_ref = contract.ref,
+              callee_summary = value_summary(rf),
+              actual_arguments = [value_summary(ra)],
+              substitution = solve_complete_substitution(contract, rf, ra),
+              entry_world = ra.Θ_out,
+              origin = source_origin(f))
+            require application is atomic and
+              no_field_has_independent_actuals(application)
+            invoked = InvokeV2(application.application_slot)
+            require phase_allows(ctx.Φ, phase(invoked))
             Qcall = instantiate(
-              stageCall(contract.obligations),
-              ra.π, ra.χ, ctx.I, ra.Θ_out)
+              stageCall(obligations(invoked)), application)
             discharge(Qcall)
             Qinstall = instantiate(
-              stageHandlerInstall(contract.obligations),
-              ra.π, ra.χ, ctx.I, ra.Θ_out)
-            Ω3 = apply_usage(ra.Ω_out, contract.latent_usage)
+              stageHandlerInstall(obligations(invoked)), application)
+            Ω3 = apply_usage(ra.Ω_out, usage(invoked))
             (Δcall, scall, Λinstall) =
               instantiate_latent_contract(
-                contract.row, contract.suspension, contract.Λ, ra,
+                row(invoked), suspension(invoked),
+                latent_sites(invoked), application,
                 current_prompt_stack = ctx.prompts)
             require eraseDemand(Δcall) ==
-              instantiate_row(contract.row, ra)
+              row(invoked)
             require attributed_ok(Δcall, scall)
             preserve_until_install(Qinstall, Λinstall)
-            call_flow = instantiate_flow(
-              contract.flow_summary, ra)
+            call_flow = evaluate_contract_computation(
+              invoked, application)
             return instantiate_call_result_paths(
-              rf, ra, contract, call_flow, Ω3,
+              rf, ra, application, call_flow, Ω3,
               Δcall, scall, Λinstall)))
 
     Let(x, first, rest):
@@ -6417,7 +6982,9 @@ synth(ctx, e):
 
     Park(source, owner, k):
       require ctx.Ω[k] == Open(1)
-      require source : CompletionSource[ρ, B]
+      A = resume_argument(k)
+      B = resume_answer(k)
+      require source : CompletionSource[ρ, A]
       require owner : Owner[ρ]
       require phase_allows(ctx.Φ, Action)
       require owner_authorized(ctx.Φ, owner, ρ)
@@ -6428,19 +6995,27 @@ synth(ctx, e):
       require owner_bound_parking(ρ, Dk)
       (generation, claim, port) =
         seal_completion(source, owner, k)
+      require port : CompletionPort[ρ, A]
       park_site = fresh_site_slot()
       suspension = ownerBound(park_site, ρ, MaySuspend)
       require Allowed(
         ctx.Φ, ∅, suspension, δpark)
-      contract = ParkContract(
+      resumption = ResumeTypeV2(
+        usage = Once,
+        continuation = Dk,
+        argument = A,
+        answer = B,
+        live_provenance = Dk.provenance_live,
+        live_capture = Dk.captures_live,
+        owner = Dk.owner_region)
+      contract = ParkContractV2(
         site_slot = park_site,
         owner = ρ,
         generation = generation,
         claim_cell = claim,
+        source = source,
         completion_port = port,
-        continuation = Dk,
-        provenance_live = Dk.provenance_live,
-        captures_live = Dk.captures_live,
+        resumption = resumption,
         disposition_states =
           {Unclaimed, Completed, Finalized},
         completion_generation_gate = EqualCurrentGeneration,
@@ -6450,6 +7025,11 @@ synth(ctx, e):
         finalization_cas = UnclaimedToFinalized,
         generation_transition = PreserveGeneration,
         required_phase = Action)
+      require contract.source.value_type
+        == contract.completion_port.value_type
+        == contract.resumption.argument
+      require contract.resumption.answer == Dk.answer_type
+      require contract.resumption.continuation == Dk
       return transferring_flow(
         flow = {Transfers(contract)},
         residual_row = ∅,
@@ -6461,7 +7041,8 @@ synth(ctx, e):
 
     Intrinsic(name, args):
       dispatch to Live / SourceWrite / Plan / TryPublish /
-                  Atomic / Batch / CommitRun rules
+                  Atomic / Batch / CommitRun /
+                  PackNext / TryOpenPackedNext / DisposePackedNext rules
 ```
 
 为避免伪代码省略被误读成“其余 Core constructor被 reject”，以下 branch是
@@ -6471,7 +7052,10 @@ synth(ctx, e):
 CapAbs / CapApp              T-Cap-Intro / T-Cap-Elim
 capref                       T-Cap-Ref
 ClockPack                    T-Clock-Pack
-ClockUnpack                  T-Clock-Unpack / T-Clock-Unpack-Abort
+ClockUnpack                  T-Clock-Unpack-Paths
+PackNext                     T-Pack-Next-Paths
+TryOpenPackedNext            T-Try-With-PackedNext-Paths
+DisposePackedNext            T-Dispose-PackedNext
 OwnerAbs / OwnerApp          T-Owner-Intro / T-Owner-Elim
 FreshCap                     K-Fresh-Cap / K-Fresh-Cap-Abort
 HandlerValue                 T-Handler + check_clause_schema
@@ -6487,7 +7071,11 @@ strict evaluation context    T-Ctx-Paths
 每个 branch都对严格 AST 子树递归，并调用同一 finite kind/row/boundary
 worklist；它们不是额外的 declarative oracle。`ClockUnpack` 的 package
 operand按 Core grammar是 value $p$，因此算法也先走 `check_value`，不与
-T-Clock-Unpack冲突。
+T-Clock-Unpack-Paths冲突。它只调用一次 `check_body_flow`，然后逐 path运行
+`clock_package_outward_safe` 与 `release_hide_path`；不能按
+`has_returns` 分叉，也不能把 Aborts/Transfers交给 generic context跳过
+release。PackedNext的两个 contextual body branch复用同一 traversal；
+try-open另加入固定 Returns(None) path。
 
 == Handler schema 与安装点递归
 
@@ -6832,7 +7420,11 @@ eliminate_entry_with_contract(
 normal world/result projection，Aborts/Transfers产生 bottom normal projection但
 仍贡献参数相关 BoundarySafe/StableAcross/Outlives obligation；最终 $Q$ 是所有
 path obligation的 normalized union。存在 Returns时也不得跳过 terminal paths，
-`abstract_flow` 只保存 path contract，不能替代这一步 obligation abstraction。
+`abstract_contract_computation_v2` 把这些 path-local row/demand/suspension/
+summary/usage/phase/Q/$Lambda$ 一起写入 `LiteralPathsV2` 或基于同一
+`AppliedContractV2` 的 Invoke/PathBind term；不存在独立 field projection。
+`abstract_flow` 只保存 outcome projection，不能替代这一步 obligation
+abstraction或原子 application ledger。
 
 Handler definition只捕获 `Πenv/χenv`，不捕获 definition-site prompt stack。
 `with_route_stage(HandlerInstall)` 令 schema内命中 symbolic handled entry的
@@ -7238,7 +7830,7 @@ soundness statement有明确目标。
     normalized row、attributed demand、attributed suspension、finite
     latent-site summary modulo alpha-renaming唯一；`Aborts` entry没有
     result字段；每个 `Transfers` entry具有唯一 sealed
-    `ParkContract`/claim identity。Terminal entries不声称不存在的
+    `ParkContractV2`/claim identity。Terminal entries不声称不存在的
     result/world唯一。这里声称的是 deterministic
     algorithm，不是任意 declarative derivation的 principal-type theorem。
   ],

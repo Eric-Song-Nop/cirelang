@@ -1,243 +1,132 @@
 {
   "contract": {
-    "LatentSites": [
+    "applications": [
       {
         "actual_arguments": [
           {
-            "capture": {
-              "kind": "NoCaptureV1"
-            },
-            "kind": "SlotArgumentV1",
-            "nominal_index": {
-              "kind": "NoNominalIndexV1"
-            },
-            "provenance": {
-              "argument": {
-                "namespace": "Parameter",
-                "slot": 0
-              },
-              "kind": "ArgumentV1"
-            },
-            "source": {
-              "namespace": "Parameter",
-              "slot": 0
-            },
+            "capture": { "kind": "NoCaptureV1" },
+            "nominal_index": { "kind": "NoNominalIndexV1" },
+            "origin": "invoke-twice.cire:first-options",
+            "provenance": { "kind": "StableV1" },
+            "source": { "namespace": "Parameter", "slot": 0 },
             "type": {
-              "arguments": [
-                {
-                  "kind": "TypeParameterV1",
-                  "slot": 0
-                }
-              ],
-              "constructor": {
-                "kind": "BuiltinConstructorV1",
-                "name": "Array"
-              },
-              "kind": "ApplyTypeV1"
-            }
+              "kind": "LegacyTypeRefV2",
+              "value": {
+                "arguments": [{ "kind": "BuiltinTypeV1", "name": "Int" }],
+                "constructor": { "kind": "BuiltinConstructorV1", "name": "Array" },
+                "kind": "ApplyTypeV1"
+              }
+            },
+            "usage": null
           }
         ],
-        "call_obligation_ids": [],
-        "install_obligation_ids": [
-          1
-        ],
-        "instantiated_signature": {
-          "mode": "ctl",
-          "obligation_ids": [
-            1
-          ],
-          "parameters": [
+        "application_slot": 0,
+        "callee_summary": {
+          "capture": { "kind": "NoCaptureV1" },
+          "nominal_index": { "kind": "NoNominalIndexV1" },
+          "origin": "invoke-twice.cire:choose-once-ref",
+          "provenance": { "kind": "StableV1" },
+          "source": null,
+          "type": {
+            "kind": "LegacyTypeRefV2",
+            "value": {
+              "arguments": [],
+              "kind": "NominalTypeV1",
+              "module": ["library"],
+              "name": "ChooseOnceFunction"
+            }
+          },
+          "usage": null
+        },
+        "contract": {
+          "artifact_hash": "sha256:c0385c9d4df55011db9f5626a71fbd861c8c13337be88253d1440e9fc02a53f9",
+          "kind": "ImportedFunctionRefV2",
+          "module": ["library"],
+          "name": "choose_once"
+        },
+        "entry_world": { "application_slot": 0, "kind": "ApplicationEntryWorldV2" },
+        "origin": "invoke-twice.cire:first-call",
+        "substitution": {
+          "clock_arguments": [],
+          "contract_arguments": [],
+          "identity_arguments": [],
+          "owner_arguments": [],
+          "row_arguments": [],
+          "type_arguments": [
             {
-              "arguments": [
-                {
-                  "kind": "TypeParameterV1",
-                  "slot": 0
-                }
-              ],
-              "constructor": {
-                "kind": "BuiltinConstructorV1",
-                "name": "Array"
-              },
-              "kind": "ApplyTypeV1"
-            }
-          ],
-          "required_phase": {
-            "allowed_phases": [
-              "Pure",
-              "Compute",
-              "Action",
-              "Commit"
-            ],
-            "current_owner": null,
-            "required_authorities": []
-          },
-          "result": {
-            "kind": "TypeParameterV1",
-            "slot": 0
-          },
-          "result_transformer": {
-            "capture": {
-              "argument": {
-                "namespace": "OperationArgument",
-                "slot": 0
-              },
-              "kind": "ArrayElementCaptureV1"
-            },
-            "kind": "ParametricResultV1",
-            "provenance": {
-              "argument": {
-                "namespace": "OperationArgument",
-                "slot": 0
-              },
-              "kind": "ArrayElementProvenanceV1"
-            }
-          },
-          "secondary_sites": {
-            "kind": "Closed",
-            "sites": []
-          },
-          "suspension": {
-            "atoms": [],
-            "grade": "NoSuspend"
-          },
-          "transition": {
-            "kind": "SameWorldV1"
-          },
-          "type_binders": []
-        },
-        "operation": {
-          "family": {
-            "arguments": [],
-            "kind": "NominalTypeV1",
-            "module": [
-              "library"
-            ],
-            "name": "Choice"
-          },
-          "kind": "ExactOperationV1",
-          "name": "choose"
-        },
-        "origin": "choose-once.cire:Choice.choose",
-        "receiver": {
-          "family": {
-            "arguments": [],
-            "kind": "NominalTypeV1",
-            "module": [
-              "library"
-            ],
-            "name": "Choice"
-          },
-          "kind": "AnonV1"
-        },
-        "route": {
-          "kind": "ResolveAtInstallationV1",
-          "on_missing": "RootOfEntryV1"
-        },
-        "secondary_sites": {
-          "kind": "Closed",
-          "sites": []
-        },
-        "site_slot": 0,
-        "stage": "HandlerInstall",
-        "suffix": {
-          "attributed_demand": [],
-          "cleanup": {
-            "attributed_demand": [],
-            "residual_row": {
-              "kind": "EmptyV1"
-            },
-            "semantic_summary": {
-              "kind": "PureV1"
-            },
-            "suspension": {
-              "atoms": [],
-              "grade": "NoSuspend"
-            },
-            "transition": {
-              "kind": "SameWorldV1"
-            }
-          },
-          "flow": [
-            {
-              "kind": "Returns",
-              "result_transformer": {
-                "capture": {
-                  "kind": "OperationResultCaptureV1",
-                  "site_slot": 0
-                },
-                "kind": "ParametricResultV1",
-                "provenance": {
-                  "kind": "OperationResultProvenanceV1",
-                  "site_slot": 0
-                }
-              },
-              "transition": {
-                "kind": "SameWorldV1"
+              "binder_slot": 0,
+              "value": {
+                "kind": "LegacyTypeRefV2",
+                "value": { "kind": "BuiltinTypeV1", "name": "Int" }
               }
             }
-          ],
-          "live_bindings": [],
-          "required_phase": {
-            "allowed_phases": [
-              "Pure",
-              "Compute",
-              "Action",
-              "Commit"
-            ],
-            "current_owner": null,
-            "required_authorities": []
-          },
-          "residual_row": {
-            "kind": "EmptyV1"
-          },
-          "result_transformer": {
-            "capture": {
-              "kind": "OperationResultCaptureV1",
-              "site_slot": 0
+          ]
+        }
+      },
+      {
+        "actual_arguments": [
+          {
+            "capture": { "kind": "NoCaptureV1" },
+            "nominal_index": { "kind": "NoNominalIndexV1" },
+            "origin": "invoke-twice.cire:second-options",
+            "provenance": { "kind": "StableV1" },
+            "source": { "namespace": "Parameter", "slot": 1 },
+            "type": {
+              "kind": "LegacyTypeRefV2",
+              "value": {
+                "arguments": [{ "kind": "BuiltinTypeV1", "name": "Int" }],
+                "constructor": { "kind": "BuiltinConstructorV1", "name": "Array" },
+                "kind": "ApplyTypeV1"
+              }
             },
-            "kind": "ParametricResultV1",
-            "provenance": {
-              "kind": "OperationResultProvenanceV1",
-              "site_slot": 0
+            "usage": null
+          }
+        ],
+        "application_slot": 1,
+        "callee_summary": {
+          "capture": { "kind": "NoCaptureV1" },
+          "nominal_index": { "kind": "NoNominalIndexV1" },
+          "origin": "invoke-twice.cire:choose-once-ref",
+          "provenance": { "kind": "StableV1" },
+          "source": null,
+          "type": {
+            "kind": "LegacyTypeRefV2",
+            "value": {
+              "arguments": [],
+              "kind": "NominalTypeV1",
+              "module": ["library"],
+              "name": "ChooseOnceFunction"
             }
           },
-          "semantic_summary": {
-            "kind": "PureV1"
-          },
-          "suspension": {
-            "atoms": [],
-            "grade": "NoSuspend"
-          },
-          "transition": {
-            "kind": "SameWorldV1"
-          }
+          "usage": null
+        },
+        "contract": {
+          "artifact_hash": "sha256:c0385c9d4df55011db9f5626a71fbd861c8c13337be88253d1440e9fc02a53f9",
+          "kind": "ImportedFunctionRefV2",
+          "module": ["library"],
+          "name": "choose_once"
+        },
+        "entry_world": { "application_slot": 1, "kind": "ApplicationEntryWorldV2" },
+        "origin": "invoke-twice.cire:second-call",
+        "substitution": {
+          "clock_arguments": [],
+          "contract_arguments": [],
+          "identity_arguments": [],
+          "owner_arguments": [],
+          "row_arguments": [],
+          "type_arguments": [
+            {
+              "binder_slot": 0,
+              "value": {
+                "kind": "LegacyTypeRefV2",
+                "value": { "kind": "BuiltinTypeV1", "name": "Int" }
+              }
+            }
+          ]
         }
       }
     ],
-    "ParametricObligations": [
-      {
-        "boundary": "CallArgument",
-        "id": 0,
-        "kind": "BoundarySafeV1",
-        "origin": "choose-once.cire:choose_once",
-        "slots": [
-          {
-            "namespace": "Parameter",
-            "slot": 0
-          }
-        ],
-        "stage": "Call"
-      },
-      {
-        "id": 1,
-        "kind": "DuplicableEnvV1",
-        "origin": "choose-once.cire:Choice.choose",
-        "site_slot": 0,
-        "slots": [],
-        "stage": "HandlerInstall"
-      }
-    ],
-    "artifact": "FunctionContractV1",
+    "artifact": "FunctionContractV2",
     "binders": {
       "clock_binders": [],
       "contract_binders": [],
@@ -247,164 +136,72 @@
         {
           "slot": 0,
           "type": {
-            "arguments": [
-              {
-                "kind": "TypeParameterV1",
-                "slot": 0
-              }
-            ],
-            "constructor": {
-              "kind": "BuiltinConstructorV1",
-              "name": "Array"
-            },
-            "kind": "ApplyTypeV1"
+            "kind": "LegacyTypeRefV2",
+            "value": {
+              "arguments": [{ "kind": "BuiltinTypeV1", "name": "Int" }],
+              "constructor": { "kind": "BuiltinConstructorV1", "name": "Array" },
+              "kind": "ApplyTypeV1"
+            }
+          }
+        },
+        {
+          "slot": 1,
+          "type": {
+            "kind": "LegacyTypeRefV2",
+            "value": {
+              "arguments": [{ "kind": "BuiltinTypeV1", "name": "Int" }],
+              "constructor": { "kind": "BuiltinConstructorV1", "name": "Array" },
+              "kind": "ApplyTypeV1"
+            }
           }
         }
       ],
       "prompt_binders": [],
       "row_binders": [],
-      "type_binders": [
-        {
-          "kind": "Type",
-          "slot": 0
-        }
-      ]
+      "type_binders": []
     },
-    "capture_slots": [],
-    "flow_summary": [
-      {
-        "kind": "Returns",
-        "result_transformer": {
-          "capture": {
-            "argument": {
-              "namespace": "Parameter",
-              "slot": 0
-            },
-            "kind": "ArrayElementCaptureV1"
-          },
-          "kind": "ParametricResultV1",
-          "provenance": {
-            "argument": {
-              "namespace": "Parameter",
-              "slot": 0
-            },
-            "kind": "ArrayElementProvenanceV1"
-          }
+    "closure_environment": [],
+    "computation": {
+      "continuation": { "application_slot": 1, "kind": "InvokeV2" },
+      "kind": "PathBindV2",
+      "prefix": { "application_slot": 0, "kind": "InvokeV2" },
+      "return_binder": {
+        "capture": { "kind": "OperationResultCaptureV1", "site_slot": 0 },
+        "provenance": { "kind": "OperationResultProvenanceV1", "site_slot": 0 },
+        "slot": 0,
+        "type": {
+          "kind": "LegacyTypeRefV2",
+          "value": { "kind": "BuiltinTypeV1", "name": "Int" }
         },
-        "transition": {
-          "kind": "SameWorldV1"
-        }
-      }
-    ],
-    "profile": "Cire-TR₀/2026-07-31",
-    "required_phase": {
-      "allowed_phases": [
-        "Pure",
-        "Compute",
-        "Action",
-        "Commit"
-      ],
-      "current_owner": null,
-      "required_authorities": []
-    },
-    "result_transformer": {
-      "capture": {
-        "argument": {
-          "namespace": "Parameter",
-          "slot": 0
-        },
-        "kind": "ArrayElementCaptureV1"
-      },
-      "kind": "ParametricResultV1",
-      "provenance": {
-        "argument": {
-          "namespace": "Parameter",
-          "slot": 0
-        },
-        "kind": "ArrayElementProvenanceV1"
+        "world": { "kind": "ReturnWorldV2", "return_slot": 0 }
       }
     },
-    "row": {
-      "entries": [
-        {
-          "family": {
-            "arguments": [],
-            "kind": "NominalTypeV1",
-            "module": [
-              "library"
-            ],
-            "name": "Choice"
-          },
-          "kind": "AnonV1"
-        }
-      ],
-      "kind": "ClosedV1"
-    },
-    "schema_version": 1,
-    "semantic_summary": {
-      "kind": "PureV1"
-    },
-    "suspension": {
-      "atoms": [
-        {
-          "entry": {
-            "family": {
-              "arguments": [],
-              "kind": "NominalTypeV1",
-              "module": [
-                "library"
-              ],
-              "name": "Choice"
-            },
-            "kind": "AnonV1"
-          },
-          "grade": "NoSuspend",
-          "kind": "RequestV1",
-          "operation": {
-            "family": {
-              "arguments": [],
-              "kind": "NominalTypeV1",
-              "module": [
-                "library"
-              ],
-              "name": "Choice"
-            },
-            "kind": "ExactOperationV1",
-            "name": "choose"
-          },
-          "origin": "choose-once.cire:Choice.choose",
-          "route": {
-            "kind": "ResolveAtInstallationV1",
-            "on_missing": "RootOfEntryV1"
-          },
-          "site_role": "Primary",
-          "site_slot": 0
-        }
-      ],
-      "grade": "NoSuspend"
-    },
-    "transition": {
-      "kind": "SameWorldV1"
-    },
-    "usage": []
+    "profile": "Cire-TR₀/2026-08-01",
+    "schema_version": 2
   },
   "expectation": {
+    "application_slots": [0, 1],
+    "atomic_observers": ["flow", "row", "demand", "suspension", "summary", "usage", "phase", "Q", "Lambda"],
+    "call_obligations": {
+      "discharged_at_application": [[0, 0], [1, 0]],
+      "outward": []
+    },
     "canonical_json": "RFC8785-JCS+NFC-V1",
-    "discharge": [
-      0
-    ],
-    "instantiate_latent_sites": [
-      0
-    ],
-    "preserve_until_handler_install": [
-      1
-    ],
-    "primary_request_sites": [
-      0
-    ],
-    "usage_authority_slots": []
+    "flow": {
+      "prefix_terminal_paths_bypass_second_invoke": true,
+      "returns_reach_second_invoke": true
+    },
+    "handler_install_obligations": {
+      "exact_latent_keys": [[0, 0], [1, 0]],
+      "preserved": [[0, 1], [1, 1]]
+    },
+    "invocation_site_ids": [[0, 0], [1, 0]],
+    "mixed_imported_flow": ["ReturnsV2", "AbortsV2", "TransfersV2"],
+    "unknown_or_mixed_application_fields": "reject"
   },
-  "oracle_schema": "CireSpecInterfaceOracleV1",
+  "oracle_schema": "CireSpecInterfaceOracleV2",
+  "profile": "Cire-TR₀/2026-08-01",
+  "schema_version": 2,
   "source": "choose-once.cire",
-  "subject": "library::choose_once"
+  "subject": "consumer::invoke_choose_twice"
 }

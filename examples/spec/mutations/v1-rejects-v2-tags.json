@@ -1,0 +1,85 @@
+{
+  "artifact": "CireMutationOracleV2",
+  "cases": [
+    {
+      "decoder": "FunctionContractV1",
+      "diagnostic": "unsupported-contract-schema-version",
+      "mutation": { "field": "computation", "tag": "PathBindV2" },
+      "result": "reject"
+    },
+    {
+      "decoder": "ParkContractV1",
+      "diagnostic": "unsupported-contract-schema-version",
+      "mutation": { "field": "disposition", "tag": "OneShotDispositionV2" },
+      "result": "reject"
+    },
+    {
+      "decoder": "FunctionContractV2",
+      "diagnostic": "path-bind-terminal-not-preserved",
+      "mutation": "apply-continuation-to-prefix-AbortsV2",
+      "result": "reject"
+    },
+    {
+      "decoder": "FunctionContractV2",
+      "diagnostic": "projected-obligation-stage-lost",
+      "mutation": "drop-HandlerInstall-Q-after-InvokeV2",
+      "result": "reject"
+    },
+    {
+      "decoder": "FunctionContractV2",
+      "diagnostic": "projected-latent-site-key-mismatch",
+      "mutation": "reuse-application-0-Lambda-key-for-application-1",
+      "result": "reject"
+    },
+    {
+      "decoder": "ParkContractV2",
+      "diagnostic": "park-source-payload-mismatch",
+      "mutation": "source-A-port-B",
+      "result": "reject"
+    },
+    {
+      "decoder": "ParkContractV2",
+      "diagnostic": "park-resumption-type-mismatch",
+      "mutation": "swap-resumption-argument-A-and-answer-B",
+      "result": "reject"
+    },
+    {
+      "decoder": "ParkContractV2",
+      "diagnostic": "park-resumption-type-mismatch",
+      "mutation": "identity-substitute-result-transformer-for-Dk",
+      "result": "reject"
+    },
+    {
+      "decoder": "ExistsClockPackageTypeV2",
+      "diagnostic": "clock-package-family-not-clock-indexing",
+      "mutation": "arbitrary-effect-family-or-forged-clock-refinement",
+      "result": "reject"
+    },
+    {
+      "decoder": "T-Clock-Unpack-Paths",
+      "diagnostic": "clock-package-private-identity-escape",
+      "mutation": {
+        "hide_private_identity_in_each": [
+          "result", "row", "demand", "route", "secondary-site",
+          "actual-summary", "Q", "Lambda", "cleanup", "live-binding",
+          "ParkContractV2"
+        ]
+      },
+      "result": "reject-each"
+    },
+    {
+      "decoder": "FunctionContractV2",
+      "diagnostic": "contract-parameter-inconsistent-instantiation",
+      "mutation": "project-row-demand-suspension-or-site-from-different-actuals",
+      "result": "reject"
+    },
+    {
+      "decoder": "FunctionContractV2",
+      "diagnostic": "projected-latent-site-key-mismatch",
+      "mutation": "duplicate-site-or-Q-id-or-capture-definition-prompt",
+      "result": "reject"
+    }
+  ],
+  "profile": "Cire-TR₀/2026-08-01",
+  "schema_version": 2
+}

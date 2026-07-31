@@ -1,6 +1,6 @@
 # Cire 语法和例子
 
-> **Profile examples:** [`Cire-TR₀/2026-07-31`](../spec-status.md)。仓库当前
+> **Profile examples:** [`Cire-TR₀/2026-08-01`](../spec-status.md)。仓库当前
 > 没有 parser；所有“状态”只表示规范状态。
 
 这些例子展示当前 canonical surface。更系统的正负 case 在
@@ -244,7 +244,7 @@ source.park(k, under = owner)
 ```
 
 第二个 call 只在 sealed completion-source evidence下产生 terminal
-`Transfers(ParkContract)`；它不会返回 `Unit`，也不会把 raw `Resume` 塞进
+`Transfers(ParkContractV2)`；它不会返回 `Unit`，也不会把 raw `Resume` 塞进
 callback。Compiler必须理解 capability capture、escape、continuation
 ownership、generation CAS 和 finalization。
 

@@ -1,6 +1,6 @@
 # 10　四种恢复模式
 
-> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) 教程基线。
+> 本章示例属于 [`Cire-TR₀/2026-08-01`](../spec-status.md) 教程基线。
 
 ## 1. Operation 之后还有什么
 
@@ -108,7 +108,7 @@ source.park(k, under = owner)
 
 - `resume` 以一个 operation 结果继续；
 - `finalize` 放弃后续计算并执行相应清理。
-- `park` 产生 `Transfers(ParkContract)`，由 generation-bound completion
+- `park` 产生 `Transfers(ParkContractV2)`，由 generation-bound completion
   port 接管。
 
 `park` 终止当前 path且不返回 `Unit`。Raw `k` 不会被 host callback捕获；

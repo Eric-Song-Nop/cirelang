@@ -1,6 +1,6 @@
 # Cire 设计基线与状态矩阵
 
-> **Canonical profile:** `Cire-TR₀/2026-07-31`
+> **Canonical profile:** `Cire-TR₀/2026-08-01`
 >
 > 本 profile 是仓库中语言设计、教程、例子和未来实现的共同基线。它是设计规范，
 > 不是发布版兼容性承诺；其中明确标为参数或开放问题的部分仍可演化。仓库当前
@@ -27,7 +27,7 @@ Parser、测试 fixture 或历史实现从不裁决语言设计。未来实现�
 
 | 状态 | 含义 |
 |---|---|
-| **Profile baseline** | `Cire-TR₀/2026-07-31` 中下游可以依赖的当前设计 |
+| **Profile baseline** | `Cire-TR₀/2026-08-01` 中下游可以依赖的当前设计 |
 | **工作语法** | 已有唯一 grammar/elaboration，但拼写仍可在发布承诺前调整 |
 | **参数化** | 语义边界已写清，profile 显式保留有限候选值 |
 | **开放问题** | 尚无唯一规则，不得由实现自行选择并冒充规范 |
@@ -46,7 +46,7 @@ Parser、测试 fixture 或历史实现从不裁决语言设计。未来实现�
 | Effect/row 形参 `![...]` | Profile baseline | 与普通类型形参分域、分 kind | 无实现 |
 | `ability → effect → cap F` | Profile baseline | 契约、名义 family、生成式实例分离 | 无实现 |
 | `{F}` / `{app}` | Profile baseline | `Anonymous(F)` / `Named(app,F)` 不相等 | 无实现 |
-| `RowExpr`、`|`、projection | 工作语法 | kinded normalization；literal 最多一个 tail | 无实现 |
+| `RowExpr`、`|` | 工作语法 | kinded normalization；literal 最多一个 tail | 无实现 |
 | `abort/fun/once/ctl` | Profile baseline | 最大恢复权为 `0/1/1/ω`，允许向下收紧 | 无实现 |
 | Handler 省略 `return` | Profile baseline | 先合成 identity，再做 exactly-one 检查 | 无实现 |
 | `k.resume` / `k.finalize` | Profile baseline | disposition、world、cleanup 都进入判断 | 无实现 |
@@ -58,12 +58,13 @@ Parser、测试 fixture 或历史实现从不裁决语言设计。未来实现�
 | Block item/result | Profile baseline | maximal-expression item；最后一个未加 `;` 的表达式为结果 | 无实现 |
 | `defer` | 工作语法 + 证明义务 | LIFO intent 已定；capture/abort/park/close reduction calculus 尚未冻结 | 无实现 |
 | `Next/delay/advance` | Profile baseline | generative clock + Fitch lock；`Next` 纯且可共享 | 无实现 |
+| `PackedNext` sealed ABI | 第一方契约 | `@temporal::pack_next` / `try_with_packed_next` / `dispose`；shared lease、显式 `Option` closed path、全路径 nonescape/release | 无实现 |
 | `FrameClock.yield` suspension | Profile baseline | 默认 `MaySuspend` + parking；只有 sealed runner refinement 可证明 `NoSuspend` | 无实现 |
 | Task / Live / Signal / Event | 第一方契约 | 四种不同协议，无隐式 coercion | 无实现 |
-| Owner transfer | Profile baseline + sealed source | `Transfers(ParkContract)`；generation-bound completion port + CAS + close-time finalize | 无实现 |
+| Owner transfer | Profile baseline + sealed source | source/port承载 operation result `A`，完整 resumption保存 `A→B`；`Transfers(ParkContractV2)` + generation CAS + close-time finalize | 无实现 |
 | Flow | Profile baseline | reachable path set 同时保留 `Returns` / `Aborts` / `Transfers`；sequence 只推进 return path | 无实现 |
 | Operation secondary effects | Profile baseline | `SecondaryRow` 在 TR₀ 必须 closed；call row = argument row ∪ dispatch entry ∪ secondary sites；`Δ`/suspension 保留 site/route attribution | 无实现 |
-| Interface `Q/Λ` | Profile baseline | versioned tagged V1 variants、alpha-normalized slots、独立 route；`Call` / `HandlerInstall` 两阶段 | 无实现 |
+| Interface contract / `Q/Λ` | Profile baseline | schema V2 `AppliedContract` + path-sensitive computation；同一 application投影所有 observer；`Call` / `HandlerInstall` 两阶段 | 无实现 |
 | General affine user values | 不在本 profile | 只追踪 resumption/authority 的受限 usage | 无实现 |
 | 宏系统 | 不采用 | UI 使用普通调用、label 和 trailing lambda | 无实现 |
 
@@ -94,10 +95,18 @@ Parser、测试 fixture 或历史实现从不裁决语言设计。未来实现�
 - `k.discontinue(error)` 不属于 `TR₀`。失败由显式 abort effect 表达；取消由
   Owner/finalize 协议表达。
 - Owner 转交只能通过 sealed completion source 产生
-  `Transfers(ParkContract)`。它不是 `Unit`，会终止当前 path；source 保存
+  `Transfers(ParkContractV2)`。它不是 `Unit`，会终止当前 path；source/port
+  只传 operation result `A`，完整 `Resume[A,B]` 再执行 `A→B` answer transform；source 保存
   `(owner,generation,claim)` 并只向宿主暴露 completion port。completion、
   cancel 与 close 竞争同一个 CAS；普通 callback、many-call closure 或容器
   不能捕获 raw `Resume`。
+- `PackedNext[A]` 是 sealed、shared 的 first-party type，不开放一般 existential
+  或 rank-2 source syntax。`try_with_packed_next` 只在 lexical intrinsic body
+  引入 private frame与 exact Next；Closing/Closed返回 `None`，所有成功打开的
+  Returns/Aborts/Transfers path在完整 nonescape gate后 exactly-once release。
+- 高阶 contract 不再逐字段独立 projection。V2 先建立含完整 actual summary/
+  substitution的 `AppliedContractV2`，再用 `Invoke/PathBind/Join` computation
+  派生 row/flow/result/suspension/summary/phase/usage/Q/Λ。
 - Public effect row 是 attributed demand `Δ` 的擦除。Handler 只移除路由到
   自己 prompt 的 site；同 family forwarding、named identity 和 secondary row
   都不能用 raw set subtraction 近似。

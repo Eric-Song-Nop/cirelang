@@ -1,0 +1,23 @@
+// profile: Cire-TR₀/2026-08-01
+// expect: accept
+// rule: T-Park — source/port carry A while the saved suffix maps A to distinct B
+// oracle: subject=run_async_array; ambient=CompletionSource/Owner/Task prelude; operation_result=Int; source_payload=Int; handler_answer=Array[Int]; flow={Transfers(ParkContractV2)}; resumption=Resume[Once,Dk,Int,Array[Int]]
+
+effect Async {
+  once[A] await(task : Task[A]) -> A may_suspend
+}
+
+def run_async_array(
+  task : Task[Int],
+  source : CompletionSource[Int],
+  owner : Owner,
+) -> Array[Int] {
+  with handler Async {
+    once await(_task) as k =>
+      source.park(k, under = owner)
+    return(value) => [value]
+  }
+  in {
+    Async::await(task)
+  }
+}

@@ -1,4 +1,4 @@
-// profile: Cire-TR₀/2026-07-31
+// profile: Cire-TR₀/2026-08-01
 // expect: accept
 // rule: WF-Operation-Secondary-Closed — empty and multi-entry closed literals
 // oracle: subject=read_both; ambient=closed effects Audit/Trace/Store; type=Int; row={Store,Audit,Trace}; secondary={empty,multi(Audit,Trace)}

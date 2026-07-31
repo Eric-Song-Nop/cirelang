@@ -1,6 +1,6 @@
 # 开放问题与原型验证计划
 
-> **Open-question registry:** [`Cire-TR₀/2026-07-31`](spec-status.md)。只有本文
+> **Open-question registry:** [`Cire-TR₀/2026-08-01`](spec-status.md)。只有本文
 > 明确列为开放的项目才允许多候选；仓库当前没有实现。
 
 ## 1. 已经可以依赖的结论
@@ -43,6 +43,10 @@
     capability identity；匿名 `{F}` 与具名 `{app}` 共享 ability evidence。
 24. Effect row constraint 使用独立 row predicate/solver，不把整行 effect
     伪装成拥有 operation 的普通 trait。
+25. TR₀ 不开放一般 existential/rank-2 source syntax；跨 generative
+    FrameClock lifetime使用 sealed shared `PackedNext[A]`，checked open返回
+    `Option`，并以 `Open(n)|Closing(n)|Closed` lease协议负责 exactly-once
+    release与 unique final close。
 
 ## 2. 表面语法
 
@@ -78,7 +82,7 @@
 **仍然开放**
 
 - sealed completion source/port 的标准库命名与 ergonomics（Core
-  `Transfers(ParkContract)` 已冻结）；
+  `Transfers(ParkContractV2)` 与 source/port=`A` 已冻结）；
 - `val` 是否正式保留为无参数 `fun`；
 - one-call/many-call closure 是否需要显式 surface marker；
 - Owner 的第一方 API 如何提供 sealed source/port；

@@ -1,0 +1,14 @@
+// profile: Cire-TR₀/2026-08-01
+// expect: reject
+// rule: sealed-origin resolution — textual name equality does not grant contextual lowering
+// oracle: subject=forged_pack_next; ambient=user module named temporal; diagnostic=contract-component-kind-mismatch; reject_at=user-callback-shape; privileged_lowering=false
+
+module temporal {
+  def pack_next[A](under : Owner, build : (FrameClock) -> A) -> PackedNext[A]
+}
+
+def forged_pack_next(owner : Owner) -> PackedNext[Int] {
+  @temporal::pack_next(under=owner) { frame =>
+    delay[frame] { 42 }
+  }
+}

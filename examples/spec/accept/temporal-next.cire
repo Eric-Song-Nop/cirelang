@@ -1,4 +1,4 @@
-// profile: Cire-TR₀/2026-07-31
+// profile: Cire-TR₀/2026-08-01
 // expect: accept
 // rule: T-Delay; T-Operation(FrameClock.yield); T-Advance
 // oracle: subject=after_tick; ambient=FrameClock identity frame; type=Int; row={frame}; world=next(frame); suspension=MaySuspend; captures={}

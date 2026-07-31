@@ -1,6 +1,6 @@
 # 16　Cire 语法索引
 
-> 本索引服从 [`Cire-TR₀/2026-07-31`](../spec-status.md) 与
+> 本索引服从 [`Cire-TR₀/2026-08-01`](../spec-status.md) 与
 > [完整表面语法](../surface-grammar.md)；仓库当前没有 parser。
 
 本章是教程的速查表，不替代完整 grammar。Cire 的 grammar 使用手写 PEG；
@@ -509,10 +509,26 @@ source.park(k, under = owner)
 ```
 
 前两个降为 Core resumption primitive。第三个只在 sealed completion-source
-evidence 下产生 terminal `Transfers(ParkContract)`；它不返回 `Unit`，宿主
+evidence 下产生 terminal `Transfers(ParkContractV2)`；它不返回 `Unit`，宿主
 只得到 generation-bound completion port。
 
-## 21. 不是 Cire 源语法的概念
+若 `k : Resume[Once,Dk,A,B]`，source/port payload必须为 `A`；保存的 `Dk`
+才把 completion value继续变成 answer `B`。
+
+## 21. Sealed `PackedNext` ABI
+
+```cire
+@temporal::pack_next(under=owner) { frame => body }
+@temporal::try_with_packed_next(packed) { frame, pending => body }
+@temporal::dispose(packed)
+```
+
+它们使用普通 qualified call、label与 trailing-lambda CST，但只有解析到
+exact sealed first-party origin才产生 contextual HIR。第二个调用返回
+`Option[B]`；failed acquire是 `None`，won path在 private identity nonescape
+之后 exactly-once release。不存在一般 existential/rank-2 source syntax。
+
+## 22. 不是 Cire 源语法的概念
 
 以下内容不增加关键字或 annotation：
 
@@ -526,7 +542,7 @@ evidence 下产生 terminal `Transfers(ParkContract)`；它不返回 `Unit`，�
 
 它们分别是静态分析结果、runtime metadata 或第一方库概念。
 
-## 22. 明确不提供
+## 23. 明确不提供
 
 Cire 不设计：
 
@@ -537,7 +553,7 @@ Cire 不设计：
 - `Read[app]` 源语法；
 - 为 capture 增加另一套用户标注。
 
-## 23. 尚未冻结的便捷语法
+## 24. 尚未冻结的便捷语法
 
 以下概念仍在讨论，不能当作可用语法：
 
@@ -552,14 +568,14 @@ Cire 不设计：
 
 教程始终先使用已经定义的核心形式。
 
-## 24. 仓库实现状态
+## 25. 仓库实现状态
 
 仓库当前没有 parser、checker、runtime、标准库、formatter、LSP 或 backend。
-本索引描述 `Cire-TR₀/2026-07-31` 的目标语法；正负样例位于
+本索引描述 `Cire-TR₀/2026-08-01` 的目标语法；正负样例位于
 [`examples/spec/`](../../examples/spec/)，但它们是 conformance 规范，
 不是已通过的测试。重新实现的入口条件见[状态矩阵](../spec-status.md)。
 
-## 25. 继续阅读
+## 26. 继续阅读
 
 - 表面构造说明：[Cire 表面语法设计说明](../surface-syntax.md)
 - 高级多态：[多态与 effect abstraction](../polymorphism-design.md)

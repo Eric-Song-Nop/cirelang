@@ -1,6 +1,6 @@
 # 语言定位与特性总览
 
-> **Explanatory overview:** [`Cire-TR₀/2026-07-31`](spec-status.md)。本文用于
+> **Explanatory overview:** [`Cire-TR₀/2026-08-01`](spec-status.md)。本文用于
 > 导览；精确 grammar 与 judgment 以 canonical profile 为准。
 
 ## 1. 定位
@@ -168,8 +168,13 @@ finalize
   → 展开并执行该分支的 cleanup
 
 sealed source.park 到 Owner
-  → 产生 terminal Transfers(ParkContract)，Owner completion port 接管未来处置
+  → 产生 terminal Transfers(ParkContractV2)，Owner completion port 接管未来处置
 ```
+
+Park 的 V2 contract区分 operation result `A` 与 handler answer `B`：source和
+port只传 `A`，保存的 suffix再执行 `A -> B`。跨 generative FrameClock
+lifetime保存 `Next` 则使用 sealed shared `PackedNext[A]`；checked open显式
+返回 `Option`，每个成功 lease的 Returns/Aborts/Transfers exit都 release一次。
 
 未被恢复、终止或转交的 `once` 恢复权在 clause 离开时自动 finalize。
 

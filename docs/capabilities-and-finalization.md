@@ -1,6 +1,6 @@
 # Named capability、Owner 与结构化清理
 
-> **Normative companion:** [`Cire-TR₀/2026-07-31`](spec-status.md)。本文解释
+> **Normative companion:** [`Cire-TR₀/2026-08-01`](spec-status.md)。本文解释
 > capability/capture/Owner 契约；冲突时以状态矩阵和 TR₀ judgment 为准。
 
 ## 1. 设计中心
@@ -305,7 +305,8 @@ source.park(k, under = owner)
 ```
 
 第三条只对 sealed completion source 开放，产生
-`Transfers(ParkContract)` 并终止当前 path；它不把 raw `Resume` 保存进
+`Transfers(ParkContractV2)` 并终止当前 path；source/port交付 operation
+result `A`，完整 resumption保存 `A -> B` answer transform；它不把 raw `Resume` 保存进
 callback，也不返回 `Unit`。
 
 责任转移后：

@@ -2,7 +2,7 @@
 
 ## 0. 文档状态
 
-> **Profile companion:** [`Cire-TR₀/2026-07-31`](spec-status.md)
+> **Profile companion:** [`Cire-TR₀/2026-08-01`](spec-status.md)
 >
 > 本文保存 canonical profile 的设计动机、反例和取舍，不独立裁决语法或
 > Core rule。规范结论以[状态矩阵](spec-status.md)、
@@ -1006,7 +1006,7 @@ Host::on_event { event_ref =>
 def naturals(
   frame : cap FrameClock,
 ) -> Signal[frame, Int] {
-  @temporal.feedback(frame) { self =>
+  @temporal::feedback(frame) { self =>
     Step(
       0,
       delay[frame] {
@@ -1951,6 +1951,36 @@ immutable bytes，或使用由 Owner root 且明确可移动/可持久化的 `ex
 parked/replay continuation 的同步 FFI callback 不受此限制。Promise completion
 在 Owner close 后到达时，由 generation gate 丢弃。这样同一 trace 不会在
 尚未完成 replacement 时递归进入自己。
+
+### 5.25 跨 generative clock lifetime 的 `PackedNext`
+
+一般 existential/rank-2 surface不进入 TR₀。跨越 sealed FrameClock runner
+lifetime时使用 first-party contextual ABI：
+
+```cire
+let packed = @temporal::pack_next(under=owner) { frame =>
+  delay[frame] { 42 }
+}
+
+let opened = @temporal::try_with_packed_next(packed) { frame, pending =>
+  frame.yield()
+  advance(pending)
+}
+
+@temporal::dispose(packed)
+```
+
+`PackedNext[A]` 是 shared handle，不是 affine token。alias共享
+`Open(n)|Closing(n)|Closed`：dispose只发起幂等 Closing；已经成功 acquire的
+lease继续，最后 release唯一关闭 runner/child Owner；Closing/Closed的新
+acquire返回 `None`。raw frame与 exact Next只存在于 open block lexical scope。
+Returns变成 `Some`；Aborts/Transfers在递归 nonescape gate后 release一次并
+保持 tag。此 delimiter还检查 row/Δ、sites、Q/Λ、cleanup/live binding与完整
+Park resumption，不能只看 result type。
+
+该 API 使用普通 call/trailing-lambda CST，但只有解析到 sealed
+`@temporal` origin才有 privileged binder lowering。同名用户函数不能构造
+ClockPackage或取得 private frame。
 
 ## 6. 对抗性 review：从诱人的 v0 到较稳的 v1
 

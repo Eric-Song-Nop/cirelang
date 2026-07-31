@@ -1,0 +1,35 @@
+{
+  "artifact": "CireClockPackageOracleV2",
+  "binder_order": ["Identity", "Clock", "ClockPackageSummary", "Body"],
+  "family_witness": {
+    "kind": "CanonicalFrameClockV2",
+    "module": ["cire", "temporal"],
+    "name": "FrameClock",
+    "sealed_origin": "cire.temporal:FrameClock"
+  },
+  "open_body_paths": [
+    { "kind": "ReturnsV2", "release_count": 1, "tag_after": "ReturnsV2", "wrap": "Some" },
+    { "kind": "AbortsV2", "release_count": 1, "tag_after": "AbortsV2" },
+    { "kind": "TransfersV2", "park_site": 3, "release_count": 1, "tag_after": "TransfersV2" },
+    { "kind": "TransfersV2", "park_site": 4, "release_count": 1, "tag_after": "TransfersV2" }
+  ],
+  "profile": "Cire-TR₀/2026-08-01",
+  "schema_version": 2,
+  "subject": "T-Clock-Unpack-Paths",
+  "synthetic_lost_acquire_path": {
+    "kind": "ReturnsV2",
+    "normal_return": "MayReturn",
+    "release_count": 0,
+    "value": "None"
+  },
+  "traversal": [
+    "result/world/provenance/capture",
+    "row/demand/routes/actuals/signatures",
+    "suspension/summary/usage/locks",
+    "secondary-sites",
+    "ParkContractV2/ResumeTypeV2",
+    "suffix/cleanup/live-bindings",
+    "Q/Lambda",
+    "AppliedContractV2/ContractComputationV2"
+  ]
+}

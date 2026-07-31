@@ -1,6 +1,6 @@
 # Cire-TR₀ conformance corpus
 
-> **Profile:** `Cire-TR₀/2026-07-31`
+> **Profile:** `Cire-TR₀/2026-08-01`
 
 这里保存规范级输入，不是编译器测试实现。`accept/` 与 `reject/` 下每个
 `.cire` 文件头部记录：
@@ -27,7 +27,11 @@ evidence artifact，不得只检查 parser 是否接受。
 | `accept/label-order.cire` | accept | positional-first、label 唯一、source-order |
 | `accept/four-modes.cire` | accept | mode lowering、answer transform、explicit return |
 | `accept/temporal-next.cire` | accept | fresh clock、delay/advance、same clock |
-| `accept/owner-park.cire` | accept | sealed completion source、terminal `Transfers(ParkContract)` |
+| `accept/owner-park.cire` | accept | sealed completion source、terminal `Transfers(ParkContractV2)` |
+| `accept/owner-park-nonidentity.cire` | accept | `A=Int`、`B=Array[Int]` 的 ParkContractV2 |
+| `accept/packed-next-open.cire` | accept | pack/open/yield/advance、won path exactly-once release |
+| `accept/packed-next-after-dispose.cire` | accept | lost acquire返回 `None` 且 try-open仍 `MayReturn` |
+| `accept/packed-next-local-use.cire` | accept | private clock/Next在 delimiter内完全消费 |
 | `accept/secondary-row.cire` | accept | operation dispatch entry ∪ `SecondaryRow` |
 | `accept/secondary-row-closed-forms.cire` | accept | `! {}` 与多 entry closed secondary |
 | `accept/named-cap-lexical-scope.cire` | accept | named cap binder 的 scoped lexical visibility |
@@ -39,30 +43,39 @@ evidence artifact，不得只检查 parser 是否接受。
 | `reject/early-advance.cire` | reject | `T-Advance` 需要对应 clock lock |
 | `reject/abort-resumes-next.cire` | reject | abort operation 没有 successful resumption |
 | `reject/park-is-not-unit.cire` | reject | T-Park 不产生 `Unit` 或普通 expression result |
+| `reject/park-source-payload-mismatch.cire` | reject | source payload必须等于 resumption argument A |
+| `reject/packed-next-private-identity-escape.cire` | reject | private clock/Next递归 nonescape |
+| `reject/packed-next-shadowed-intrinsic.cire` | reject | 同名用户函数不能获得 privileged lowering |
 | `reject/open-secondary-row.cire` | reject | TR₀ operation secondary row 必须 closed |
 | `reject/bare-open-secondary-row.cire` | reject | bare `! E` 经 recovery CST 到 closed-only WF |
 
 `interfaces/q-lambda-call-install.json` 是
-`CireSpecInterfaceOracleV1` envelope：`subject/source/expectation` 是 corpus
-metadata，真正 wire payload只在 `contract` 字段，且必须符合
-`FunctionContractV1`。它关联 `interfaces/choose-once.cire`；call只能
-discharge `stage=Call` 的 obligation，而 `HandlerInstall` obligation和
-latent site必须保留到 fresh prompt存在的 installation；顶层 suspension
-还必须含与该 latent primary site逐字段对应的 `RequestV1` attribution。
-普通 `options: Array[A]` 不携带 $Omega$ authority，所以该 oracle的
-`usage`/`usage_authority_slots` 都必须为空。
-`interfaces/flow-abort-transfer-owner.json` 则逐 variant固定
-`Aborts`、`Transfers(ParkContractV1)`、`OwnerBoundV1`、root route以及
-Owner/generation-CAS wire形状，包括 shared alpha-normalized claim-cell、
-`Unclaimed→Completed | Finalized` race、completion current-generation
-gate、post-revoke Owner-retire finalization gate与完整
-`SuffixContractV1` continuation/live evidence；它是 union-variant
-oracle，不伪装成某个 FunctionContract source projection。两个 JSON oracle
-的 `canonical_json` expectation都固定 schema规定的
+`CireSpecInterfaceOracleV2` envelope。其 `FunctionContractV2` 以两个
+`AppliedContractV2` 和一个有序 `PathBindV2` 固定同一 imported callback的
+两次调用：每次 Call Q在自己的 application处 discharge，HandlerInstall Q
+与 Lambda exact key以 `(application_slot,local_id)` 保留，两个 invocation
+site id不得 alias；prefix terminal path必须 byte-for-byte旁路第二次调用。
+`interfaces/hof-mixed-later.json` 则固定跨模块 Function contract parameter的
+exact visible row、mixed Returns/Aborts/Transfers flow与 `Next[...,L]` Later
+result必须从同一 `AppliedContractV2` 投影。
+`interfaces/flow-abort-transfer-owner.json` 则逐 variant固定 `AbortsV2`、
+`TransfersV2(ParkContractV2)`、`OwnerBoundV1`、root route以及
+Owner/generation-CAS wire形状。它显式使用 `A=Int`、`B=Array[Int]`，要求
+source/port/resumption argument三者一致，并保留完整 `ResumeTypeV2`、
+`SuffixContractV2` continuation/live evidence。
+
+`interfaces/clock-package-paths.json` 固定 sealed FrameClock witness、
+Identity→Clock→Summary→Body binder顺序、lost-acquire `MayReturn`，以及每个
+Returns/Aborts/Transfers path的 exactly-once release与 tag preservation。
+`runtime/packed-next-lease-runtime.json` 覆盖 dispose/acquire线性化、active
+acquire存活、幂等 dispose与 unique final close；
+`mutations/v1-rejects-v2-tags.json` 保证 V1 decoder拒绝 V2 tag，并拒绝
+terminal bind、Q stage和 Lambda key破坏。JSON oracle的 `canonical_json`
+expectation固定 schema规定的
 `RFC8785-JCS+NFC-V1` serializer；repository中的 oracle envelope保留
 human-readable layout，本身不是 raw artifact byte golden。
 
-`diagnostics-v1.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；
+`diagnostics-v2.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；
 新增或重命名 id需要新 registry version，不能让 parser recovery改变同一
 profile的静态诊断接口。
 

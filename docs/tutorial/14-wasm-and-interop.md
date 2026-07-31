@@ -1,6 +1,6 @@
 # 14　WebAssembly 与宿主互操作
 
-> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) ABI 设计。
+> 本章示例属于 [`Cire-TR₀/2026-08-01`](../spec-status.md) ABI 设计。
 
 ## 1. WebAssembly 是首要目标
 

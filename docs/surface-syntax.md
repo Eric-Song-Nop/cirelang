@@ -2,7 +2,7 @@
 
 ## 1. 状态与目标
 
-> **Profile:** [`Cire-TR₀/2026-07-31`](spec-status.md)
+> **Profile:** [`Cire-TR₀/2026-08-01`](spec-status.md)
 >
 > 本文定义表面构造的含义；完整、实现无关的 token/PEG grammar 见
 > [Cire-TR₀ 完整表面语法](surface-grammar.md)。
@@ -460,9 +460,9 @@ k.finalize()
 
 `source.park(k, under = owner)` 只在 operand 带 sealed completion-source
 evidence 时降为 Core T-Park。它消耗当前 clause 的处置责任，产生
-`Transfers(ParkContract)` 并终止当前 path；它不是返回 `Unit` 的普通容器
-插入函数。宿主 callback只拿到 generation-bound completion port，不能捕获
-raw `Resume`。
+`Transfers(ParkContractV2)` 并终止当前 path；它不是返回 `Unit` 的普通容器
+插入函数。source/port只传 operation result `A`，完整 resumption保存
+`A -> B` answer transform；宿主 callback不能捕获 raw `Resume`。
 
 ### 6.3 Return 与 forwarding
 
@@ -829,6 +829,34 @@ Capture safety 要么作为一组一致的核心规则实现，要么整组延�
 - Owner park/CAS 与 finalization 的唯一责任。
 
 如果这些规则尚未完成，编译器应通过 feature gate 或明确的“尚未支持”诊断拒绝依赖它们的程序，而不是运行一个静默不安全的宽松模式。
+
+### 8.3 PackedNext 的 sealed scope
+
+**已决定**
+
+TR₀ 不增加一般 existential 或 rank-2 类型语法。跨越 generative FrameClock
+lifetime 使用 shared `PackedNext[A]` 与三个 sealed first-party origin：
+
+```cire
+let packed = @temporal::pack_next(under=owner) { frame =>
+  delay[frame] { 42 }
+}
+
+let opened = @temporal::try_with_packed_next(packed) { frame, pending =>
+  frame.yield()
+  advance(pending)
+}
+
+@temporal::dispose(packed)
+```
+
+`try_with_packed_next` 的 result是 `Option[B]`：Closing/Closed acquisition返回
+`None`；成功 body的 Returns映射为 `Some`；Aborts/Transfers保持 terminal tag，
+但必须先证明 private frame/Next/Later/lease没有通过任何 outward evidence逃逸，
+再 exactly-once release。Handle可复制，alias共享
+`Open(n)|Closing(n)|Closed` cell；dispose幂等、NoSuspend、非 Pure，并不等待
+active lease归零。三段 block是 contextual HIR，不是用户可声明的普通 callback
+contract；同名用户函数无 privileged lowering。
 
 ## 9. 不采用宏系统
 

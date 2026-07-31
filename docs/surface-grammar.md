@@ -1,6 +1,6 @@
 # Cire-TR₀ 完整表面语法
 
-> **Profile:** `Cire-TR₀/2026-07-31`
+> **Profile:** `Cire-TR₀/2026-08-01`
 >
 > 本文是实现无关的 canonical grammar。未来 parser 必须实现这里定义的 token
 > language、优先级、附着和恢复边界；parser 的既有行为不能修改本文含义。
@@ -651,7 +651,9 @@ elaboration 必须先合成 `return(value) => value`，然后 Core exactness 才
 第一方 completion source 的普通 method spelling
 `source.park(k, under = owner)` 由 resolver/type checker在 sealed evidence
 下降为 Core `park(source, owner, k)`。它产生
-`Transfers(ParkContract)` 并终止当前 path，不返回 `Unit`；普通用户 method、
+`Transfers(ParkContractV2)` 并终止当前 path，不返回 `Unit`。source/port的
+payload必须精确等于 operation result `A`；保存的完整 resumption再执行
+`A -> B` answer transform。普通用户 method、
 closure 或容器不能伪造该 lowering，也不能把 raw `Resume` 捕获进 host
 callback。
 
@@ -679,6 +681,31 @@ DelayExpr         <- "delay" &DelayTail CUT
 - `resumes next` 和 `may_suspend` 只出现在 operation contract；
 - handler 与 `Next` 不默认交换，相关 evidence 属于静态语义而非 grammar。
 
+TR₀ 不增加 existential/rank-2 grammar。Clock package只通过三个 sealed
+first-party package-qualified value进入 surface：
+
+```cire
+let packed = @temporal::pack_next(under=owner) { frame =>
+  delay[frame] { 42 }
+}
+
+let value = @temporal::try_with_packed_next(packed) { frame, pending =>
+  frame.yield()
+  advance(pending)
+}
+
+@temporal::dispose(packed)
+```
+
+三者使用现有 `QualifiedName`、labelled argument与 trailing-lambda CST；只有
+resolver确认 exact sealed origin时才产生 contextual HIR。builder/open block
+不是普通 first-class callback type：前者获得 fresh FrameClock，后者只在
+lexical scope内获得 raw `frame` 与 exact `Next[frame,A,L]`。
+`PackedNext[A]` 是 copyable shared handle；`try_with_packed_next` 的
+Closing/Closed path显式返回 `None`，成功 body的 Returns映射为 `Some`，而
+安全的 Aborts/Transfers在完整 identity-nonescape后 exactly-once release并
+保持 terminal tag。普通同名函数不享有这些 binder或 lowering。
+
 ## 11. Syntax validation 与静态语义边界
 
 Parser 必须产出 lossless CST；下列检查在 syntax validation/resolver/type
@@ -693,6 +720,7 @@ checker 中完成：
 - named capability identity、row removal、capture/escape；
 - one-shot disposition、multi-shot replay/fork 和 Owner transfer；
 - temporal clock identity、phase authority 和 storage boundary。
+- PackedNext sealed origin、shared lease state、完整 path nonescape/release；
 
 Parser recovery 可以插入 missing token 或 error node，但恢复结果不能成为语言
 语义。Canonical accept/reject 例子见 [`../examples/spec/`](../examples/spec/)。

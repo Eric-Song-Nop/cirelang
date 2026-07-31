@@ -1,6 +1,6 @@
 # 13　UI 与 trailing lambda
 
-> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) 第一方契约。
+> 本章示例属于 [`Cire-TR₀/2026-08-01`](../spec-status.md) 第一方契约。
 
 ## 1. UI 是旗舰框架，不是语言语法
 

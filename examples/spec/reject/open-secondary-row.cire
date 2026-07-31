@@ -1,4 +1,4 @@
-// profile: Cire-TR₀/2026-07-31
+// profile: Cire-TR₀/2026-08-01
 // expect: reject
 // rule: OperationSecondaryAnnotation — secondary rows are closed in TR₀
 // oracle: subject=GenericStore.load; ambient=operation rigid EffectRow E; reject_at=! {Audit,..E}; diagnostic=operation-secondary-row-must-be-closed

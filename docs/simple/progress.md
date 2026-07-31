@@ -1,6 +1,6 @@
 # Cire 规范状态与实现重启路线
 
-> 更新基线：2026-07-31 · [`Cire-TR₀/2026-07-31`](../spec-status.md)
+> 更新基线：2026-08-01 · [`Cire-TR₀/2026-08-01`](../spec-status.md)
 
 ## 当前状态
 
@@ -41,7 +41,7 @@ baseline。
    和 `RowExpr` 有唯一 grammar；
 2. `def` n-ary tuple lowering、implicit `return`、四种 mode、`with`
    generativity、route-aware `Δ` row removal、capture/escape、once
-   disposition、`Transfers(ParkContract)` 和 temporal contract有唯一
+   disposition、`Transfers(ParkContractV2)` 和 temporal contract有唯一
    elaboration；
 3. `examples/spec/` 的 accept/reject case 记录预期 type、row、world、
    capture、usage、Owner obligation 或 diagnostic rule id；

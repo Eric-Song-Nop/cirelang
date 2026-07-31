@@ -1,6 +1,6 @@
 # 06　第一个 effect
 
-> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) 教程基线。
+> 本章示例属于 [`Cire-TR₀/2026-08-01`](../spec-status.md) 教程基线。
 
 ## 1. Effect 是向上下文发出的请求
 

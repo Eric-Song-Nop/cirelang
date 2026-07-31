@@ -1,6 +1,6 @@
 # 15　完整示例：可测试的 Profile 加载器
 
-> 本章按 [`Cire-TR₀/2026-07-31`](../spec-status.md) 组合规范级构造。
+> 本章按 [`Cire-TR₀/2026-08-01`](../spec-status.md) 组合规范级构造。
 
 这一章把普通数据、trait 式 effect abstraction、具名 capability、异步
 operation、错误、handler 和 UI 外观放进同一个小例子。它展示目标设计，
@@ -126,7 +126,7 @@ cancelled → cancel/close claim 胜者 finalize
 close     → Owner close claim 胜者 finalize
 ```
 
-Park 产生 `Transfers(ParkContract)` 并终止 clause path。示例省略了 adapter
+Park 产生 `Transfers(ParkContractV2)` 并终止 clause path。示例省略了 adapter
 细节；裸 `k` 绝不能交给不受 Cire 规则约束的 JavaScript。
 
 ## 6. 测试 handler

@@ -1,4 +1,4 @@
-// profile: Cire-TR₀/2026-07-31
+// profile: Cire-TR₀/2026-08-01
 // expect: accept
 // rule: Ability/Effect kinds; T-Handler; identity return synthesis; identity nonescape
 // oracle: subject=demo; ambient=Reader ability/State handler; type=Int; row={}; world=same; captures={}; identity=state-does-not-escape

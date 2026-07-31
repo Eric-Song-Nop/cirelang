@@ -1,0 +1,29 @@
+{
+  "artifact": "CireRuntimeModelOracleV2",
+  "initial_state": { "kind": "Open", "leases": 0 },
+  "profile": "Cire-TR₀/2026-08-01",
+  "schema_version": 2,
+  "subject": "PackedNextLeaseCell",
+  "traces": [
+    {
+      "events": ["acquire-won", "body-Returns", "release"],
+      "expected": { "close_count": 0, "release_count": 1, "result": "Some", "state": "Open(0)" }
+    },
+    {
+      "events": ["dispose", "acquire"],
+      "expected": { "close_count": 1, "release_count": 0, "result": "None", "state": "Closed" }
+    },
+    {
+      "events": ["acquire-won", "dispose", "body-Aborts", "release"],
+      "expected": { "close_count": 1, "release_count": 1, "tag": "Aborts", "state": "Closed" }
+    },
+    {
+      "events": ["acquire-won", "dispose", "body-Transfers(site=3)", "release"],
+      "expected": { "close_count": 1, "release_count": 1, "tag": "Transfers(site=3)", "state": "Closed" }
+    },
+    {
+      "events": ["acquire-won", "dispose", "dispose", "body-Returns", "release"],
+      "expected": { "active_acquire_survives": true, "close_count": 1, "release_count": 1, "result": "Some", "state": "Closed" }
+    }
+  ]
+}

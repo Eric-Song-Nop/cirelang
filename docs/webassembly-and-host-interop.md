@@ -1,6 +1,6 @@
 # WebAssembly 与宿主互操作
 
-> **ABI design:** [`Cire-TR₀/2026-07-31`](spec-status.md)。本文给未来 runtime
+> **ABI design:** [`Cire-TR₀/2026-08-01`](spec-status.md)。本文给未来 runtime
 > 和 Wasm lowering 设约束；仓库当前没有 backend 或 adapter。
 
 ## 1. WebAssembly 是首要目标

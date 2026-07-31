@@ -1,6 +1,6 @@
 # 编译器前端架构
 
-> **Future architecture:** [`Cire-TR₀/2026-07-31`](spec-status.md)。仓库当前
+> **Future architecture:** [`Cire-TR₀/2026-08-01`](spec-status.md)。仓库当前
 > 没有编译器实现；本文规定未来实现怎样服从规范，而不是记录已完成代码。
 
 ## 1. 目标
@@ -398,6 +398,9 @@ TrailingLambdaCall
 ImplicitReturnClause
 Method-shapedDisposition
 OwnerScopeCall
+PackNext
+TryOpenPackedNext
+DisposePackedNext
 ```
 
 `WithChain` 的可序列化形状至少保留：

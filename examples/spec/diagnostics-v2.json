@@ -1,0 +1,31 @@
+{
+  "artifact": "CireDiagnosticRegistryV2",
+  "profile": "Cire-TR₀/2026-08-01",
+  "schema_version": 2,
+  "diagnostics": [
+    { "id": "abort-has-no-resume-transition", "stage": "ContractWF" },
+    { "id": "clock-package-family-not-clock-indexing", "stage": "Kind" },
+    { "id": "clock-package-private-identity-escape", "stage": "Nonescape" },
+    { "id": "clock-package-transfer-captures-private-identity", "stage": "Nonescape" },
+    { "id": "contract-component-kind-mismatch", "stage": "ContractWF" },
+    { "id": "contract-parameter-inconsistent-instantiation", "stage": "ContractWF" },
+    { "id": "contract-projection-escapes-scope", "stage": "Nonescape" },
+    { "id": "contract-term-cycle", "stage": "ContractWF" },
+    { "id": "multi-shot-captures-one-shot-resumption", "stage": "Usage" },
+    { "id": "named-capability-escapes", "stage": "Nonescape" },
+    { "id": "no-matching-clock-lock", "stage": "TemporalWorld" },
+    { "id": "operation-secondary-row-must-be-closed", "stage": "ContractWF" },
+    { "id": "packed-next-builder-result-mismatch", "stage": "ContractWF" },
+    { "id": "park-resumption-type-mismatch", "stage": "ContractWF" },
+    { "id": "park-source-payload-mismatch", "stage": "ContractWF" },
+    { "id": "path-bind-terminal-not-preserved", "stage": "ContractWF" },
+    { "id": "positional-after-labelled", "stage": "Parse" },
+    { "id": "projected-latent-site-key-mismatch", "stage": "ContractWF" },
+    { "id": "projected-obligation-stage-lost", "stage": "ContractWF" },
+    { "id": "return-projection-does-not-match-flow", "stage": "ContractWF" },
+    { "id": "row-literal-has-multiple-tails", "stage": "RowWF" },
+    { "id": "terminal-transfer-has-no-value", "stage": "Flow" },
+    { "id": "unknown-resumption-primitive", "stage": "Resolve" },
+    { "id": "unsupported-contract-schema-version", "stage": "InterfaceImport" }
+  ]
+}

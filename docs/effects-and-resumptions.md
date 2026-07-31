@@ -1,6 +1,6 @@
 # 代数效应与恢复模式
 
-> **Normative companion:** [`Cire-TR₀/2026-07-31`](spec-status.md)。本文与
+> **Normative companion:** [`Cire-TR₀/2026-08-01`](spec-status.md)。本文与
 > [完整表面语法](surface-grammar.md)和 TR₀ handler judgment 共同定义 effect。
 
 ## 1. 目标
@@ -264,8 +264,9 @@ finalize k
 park source owner k
 ```
 
-三者都消耗同一项恢复权。Park 产生 `Transfers(ParkContract)` 并终止当前
-path；raw continuation 不会被 host callback捕获。异步失败作为 task 的
+三者都消耗同一项恢复权。Park 产生 `Transfers(ParkContractV2)` 并终止当前
+path；source/port交付 operation result `A`，保存的完整 resumption再把
+`A` 变换为 handler answer `B`。raw continuation 不会被 host callback捕获。异步失败作为 task 的
 `Result/Outcome` 正常 resume，或由显式 abort effect表达。
 
 ## 4. 模式之间的关系
@@ -412,8 +413,9 @@ source.park(k, under = owner)
 - Owner 关闭时 finalize。
 
 该 spelling 是 first-party sealed protocol，不是普通可覆盖 method。它返回
-`Transfers(ParkContract)` 而非 `Unit`；“裸 one-shot 续体不能无主逃逸”是
-设计约束。
+`Transfers(ParkContractV2)` 而非 `Unit`；source与 completion port的
+`value_type` 必须等于 resumption argument，不能误用 answer type。
+“裸 one-shot 续体不能无主逃逸”是设计约束。
 
 ## 7. Multi-shot 与捕获环境
 
@@ -466,7 +468,7 @@ multi-shot continuation 与普通局部 `var` 的语义必须明确，不能留�
 |---|---|---|
 | `resume k v` | 在操作点返回 `v` 并继续 | 重新进入续体携带的动态清理段 |
 | `finalize k` | 永不继续该分支 | 展开该分支的 cleanup |
-| `source.park(k, under = owner)` | terminal `Transfers(ParkContract)` | 清理责任转移给 generation-bound completion port |
+| `source.park(k, under = owner)` | terminal `Transfers(ParkContractV2)` | `A` payload与完整 `Resume[A,B]` 一起转移给 generation-bound completion port |
 
 对于 multi-shot，每次恢复造成的动态进入/退出必须与捕获环境的可重放性一致；含一次性 cleanup 的续体不能被无条件复制。
 
@@ -474,7 +476,7 @@ multi-shot continuation 与普通局部 `var` 的语义必须明确，不能留�
 
 ## 10. Profile 边界
 
-`Cire-TR₀/2026-07-31` 已冻结 `k.resume(value)`、`k.finalize()` 与 sealed
+`Cire-TR₀/2026-08-01` 已冻结 `k.resume(value)`、`k.finalize()` 与 sealed
 `source.park(k, under = owner)`。`discontinue` 不在本 profile；只有在 error
 payload、abort/world transformer 与 cleanup contract完整后才能作为新
 profile 提案。仍开放的是一般 one-call closure、高级 `Resume` 是否公开和

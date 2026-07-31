@@ -1,6 +1,6 @@
 # 11　清理、Owner 与结构化并发
 
-> 本章示例属于 [`Cire-TR₀/2026-07-31`](../spec-status.md) 教程基线。
+> 本章示例属于 [`Cire-TR₀/2026-08-01`](../spec-status.md) 教程基线。
 
 ## 1. GC 解决不了“什么时候结束”
 
@@ -117,15 +117,45 @@ handler Async {
 Park 的静态含义：
 
 - 当前 clause 失去对 `k` 的处置权；
-- 当前 path 得到 terminal `Transfers(ParkContract)`，不是 `Unit`；
+- 当前 path 得到 terminal `Transfers(ParkContractV2)`，不是 `Unit`；
 - 宿主只拿到 generation-bound completion port，不拿 raw `Resume`；
 - completion（含 `Result/Outcome` 失败值）、cancel 和 close 竞争同一个 CAS；
 - Owner 关闭会 finalize 尚未处置的 `k`；
 
+若 `k : Resume[Once,Dk,A,B]`，source 与 completion port都承载操作结果
+`A`，不是 handler最终 answer `B`。Completion先接收 `A`，再由保存的
+`Dk : A -> B` 继续计算。`A=B` 只是常见特例；V2 interface必须保留完整
+`ResumeTypeV2`，以便 importer独立验证两者。
+
 `source.park(k, under = owner)` 需要 sealed source evidence，不能退化成普通
 容器的 `push` 或用户自定义同名 method，否则 checker 无法证明责任只转移一次。
 
-## 6. Generation 防止旧 callback 复活
+## 6. 跨 FrameClock lifetime 的 `PackedNext`
+
+一般 existential/rank-2 类型不属于 TR₀。需要把 `Next` 安全保存到创建它的
+FrameClock action之外时，使用 sealed first-party ABI：
+
+```cire
+let packed = @temporal::pack_next(under=owner) { frame =>
+  delay[frame] { 42 }
+}
+
+let opened = @temporal::try_with_packed_next(packed) { frame, pending =>
+  frame.yield()
+  advance(pending)
+}
+
+@temporal::dispose(packed)
+```
+
+`PackedNext[A]` 是 copyable shared handle。`try_with_packed_next` 成功才把
+private frame与 exact Next引入 lexical block；成功 Returns成为 `Some`，
+Closing/Closed acquire返回 `None`。Aborts/Transfers保持 terminal tag，但
+每个 won path都要先通过递归 identity-nonescape，再 exactly-once release。
+`dispose` 幂等、`NoSuspend`、不等待 active lease，并由最后一个 release唯一
+关闭 runner/child Owner。
+
+## 7. Generation 防止旧 callback 复活
 
 考虑搜索框被销毁后又用同一个业务 key 创建：
 
@@ -144,7 +174,7 @@ Park 的静态含义：
 入口先检查 Owner 仍存活且 generation 匹配。静态 capture checking 阻止
 明显逃逸；generation 处理宿主队列、FFI 和真实竞态。
 
-## 7. 两阶段关闭
+## 8. 两阶段关闭
 
 Owner 关闭分两阶段。
 
@@ -168,7 +198,7 @@ child-first 关闭子 Owner
 先撤销控制能力，再调用可能失败或同步重入的宿主 disposer，可以防止 cleanup
 在即将结束的 Owner 下偷偷注册新任务。
 
-## 8. 结构化并发
+## 9. 结构化并发
 
 Task group 或 nursery 建立在 Owner 上：
 
@@ -195,7 +225,7 @@ TaskGroup::scope { group =>
 
 Task group 是第一方库，不需要 `async`、`nursery` 等大量特殊关键字。
 
-## 9. 取消
+## 10. 取消
 
 取消不是“随便返回一个错误字符串”。它需要：
 
@@ -207,7 +237,7 @@ Task group 是第一方库，不需要 `async`、`nursery` 等大量特殊关键
 取消最终采用独立 abortive effect、typed error 还是分层协议仍需原型决定。
 教程不提前发明 `cancel` 语法。
 
-## 10. Portable handler context
+## 11. Portable handler context
 
 宿主稍后调用 callback 时，原来的动态栈已经不存在。Cire 不会默认保存并重装
 整个 handler stack。

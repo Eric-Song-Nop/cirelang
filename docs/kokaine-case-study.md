@@ -1,6 +1,6 @@
 # Kokaine 案例研究
 
-> **Rationale:** 本文是 [`Cire-TR₀/2026-07-31`](spec-status.md) 的案例依据，
+> **Rationale:** 本文是 [`Cire-TR₀/2026-08-01`](spec-status.md) 的案例依据，
 > 不独立定义语法或 Core rule。
 
 ## 1. 目的与范围

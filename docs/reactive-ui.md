@@ -1,6 +1,6 @@
 # 第一方响应式 UI 框架
 
-> **First-party contract:** [`Cire-TR₀/2026-07-31`](spec-status.md)。UI 由普通
+> **First-party contract:** [`Cire-TR₀/2026-08-01`](spec-status.md)。UI 由普通
 > 调用、builder/effect protocol 与 renderer 提供，不增加 parser 特判。
 
 ## 1. 定位

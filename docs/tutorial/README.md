@@ -1,6 +1,6 @@
 # Cire 语言教程
 
-> **Tutorial profile:** [`Cire-TR₀/2026-07-31`](../spec-status.md)。仓库当前
+> **Tutorial profile:** [`Cire-TR₀/2026-08-01`](../spec-status.md)。仓库当前
 > 没有 compiler/runtime；教程示例按规范判断，不按历史 parser 判断。
 
 这是一套从零开始、按顺序阅读的 Cire language tour。它先介绍普通的值、函数、
