@@ -353,8 +353,10 @@ Mode               <- ABORT / FUN / ONCE / CTL
 OperationDecl      <- Mode GenericClauses? LowerIdent ParamList
                       ARROW Type OperationSecondaryAnnotation?
                       OperationContractItem* SEMICOLON?
-OperationSecondaryAnnotation <- BANG ClosedRowLiteral
+OperationSecondaryAnnotation <- BANG CUT
+                      (ClosedRowLiteral / InvalidOperationSecondaryRow)
 ClosedRowLiteral   <- LBRACE (RowEntry (COMMA RowEntry)* COMMA?)? RBRACE
+InvalidOperationSecondaryRow <- RowExpr
 OperationContractItem <- RESUMES NEXT / MAY_SUSPEND
 ```
 
@@ -371,6 +373,10 @@ variable的 union。一般 function/result effect annotation仍使用完整
 `RowExpr`；限制只作用于 `OperationSecondaryAnnotation`。这样 interface中的
 每个 secondary demand都能序列化成 finite `SecondarySiteV1`，不会把 open
 tail伪装成已经枚举完的 site set。
+`CUT` 在 `!` 后固定 operation-secondary context；fallback
+`InvalidOperationSecondaryRow` 只构造 recovery CST node，WF 必须以版本化
+`operation-secondary-row-must-be-closed` 拒绝。它不把 open row接受进语言，
+但保证 bare `! E` 与 `! {Audit, ..E}` 不会提前退化成不稳定 parser error。
 
 `def` 是具名、可递归 declaration/generalization boundary；`fn` 只在
 `LambdaExpr` 和 `GenericFunctionType` 中出现；`fun` 仅是 operation mode。

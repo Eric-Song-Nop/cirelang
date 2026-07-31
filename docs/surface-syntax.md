@@ -528,8 +528,8 @@ transformer(body) : B ! Eout
 
 `with` 语法本身不授予 wrapper 任意复制 action 的权限。Wrapper 能否零次、
 一次或多次调用 thunk，仍由 action function 的 usage/capture 类型与普通调用
-规则决定；具名 handler 的 `HandlerAction` 还要满足 generativity 和 capability
-escape 检查。
+规则决定；具名 `ScopedApply` 经 Kernel handler lowering 后还要满足
+generativity 和 capability escape 检查。
 
 Evaluation order 以展开后的普通调用为准：先求值当前最外层 transformer
 expression，再构造包含其余 chain 的 thunk，然后调用它。内层 operand 不会
@@ -604,15 +604,19 @@ in {
 
 降为：
 
-```moonbit
-read_42(fn(app) {
-  read_app(app)
-})
+```text
+ScopedApply(
+  transformer = read_42,
+  binder = app,
+  body = read_app(app),
+)
 ```
 
-Handler 的类型为 `app` 创建 fresh generative identity。编译器从这个 binder
-推导 capture，并保证保留 `app` 的值不会逃出 handler action。这里不能把
-`app` 当作普通未受约束的函数参数。
+若 transformer 类型证明它是 handler application，Kernel 再降为
+`freshprompt p` + `handle[p,...]`，并用 `capref(ι)` 绑定 `app`。普通
+transformer 降为高阶调用且没有 named capability binder。Handler 的类型为
+`app` 创建 fresh generative identity；这里不能把 `app` 当作普通未受约束的
+函数参数。
 
 在同一个 chain 中，entry 创建的 identity 对后续 entry operand 和最终
 computation 可见，但不在创建它的 operand 内可见：
@@ -636,15 +640,13 @@ in {
 }
 ```
 
-按两步降为：
+先保留为 scoped application：
 
-```moonbit
+```text
 let generated_handler = handler Read[Int] {
   fun read() => 42
 }
-generated_handler(fn(app) {
-  read_app(app)
-})
+ScopedApply(generated_handler, binder = app, body = read_app(app))
 ```
 
 临时绑定只用于说明求值顺序，编译器不必实际生成可观察的名称。
@@ -788,15 +790,18 @@ Owner::scope { owner =>
 }
 ```
 
-Handler application 在 Kernel HIR 中保留专用 binder：
+Surface HIR 先保留中立的 scoped application：
 
 ```text
-HandlerAction {
-  capability : CapabilityId
+ScopedApply {
+  transformer
+  optional_binder
   body
 }
 ```
 
+只有类型检查确认 transformer 是 handler 后，Kernel HIR 才产生
+`FreshPrompt + Handle + CapRef`；普通 transformer继续使用 closure call。
 编译器负责：
 
 - 为 capability binder 生成 fresh、不可伪造的 identity；

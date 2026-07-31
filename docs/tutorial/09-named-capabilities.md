@@ -186,14 +186,18 @@ in {
 }
 ```
 
-概念展开：
+Surface HIR 保留为：
 
-```cire
-checking_handler(fn(checking) {
-  checking.balance()
-})
+```text
+ScopedApply(
+  transformer = checking_handler,
+  binder = checking,
+  body = checking.balance(),
+)
 ```
 
+类型检查确认 handler 后，Kernel 才降为
+`FreshPrompt + Handle + CapRef(checking)`；`checking` 不是普通 lambda 参数。
 `as checking` 创建的 identity 对同一 chain 中后面的 entry 和最终
 computation 可见：
 

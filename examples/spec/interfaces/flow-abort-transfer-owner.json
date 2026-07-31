@@ -1,0 +1,143 @@
+{
+  "oracle_schema": "CireSpecWireVariantOracleV1",
+  "profile": "Cire-TR₀/2026-07-31",
+  "schema_version": 1,
+  "binders": {
+    "parameter_binders": [
+      {
+        "slot": 0,
+        "type": {
+          "kind": "NominalTypeV1",
+          "module": ["prelude"],
+          "name": "Owner",
+          "arguments": []
+        }
+      }
+    ],
+    "type_binders": [],
+    "row_binders": [],
+    "contract_binders": [],
+    "owner_binders": [
+      {
+        "slot": 0,
+        "source": {
+          "namespace": "Parameter",
+          "slot": 0
+        }
+      }
+    ],
+    "clock_binders": [],
+    "identity_binders": [],
+    "prompt_binders": []
+  },
+  "flow_summary": [
+    {
+      "kind": "Aborts",
+      "origin": "wire-variants.cire:abort-branch"
+    },
+    {
+      "kind": "Transfers",
+      "park_contract": {
+        "owner_slot": 0,
+        "site_slot": 0,
+        "source": {
+          "owner": {
+            "namespace": "Owner",
+            "slot": 0
+          },
+          "value_type": {
+            "kind": "BuiltinTypeV1",
+            "name": "Int"
+          },
+          "generation_model": "Unsigned64NoWrap",
+          "write_authority": "OwnerExecutorOnly"
+        },
+        "completion_port": {
+          "owner": {
+            "namespace": "Owner",
+            "slot": 0
+          },
+          "result_type": {
+            "kind": "BuiltinTypeV1",
+            "name": "Int"
+          },
+          "port_slot": 0
+        },
+        "claim": {
+          "source_generation": "ClaimTicketGeneration",
+          "success_test": "EqualCurrentGeneration",
+          "success_transition": "IncrementExactlyOnce",
+          "failure_transition": "NoWrite"
+        },
+        "disposition": {
+          "continuation_site_slot": 0,
+          "cleanup": {
+            "residual_row": {
+              "kind": "EmptyV1"
+            },
+            "attributed_demand": [],
+            "transition": {
+              "kind": "SameWorldV1"
+            },
+            "suspension": {
+              "grade": "NoSuspend",
+              "atoms": []
+            },
+            "semantic_summary": {
+              "kind": "PureV1"
+            }
+          },
+          "states": ["Open", "Claimed", "Completed"],
+          "only_transition": "OpenToClaimedToCompleted"
+        },
+        "required_phase": {
+          "kind": "WithAuthorityV1",
+          "base": "Action",
+          "authority": {
+            "kind": "OwnerAuthorityV1",
+            "owner": {
+              "namespace": "Owner",
+              "slot": 0
+            }
+          }
+        },
+        "origin": "wire-variants.cire:park-branch"
+      }
+    }
+  ],
+  "no_return_projection": {
+    "transition": {
+      "kind": "BottomTransitionV1"
+    },
+    "result_transformer": {
+      "kind": "BottomResultV1"
+    }
+  },
+  "suspension": {
+    "grade": "MaySuspend",
+    "atoms": [
+      {
+        "kind": "OwnerBoundV1",
+        "park_site_slot": 0,
+        "owner_slot": 0,
+        "grade": "MaySuspend",
+        "origin": "wire-variants.cire:park-branch"
+      }
+    ]
+  },
+  "route_examples": [
+    {
+      "kind": "ResolveAtCallV1",
+      "on_missing": "RootOfEntryV1"
+    },
+    {
+      "kind": "RootOfEntryV1"
+    }
+  ],
+  "expectation": {
+    "flow_variants": ["Aborts", "Transfers"],
+    "suspension_variants": ["OwnerBoundV1"],
+    "owner_generation_protocol": "generation-CAS",
+    "unknown_tags": "reject"
+  }
+}

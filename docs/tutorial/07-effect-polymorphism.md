@@ -172,11 +172,13 @@ Operation 自己也可以有两套 generic：
 ability Traversable[A] {
   fun[B]![..E] traverse(
     transform : (A) -> B ! E,
-  ) -> Array[B] ! E
+  ) -> Array[B]
 }
 ```
 
-`[B]` 是 operation 的普通输出类型，`![..E]` 是 callback 的 effect row。
+`[B]` 是 operation 的普通输出类型，`![..E]` 只量化 callback function
+contract 内的 latent row。TR₀ 的 operation 自身 secondary annotation必须是
+finite closed row；不能把同一个 `E` 写成 `) -> Array[B] ! E`。
 
 Higher-order operation 也采用同一顺序：
 
@@ -189,6 +191,9 @@ effect Scope {
 ```
 
 这类 operation 与 resumption safety 的完整规则仍需形式化。
+若 operation 自身确实直接产生 secondary effect，必须枚举 closed literal，
+例如 `) -> A ! {Audit, Trace}`；`! E` 与 `! {Audit, ..E}` 都在
+closed-only WF gate稳定拒绝。
 
 ## 7. Associated type、effect 与 row
 
@@ -203,12 +208,16 @@ pub(open) ability Store {
   effects Extra : All[Replayable] = {}
 
   fun get(key : Key) -> Value
-    ! {Fail, ..Extra}
+    ! {Fail}
 
   fun put(key : Key, value : Value) -> Unit
-    ! {Fail, ..Extra}
+    ! {Fail}
 }
 ```
+
+这里 operation 的 immediate secondary row是 finite `{Fail}`。
+`Extra` 仍可出现在普通 function、callback或 returned-function contract的
+open row中，但 TR₀ 不允许把 `..Extra` 放进 operation secondary annotation。
 
 具体 effect 通过 named associated argument 选择它们：
 

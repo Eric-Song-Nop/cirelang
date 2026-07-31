@@ -614,7 +614,9 @@ in {
 
 每次 application 都创建新的 capability identity。Kernel HIR 必须保存
 generativity，不能把 `app` 降成普通、不受约束的 lambda parameter。
-Handler value 的序列化签名使用专用 `HandlerAction` 表示这一规则。
+Surface HIR 使用 `ScopedApply`；类型检查确认 handler 后，Kernel 以
+`FreshPrompt + Handle + CapRef` 保存这一规则。不存在旧的
+`HandlerAction` wire/HIR variant。
 
 ## 11. Capability capture
 
@@ -767,8 +769,10 @@ PEG 只保存语法，不负责：
 2. `cap F` 与 `Cap[F]` 的最终外形；
 3. associated effect/row 是否使用 `effect` / `effects`；
 4. named associated argument 是否统一使用 `Store[Value = A]`；
-5. row union 是否最终使用 `|`；
-6. `Has`、`Lacks`、`All`、`Only` 是否为 compiler-known predicate；
+5. TR₀ 的 row union 已冻结为 `|` 并 lowering 到 canonical `RowUnion`，
+   不再作为待选 spelling；
+6. TR₀ 已解析 `Has`、`Lacks`、`All`、`Only` constraint，并 lowering 到
+   已形式化 obligation；未来只讨论新增 predicate，不重开这些名字；
 7. 多 ability 同名 operation 的限定调用；
 8. higher-kinded binder hole `_` 的作用域与诊断；
 9. 独立 ability `impl` 是否进入第一阶段；

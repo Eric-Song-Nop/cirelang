@@ -423,16 +423,17 @@ with handler_value as app
 in action
 ```
 
-概念展开：
+Surface HIR：
 
-```cire
-handler_value(fn() { action })
-handler_value(fn(app) { action })
+```text
+ScopedApply(handler_value, binder = none, body = action)
+ScopedApply(handler_value, binder = app, body = action)
 ```
 
-第二种 application 会创建 fresh identity，不能按普通无约束 lambda 参数
-处理。整个 `with ... in ...` 是 expression；`in` 后可直接跟单个 expression
-或 `{ ... }` block。
+若类型证明 transformer 是 handler，Kernel 使用 fresh prompt；第二种还以
+`CapRef` 创建 fresh identity，不能按普通无约束 lambda 参数处理。普通
+transformer才降为 closure call。整个 `with ... in ...` 是 expression；
+`in` 后可直接跟单个 expression或 `{ ... }` block。
 
 组合处理多个 effect 使用有序 chain；第一项最外层，最后一项最靠近 action：
 

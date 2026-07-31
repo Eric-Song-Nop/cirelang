@@ -1,0 +1,8 @@
+// profile: Cire-TR₀/2026-07-31
+// expect: reject
+// rule: OperationSecondaryAnnotation — recovery parses RowExpr, closed-only WF rejects it
+// oracle: subject=GenericStore.load; ambient=operation rigid EffectRow E; reject_at=! E; diagnostic=operation-secondary-row-must-be-closed
+
+effect GenericStore {
+  once![..E] load() -> Int ! E
+}

@@ -7,76 +7,81 @@
   "schema_version": 1,
   "artifact": "FunctionContractV1",
   "row": {
-    "kind": "Closed",
+    "kind": "ClosedV1",
     "entries": [
       {
-        "kind": "AnonymousFamily",
-        "family": "Choice"
+        "kind": "AnonV1",
+        "family": {
+          "kind": "NominalTypeV1",
+          "module": ["library"],
+          "name": "Choice",
+          "arguments": []
+        }
       }
     ]
   },
   "transition": {
-    "kind": "SameWorld"
+    "kind": "SameWorldV1"
   },
   "flow_summary": [
     {
       "kind": "Returns",
       "transition": {
-        "kind": "SameWorld"
+        "kind": "SameWorldV1"
       },
       "result_transformer": {
-        "kind": "ArrayElementOf",
-        "argument_slot": 0
+        "kind": "ArrayElementOfV1",
+        "argument": {
+          "namespace": "Parameter",
+          "slot": 0
+        }
       }
     }
   ],
   "suspension": {
-    "kind": "NoSuspend"
+    "grade": "NoSuspend",
+    "atoms": [
+      {
+        "kind": "DirectV1",
+        "grade": "NoSuspend",
+        "origin": "choose-once.cire:choose_once"
+      }
+    ]
   },
   "semantic_summary": {
-    "kind": "Pure"
+    "kind": "PureV1"
   },
-  "capture_slots": [
-    {
-      "slot": 0,
-      "type": {
-        "kind": "Apply",
-        "constructor": "Array",
-        "arguments": [
-          {
-            "kind": "TypeParameter",
-            "slot": 0
-          }
-        ]
-      },
-      "provenance": {
-        "kind": "Argument",
-        "slot": 0
-      },
-      "capture": {
-        "kind": "None"
-      }
-    }
-  ],
+  "capture_slots": [],
   "usage": [
     {
-      "slot": 0,
+      "slot": {
+        "namespace": "Parameter",
+        "slot": 0
+      },
       "kind": "Many"
     }
   ],
   "result_transformer": {
-    "kind": "ArrayElementOf",
-    "argument_slot": 0
+    "kind": "ArrayElementOfV1",
+    "argument": {
+      "namespace": "Parameter",
+      "slot": 0
+    }
   },
   "required_phase": {
-    "kind": "Any"
+    "kind": "AnyPhaseV1"
   },
   "ParametricObligations": [
     {
       "id": 0,
       "kind": "BoundarySafeV1",
       "stage": "Call",
-      "slots": [0],
+      "slots": [
+        {
+          "namespace": "Parameter",
+          "slot": 0
+        }
+      ],
       "boundary": "CallArgument",
       "origin": "choose-once.cire:choose_once"
     },
@@ -84,7 +89,7 @@
       "id": 1,
       "kind": "DuplicableEnvV1",
       "stage": "HandlerInstall",
-      "slots": [0],
+      "slots": [],
       "site_slot": 0,
       "origin": "choose-once.cire:Choice.choose"
     }
@@ -94,30 +99,219 @@
       "site_slot": 0,
       "stage": "HandlerInstall",
       "receiver": {
-        "kind": "AnonymousFamily",
-        "family": "Choice"
+        "kind": "AnonV1",
+        "family": {
+          "kind": "NominalTypeV1",
+          "module": ["library"],
+          "name": "Choice",
+          "arguments": []
+        }
       },
       "operation": {
-        "family": "Choice",
+        "kind": "ExactOperationV1",
+        "family": {
+          "kind": "NominalTypeV1",
+          "module": ["library"],
+          "name": "Choice",
+          "arguments": []
+        },
         "name": "choose"
       },
       "route": {
-        "kind": "ResolveAtInstallation"
+        "kind": "ResolveAtInstallationV1",
+        "on_missing": "RootOfEntryV1"
       },
-      "argument_slots": [0],
+      "actual_arguments": [
+        {
+          "kind": "SlotArgumentV1",
+          "source": {
+            "namespace": "Parameter",
+            "slot": 0
+          },
+          "type": {
+            "kind": "ApplyTypeV1",
+            "constructor": {
+              "kind": "BuiltinConstructorV1",
+              "name": "Array"
+            },
+            "arguments": [
+              {
+                "kind": "TypeParameterV1",
+                "slot": 0
+              }
+            ]
+          },
+          "nominal_index": {
+            "kind": "NoNominalIndexV1"
+          },
+          "provenance": {
+            "kind": "ArgumentV1",
+            "argument": {
+              "namespace": "Parameter",
+              "slot": 0
+            }
+          },
+          "capture": {
+            "kind": "NoCaptureV1"
+          }
+        }
+      ],
+      "instantiated_signature": {
+        "type_binders": [],
+        "parameters": [
+          {
+            "kind": "ApplyTypeV1",
+            "constructor": {
+              "kind": "BuiltinConstructorV1",
+              "name": "Array"
+            },
+            "arguments": [
+              {
+                "kind": "TypeParameterV1",
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "result": {
+          "kind": "TypeParameterV1",
+          "slot": 0
+        },
+        "mode": "ctl",
+        "transition": {
+          "kind": "SameWorldV1"
+        },
+        "suspension": {
+          "grade": "NoSuspend",
+          "atoms": [
+            {
+              "kind": "DirectV1",
+              "grade": "NoSuspend",
+              "origin": "choose-once.cire:Choice.choose"
+            }
+          ]
+        },
+        "result_transformer": {
+          "kind": "ArrayElementOfV1",
+          "argument": {
+            "namespace": "OperationArgument",
+            "slot": 0
+          }
+        },
+        "required_phase": {
+          "kind": "AnyPhaseV1"
+        },
+        "obligation_ids": [1],
+        "secondary_sites": {
+          "kind": "Closed",
+          "sites": []
+        }
+      },
       "suffix": {
-        "max_mode": "ctl",
-        "flow": ["Returns"],
-        "world": "same"
+        "residual_row": {
+          "kind": "EmptyV1"
+        },
+        "attributed_demand": [],
+        "flow": [
+          {
+            "kind": "Returns",
+            "transition": {
+              "kind": "SameWorldV1"
+            },
+            "result_transformer": {
+              "kind": "OperationResultV1",
+              "site_slot": 0
+            }
+          }
+        ],
+        "transition": {
+          "kind": "SameWorldV1"
+        },
+        "suspension": {
+          "grade": "NoSuspend",
+          "atoms": [
+            {
+              "kind": "DirectV1",
+              "grade": "NoSuspend",
+              "origin": "choose-once.cire:return-suffix"
+            }
+          ]
+        },
+        "semantic_summary": {
+          "kind": "PureV1"
+        },
+        "result_transformer": {
+          "kind": "OperationResultV1",
+          "site_slot": 0
+        },
+        "required_phase": {
+          "kind": "AnyPhaseV1"
+        },
+        "cleanup": {
+          "residual_row": {
+            "kind": "EmptyV1"
+          },
+          "attributed_demand": [],
+          "transition": {
+            "kind": "SameWorldV1"
+          },
+          "suspension": {
+            "grade": "NoSuspend",
+            "atoms": [
+              {
+                "kind": "DirectV1",
+                "grade": "NoSuspend",
+                "origin": "choose-once.cire:return-suffix-cleanup"
+              }
+            ]
+          },
+          "semantic_summary": {
+            "kind": "PureV1"
+          }
+        },
+        "live_bindings": []
       },
       "secondary_sites": {
         "kind": "Closed",
         "sites": []
       },
-      "obligation_ids": [1],
+      "call_obligation_ids": [],
+      "install_obligation_ids": [1],
       "origin": "choose-once.cire:Choice.choose"
     }
-  ]
+  ],
+  "binders": {
+    "parameter_binders": [
+      {
+        "slot": 0,
+        "type": {
+          "kind": "ApplyTypeV1",
+          "constructor": {
+            "kind": "BuiltinConstructorV1",
+            "name": "Array"
+          },
+          "arguments": [
+            {
+              "kind": "TypeParameterV1",
+              "slot": 0
+            }
+          ]
+        }
+      }
+    ],
+    "type_binders": [
+      {
+        "slot": 0,
+        "kind": "Type"
+      }
+    ],
+    "row_binders": [],
+    "contract_binders": [],
+    "owner_binders": [],
+    "clock_binders": [],
+    "identity_binders": [],
+    "prompt_binders": []
+  }
   },
   "expectation": {
     "discharge": [0],

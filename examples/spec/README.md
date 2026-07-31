@@ -29,6 +29,8 @@ evidence artifact，不得只检查 parser 是否接受。
 | `accept/temporal-next.cire` | accept | fresh clock、delay/advance、same clock |
 | `accept/owner-park.cire` | accept | sealed completion source、terminal `Transfers(ParkContract)` |
 | `accept/secondary-row.cire` | accept | operation dispatch entry ∪ `SecondaryRow` |
+| `accept/secondary-row-closed-forms.cire` | accept | `! {}` 与多 entry closed secondary |
+| `accept/named-cap-lexical-scope.cire` | accept | named cap binder 的 scoped lexical visibility |
 | `reject/two-row-tails.cire` | reject | literal 最多一个 open tail |
 | `reject/positional-after-label.cire` | reject | labelled-call grammar |
 | `reject/discontinue.cire` | reject | TR₀ 没有 discontinue primitive |
@@ -38,6 +40,7 @@ evidence artifact，不得只检查 parser 是否接受。
 | `reject/abort-resumes-next.cire` | reject | abort operation 没有 successful resumption |
 | `reject/park-is-not-unit.cire` | reject | T-Park 不产生 `Unit` 或普通 expression result |
 | `reject/open-secondary-row.cire` | reject | TR₀ operation secondary row 必须 closed |
+| `reject/bare-open-secondary-row.cire` | reject | bare `! E` 经 recovery CST 到 closed-only WF |
 
 `interfaces/q-lambda-call-install.json` 是
 `CireSpecInterfaceOracleV1` envelope：`subject/source/expectation` 是 corpus
@@ -45,6 +48,14 @@ metadata，真正 wire payload只在 `contract` 字段，且必须符合
 `FunctionContractV1`。它关联 `interfaces/choose-once.cire`；call只能
 discharge `stage=Call` 的 obligation，而 `HandlerInstall` obligation和
 latent site必须保留到 fresh prompt存在的 installation。
+`interfaces/flow-abort-transfer-owner.json` 则逐 variant固定
+`Aborts`、`Transfers(ParkContractV1)`、`OwnerBoundV1`、root route以及
+Owner/generation-CAS wire形状；它是 union-variant oracle，不伪装成某个
+FunctionContract source projection。
+
+`diagnostics-v1.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；
+新增或重命名 id需要新 registry version，不能让 parser recovery改变同一
+profile的静态诊断接口。
 
 这些 case 是首批 corpus。完整规则来源：
 

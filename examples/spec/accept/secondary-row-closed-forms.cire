@@ -1,0 +1,21 @@
+// profile: Cire-TR₀/2026-07-31
+// expect: accept
+// rule: WF-Operation-Secondary-Closed — empty and multi-entry closed literals
+// oracle: subject=read_both; ambient=closed effects Audit/Trace/Store; type=Int; row={Store,Audit,Trace}; secondary={empty,multi(Audit,Trace)}
+
+effect Audit {
+  fun log(message : String) -> Unit
+}
+
+effect Trace {
+  fun mark(message : String) -> Unit
+}
+
+effect Store {
+  once cached() -> Int ! {}
+  once load() -> Int ! {Audit, Trace}
+}
+
+def read_both() -> Int ! {Store, Audit, Trace} {
+  Store::cached() + Store::load()
+}
