@@ -4,6 +4,7 @@
     {
       "base_file": "../interfaces/choose-once-function-contract.json",
       "decoder": "FunctionContractV1",
+      "decoder_target": "",
       "diagnostic": "unsupported-contract-schema-version",
       "mutations": [
         { "op": "replace", "path": "/artifact", "value": "FunctionContractV1" },
@@ -15,6 +16,7 @@
     {
       "base_file": "../interfaces/flow-abort-transfer-owner.json",
       "decoder": "ParkContractV1",
+      "decoder_target": "/flow_summary/1/park_contract",
       "diagnostic": "unsupported-contract-schema-version",
       "mutations": [{ "op": "replace", "path": "/schema_version", "value": 1 }],
       "result": "reject",
@@ -23,20 +25,23 @@
     {
       "base_file": "../interfaces/q-lambda-call-install.json",
       "decoder": "FunctionContractV2",
+      "decoder_target": "/contract",
       "diagnostic": "path-bind-terminal-not-preserved",
-      "mutations": [{ "op": "replace", "path": "/contract/computation/kind", "value": "ApplyContinuationToAllPathsV2" }],
+      "mutations": [{ "op": "remove", "path": "/contract/computation/terminal_policy" }],
       "result": "reject"
     },
     {
       "base_file": "../interfaces/choose-once-function-contract.json",
       "decoder": "FunctionContractV2",
+      "decoder_target": "",
       "diagnostic": "projected-obligation-stage-lost",
       "mutations": [{ "op": "remove", "path": "/computation/paths/0/ParametricObligations/1" }],
       "result": "reject"
     },
     {
       "base_file": "../interfaces/q-lambda-call-install.json",
-      "decoder": "FunctionContractV2",
+      "decoder": "CireSpecInterfaceOracleV2",
+      "decoder_target": "",
       "diagnostic": "projected-latent-site-key-mismatch",
       "mutations": [{ "from": "/projection_evidence/0/retained_latent_sites/0/key", "op": "copy", "path": "/projection_evidence/1/retained_latent_sites/0/key" }],
       "result": "reject"
@@ -44,6 +49,7 @@
     {
       "base_file": "../interfaces/flow-abort-transfer-owner.json",
       "decoder": "ParkContractV2",
+      "decoder_target": "/flow_summary/1/park_contract",
       "diagnostic": "park-source-payload-mismatch",
       "mutations": [{ "op": "replace", "path": "/flow_summary/1/park_contract/completion_port/value_type/value/name", "value": "String" }],
       "result": "reject"
@@ -51,13 +57,15 @@
     {
       "base_file": "../interfaces/flow-abort-transfer-owner.json",
       "decoder": "ParkContractV2",
+      "decoder_target": "/flow_summary/1/park_contract",
       "diagnostic": "park-resumption-type-mismatch",
-      "mutations": [{ "op": "copy", "from": "/flow_summary/1/park_contract/disposition/resumption/answer", "path": "/flow_summary/1/park_contract/disposition/resumption/argument" }],
+      "mutations": [{ "op": "copy", "from": "/flow_summary/1/park_contract/disposition/resumption/argument", "path": "/flow_summary/1/park_contract/disposition/resumption/answer" }],
       "result": "reject"
     },
     {
       "base_file": "../interfaces/clock-package-paths.json",
       "decoder": "PackedNextPackageV2",
+      "decoder_target": "/package",
       "diagnostic": "clock-package-family-not-clock-indexing",
       "mutations": [{ "op": "replace", "path": "/package/clock_binder/family_witness/name", "value": "UserClock" }],
       "result": "reject"
@@ -65,6 +73,7 @@
     {
       "base_file": "../interfaces/clock-package-paths.json",
       "decoder": "T-Clock-Unpack-Paths",
+      "decoder_target": "/open_computation",
       "diagnostic": "clock-package-private-identity-escape",
       "mutations": [{ "op": "add", "path": "/open_computation/paths/0/ParametricObligations/0", "value": { "kind": "StableAcrossV2", "clock_slot": { "namespace": "Clock", "slot": 2 }, "id": 99, "origin": "mutation:private-clock-Q", "slots": [], "stage": "Call", "worlds": [] } }],
       "result": "reject"
@@ -72,6 +81,7 @@
     {
       "base_file": "../interfaces/clock-package-paths.json",
       "decoder": "T-Clock-Unpack-Paths",
+      "decoder_target": "/open_computation",
       "diagnostic": "clock-package-transfer-captures-private-identity",
       "mutations": [{ "op": "replace", "path": "/open_computation/paths/2/outcome/park_contract/source/owner", "value": { "namespace": "Owner", "slot": 1 } }],
       "result": "reject"
@@ -79,6 +89,7 @@
     {
       "base_file": "../interfaces/q-lambda-call-install.json",
       "decoder": "FunctionContractV2",
+      "decoder_target": "/contract",
       "diagnostic": "contract-parameter-inconsistent-instantiation",
       "mutations": [{ "op": "replace", "path": "/contract/applications/1/substitution/type_arguments/0/value/value/name", "value": "String" }],
       "result": "reject"

@@ -6,47 +6,34 @@
         "actual_arguments": [
           {
             "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } },
-            "nominal_index": { "kind": "NoNominalIndexV1" },
-            "origin": "consumer.cire:value",
+            "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } },
+            "origin": "apply-later.cire:first-value",
             "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } },
-            "source": { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 1 } },
-            "type": {
-              "kind": "LegacyTypeRefV2",
-              "value": { "kind": "BuiltinTypeV1", "name": "Int" }
-            },
+            "source": { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 2 } },
+            "type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
             "usage": null
           }
         ],
         "application_slot": 0,
         "callee_summary": {
-          "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } },
-          "nominal_index": { "kind": "NoNominalIndexV1" },
-          "origin": "consumer.cire:callback",
-          "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } },
-          "source": null,
+          "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "ArgumentCaptureV1", "argument": { "namespace": "Parameter", "slot": 1 } } },
+          "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } },
+          "origin": "apply-later.cire:callback-first",
+          "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "argument": { "namespace": "Parameter", "slot": 1 }, "kind": "ArgumentV1" } },
+          "source": { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 1 } },
           "type": {
             "contract": {
               "kind": {
                 "kind": "FunctionContractKindV2",
                 "parameter_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
-                "result_type": {
-                  "clock": { "namespace": "Clock", "slot": 0 },
-                  "kind": "NextTypeV2",
-                  "later_contract": { "capture": { "kind": "NoCaptureV1" }, "provenance": { "kind": "StableV1" }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } },
-                  "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }
-                },
+                "result_type": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } },
                 "visible_row": { "entries": [{ "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "AnonV1" }], "kind": "ClosedV1" }
               },
               "slot": 0
             },
             "kind": "FunctionTypeV2",
             "parameter": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
-            "result": {
-              "clock": { "namespace": "Clock", "slot": 0 },
-              "kind": "NextTypeV2",
-              "later_contract": { "capture": { "kind": "NoCaptureV1" }, "provenance": { "kind": "StableV1" }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } },
-              "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }
-            }
+            "result": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }
           },
           "usage": null
         },
@@ -56,51 +43,114 @@
             "kind": {
               "kind": "FunctionContractKindV2",
               "parameter_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
-              "result_type": {
-                "clock": { "namespace": "Clock", "slot": 0 },
-                "kind": "NextTypeV2",
-                "later_contract": { "capture": { "kind": "NoCaptureV1" }, "provenance": { "kind": "StableV1" }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } },
-                "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }
-              },
+              "result_type": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } },
               "visible_row": { "entries": [{ "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "AnonV1" }], "kind": "ClosedV1" }
             },
             "slot": 0
           }
         },
         "entry_world": { "application_slot": 0, "kind": "ApplicationEntryWorldV2" },
-        "origin": "consumer.cire:callback-call",
+        "origin": "apply-later.cire:callback-first",
+        "substitution": { "clock_arguments": [], "contract_arguments": [], "identity_arguments": [], "owner_arguments": [], "row_arguments": [], "type_arguments": [] }
+      },
+      {
+        "actual_arguments": [
+          {
+            "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } },
+            "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } },
+            "origin": "apply-later.cire:second-value",
+            "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } },
+            "source": { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 2 } },
+            "type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+            "usage": null
+          }
+        ],
+        "application_slot": 1,
+        "callee_summary": {
+          "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "ArgumentCaptureV1", "argument": { "namespace": "Parameter", "slot": 1 } } },
+          "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } },
+          "origin": "apply-later.cire:callback-second",
+          "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "argument": { "namespace": "Parameter", "slot": 1 }, "kind": "ArgumentV1" } },
+          "source": { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 1 } },
+          "type": {
+            "contract": {
+              "kind": {
+                "kind": "FunctionContractKindV2",
+                "parameter_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+                "result_type": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } },
+                "visible_row": { "entries": [{ "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "AnonV1" }], "kind": "ClosedV1" }
+              },
+              "slot": 0
+            },
+            "kind": "FunctionTypeV2",
+            "parameter": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+            "result": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }
+          },
+          "usage": null
+        },
+        "contract": {
+          "kind": "ContractParameterRefV2",
+          "parameter": {
+            "kind": {
+              "kind": "FunctionContractKindV2",
+              "parameter_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+              "result_type": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } },
+              "visible_row": { "entries": [{ "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "AnonV1" }], "kind": "ClosedV1" }
+            },
+            "slot": 0
+          }
+        },
+        "entry_world": { "application_slot": 1, "kind": "ApplicationEntryWorldV2" },
+        "origin": "apply-later.cire:callback-second",
         "substitution": { "clock_arguments": [], "contract_arguments": [], "identity_arguments": [], "owner_arguments": [], "row_arguments": [], "type_arguments": [] }
       }
     ],
     "artifact": "FunctionContractV2",
+    "declaration_kind": {
+      "kind": "FunctionContractKindV2",
+      "parameter_type": {
+        "arguments": [
+          { "kind": "OwnerTypeV2", "owner": { "namespace": "Owner", "slot": 0 } },
+          { "contract": { "kind": { "kind": "FunctionContractKindV2", "parameter_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }, "result_type": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }, "visible_row": { "entries": [{ "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "AnonV1" }], "kind": "ClosedV1" } }, "slot": 0 }, "kind": "FunctionTypeV2", "parameter": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }, "result": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } } },
+          { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }
+        ],
+        "constructor": { "kind": "NominalConstructorV1", "module": ["fixtures"], "name": "ApplyLaterArguments" },
+        "kind": "ApplyTypeV2"
+      },
+      "result_type": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } },
+      "visible_row": { "entries": [{ "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "AnonV1" }], "kind": "ClosedV1" }
+    },
     "binders": {
       "clock_binders": [{ "identity": { "namespace": "Identity", "slot": 0 }, "owner": { "namespace": "Owner", "slot": 0 }, "slot": 0 }],
-      "contract_binders": [
-        {
-          "kind": "FunctionContractBinderV2",
-          "parameter_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
-          "result_type": {
-            "clock": { "namespace": "Clock", "slot": 0 },
-            "kind": "NextTypeV2",
-            "later_contract": { "capture": { "kind": "NoCaptureV1" }, "provenance": { "kind": "StableV1" }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } },
-            "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }
-          },
-          "slot": 0,
-          "visible_row": { "entries": [{ "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "AnonV1" }], "kind": "ClosedV1" }
-        }
-      ],
+      "contract_binders": [{ "kind": "FunctionContractBinderV2", "parameter_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }, "result_type": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }, "slot": 0, "visible_row": { "entries": [{ "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "AnonV1" }], "kind": "ClosedV1" } }],
       "identity_binders": [{ "binder": "FreshCap", "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["cire", "temporal"], "name": "FrameClock" }, "identity_slot": 0, "owner": { "namespace": "Owner", "slot": 0 } }],
       "owner_binders": [{ "slot": 0, "source": { "namespace": "Parameter", "slot": 0 } }],
       "parameter_binders": [
         { "slot": 0, "type": { "kind": "OwnerTypeV2", "owner": { "namespace": "Owner", "slot": 0 } } },
-        { "slot": 1, "type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }
+        { "slot": 1, "type": { "contract": { "kind": { "kind": "FunctionContractKindV2", "parameter_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }, "result_type": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }, "visible_row": { "entries": [{ "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "AnonV1" }], "kind": "ClosedV1" } }, "slot": 0 }, "kind": "FunctionTypeV2", "parameter": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }, "result": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } } } },
+        { "slot": 2, "type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }
       ],
       "prompt_binders": [],
       "row_binders": [],
       "type_binders": []
     },
     "closure_environment": [],
-    "computation": { "application_slot": 0, "kind": "InvokeV2" },
+    "computation": {
+      "continuation": {
+        "continuation": {
+          "kind": "LiteralPathsV2",
+          "paths": [{ "LatentSites": [], "ParametricObligations": [], "attributed_demand": [], "outcome": { "kind": "ReturnsV2", "result_transformer": { "capture": { "kind": "ReturnCaptureV2", "return_slot": 1 }, "kind": "ParametricResultV2", "provenance": { "kind": "ReturnProvenanceV2", "return_slot": 1 } }, "transition": { "kind": "SameWorldV1" } }, "required_phase": { "allowed_phases": ["Action"], "current_owner": { "namespace": "Owner", "slot": 0 }, "required_authorities": [{ "kind": "OwnerAuthorityV1", "owner": { "namespace": "Owner", "slot": 0 } }] }, "residual_row": { "kind": "EmptyV1" }, "semantic_summary": { "kind": "PureV1" }, "suspension": { "atoms": [], "grade": "NoSuspend" }, "usage": [] }]
+        },
+        "kind": "PathBindV2",
+        "prefix": { "application_slot": 1, "kind": "InvokeV2" },
+        "return_binder": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "slot": 1, "type": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }, "usage": null, "world": { "kind": "ApplyWorldTransitionV2", "input": { "application_slot": 1, "kind": "ApplicationEntryWorldV2" }, "transition": { "kind": "SameWorldV1" } } },
+        "terminal_policy": "PreserveTerminalV2"
+      },
+      "kind": "PathBindV2",
+      "prefix": { "application_slot": 0, "kind": "InvokeV2" },
+      "return_binder": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "slot": 0, "type": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }, "usage": null, "world": { "kind": "ApplyWorldTransitionV2", "input": { "application_slot": 0, "kind": "ApplicationEntryWorldV2" }, "transition": { "kind": "SameWorldV1" } } },
+      "terminal_policy": "PreserveTerminalV2"
+    },
     "profile": "Cire-TR₀/2026-08-01",
     "schema_version": 2
   },
@@ -108,42 +158,75 @@
     "applications": [
       {
         "actual_arguments": [
-          { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "nominal_index": { "kind": "OwnerIndexV1", "owner": { "namespace": "Owner", "slot": 0 } }, "origin": "consumer.cire:owner", "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "OwnerV1", "owner": { "namespace": "Owner", "slot": 0 } } }, "source": { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 0 } }, "type": { "kind": "OwnerTypeV2", "owner": { "namespace": "Owner", "slot": 0 } }, "usage": null },
-          { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "nominal_index": { "kind": "NoNominalIndexV1" }, "origin": "consumer.cire:value", "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "source": { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 1 } }, "type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }, "usage": null }
+          { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "OwnerIndexV1", "owner": { "namespace": "Owner", "slot": 0 } } }, "origin": "consumer.cire:owner", "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "OwnerV1", "owner": { "namespace": "Owner", "slot": 0 } } }, "source": { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 0 } }, "type": { "kind": "OwnerTypeV2", "owner": { "namespace": "Owner", "slot": 0 } }, "usage": null },
+          { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "ArgumentCaptureV1", "argument": { "namespace": "Parameter", "slot": 1 } } }, "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } }, "origin": "consumer.cire:runtime-callback", "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "argument": { "namespace": "Parameter", "slot": 1 }, "kind": "ArgumentV1" } }, "source": { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 1 } }, "type": { "contract": { "artifact_hash": "sha256:b20f76c49c62f346248d329324fced090baef4ea192c8ab729306e606793fc35", "kind": "ImportedFunctionRefV2", "module": ["fixtures"], "name": "mixed_next_callback" }, "kind": "FunctionTypeV2", "parameter": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }, "result": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } } }, "usage": null },
+          { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } }, "origin": "consumer.cire:value", "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "source": { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 2 } }, "type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }, "usage": null }
         ],
         "application_slot": 10,
-        "callee_summary": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "nominal_index": { "kind": "NoNominalIndexV1" }, "origin": "consumer.cire:apply_later", "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "source": null, "type": { "arguments": [], "kind": "NominalTypeV2", "module": ["library"], "name": "ApplyLaterFunction" }, "usage": null },
-        "contract": { "artifact_hash": "envelope-local:/contract", "kind": "ImportedFunctionRefV2", "module": ["library"], "name": "apply_later" },
+        "callee_summary": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } }, "origin": "consumer.cire:apply-later", "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "source": null, "type": { "arguments": [], "kind": "NominalTypeV2", "module": ["library"], "name": "ApplyLaterFunction" }, "usage": null },
+        "contract": { "artifact_hash": "sha256:71e3de1e6710fa282899a92e272a8b7b074bbdb9c114ef0d9efcd75a9cf4a69a", "kind": "ImportedFunctionRefV2", "module": ["fixtures"], "name": "apply_later" },
         "entry_world": { "application_slot": 10, "kind": "ApplicationEntryWorldV2" },
         "origin": "consumer.cire:apply-later-call",
         "substitution": {
-          "clock_arguments": [],
-          "contract_arguments": [{ "binder_slot": 0, "contract": { "artifact_hash": "sha256:14bf6dd174c152a5851f2c927e5cfca63814843dff6bab30f98650ea7fc11541", "kind": "ImportedFunctionRefV2", "module": ["fixtures"], "name": "mixed_next_callback" } }],
-          "identity_arguments": [], "owner_arguments": [], "row_arguments": [], "type_arguments": []
+          "clock_arguments": [{ "binder_slot": 0, "value": { "namespace": "Clock", "slot": 0 } }],
+          "contract_arguments": [{ "binder_slot": 0, "contract": { "artifact_hash": "sha256:b20f76c49c62f346248d329324fced090baef4ea192c8ab729306e606793fc35", "kind": "ImportedFunctionRefV2", "module": ["fixtures"], "name": "mixed_next_callback" } }],
+          "identity_arguments": [{ "binder_slot": 0, "value": { "namespace": "Identity", "slot": 0 } }],
+          "owner_arguments": [{ "binder_slot": 0, "value": { "namespace": "Owner", "slot": 0 } }],
+          "row_arguments": [],
+          "type_arguments": []
         }
       }
     ],
     "artifact": "FunctionContractV2",
-    "binders": { "clock_binders": [{ "identity": { "namespace": "Identity", "slot": 0 }, "owner": { "namespace": "Owner", "slot": 0 }, "slot": 0 }], "contract_binders": [{ "kind": "FunctionContractBinderV2", "parameter_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }, "result_type": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "NoCaptureV1" }, "provenance": { "kind": "StableV1" }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }, "slot": 0, "visible_row": { "entries": [{ "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "AnonV1" }], "kind": "ClosedV1" } }], "identity_binders": [{ "binder": "FreshCap", "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["cire", "temporal"], "name": "FrameClock" }, "identity_slot": 0, "owner": { "namespace": "Owner", "slot": 0 } }], "owner_binders": [{ "slot": 0, "source": { "namespace": "Parameter", "slot": 0 } }], "parameter_binders": [{ "slot": 0, "type": { "kind": "OwnerTypeV2", "owner": { "namespace": "Owner", "slot": 0 } } }, { "slot": 1, "type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }], "prompt_binders": [], "row_binders": [], "type_binders": [] },
-    "closure_environment": [], "computation": { "application_slot": 10, "kind": "InvokeV2" }, "profile": "Cire-TR₀/2026-08-01", "schema_version": 2
+    "declaration_kind": null,
+    "binders": {
+      "clock_binders": [{ "identity": { "namespace": "Identity", "slot": 0 }, "owner": { "namespace": "Owner", "slot": 0 }, "slot": 0 }],
+      "contract_binders": [],
+      "identity_binders": [{ "binder": "FreshCap", "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["cire", "temporal"], "name": "FrameClock" }, "identity_slot": 0, "owner": { "namespace": "Owner", "slot": 0 } }],
+      "owner_binders": [{ "slot": 0, "source": { "namespace": "Parameter", "slot": 0 } }],
+      "parameter_binders": [
+        { "slot": 0, "type": { "kind": "OwnerTypeV2", "owner": { "namespace": "Owner", "slot": 0 } } },
+        { "slot": 1, "type": { "contract": { "artifact_hash": "sha256:b20f76c49c62f346248d329324fced090baef4ea192c8ab729306e606793fc35", "kind": "ImportedFunctionRefV2", "module": ["fixtures"], "name": "mixed_next_callback" }, "kind": "FunctionTypeV2", "parameter": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }, "result": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } } } },
+        { "slot": 2, "type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }
+      ],
+      "prompt_binders": [],
+      "row_binders": [],
+      "type_binders": []
+    },
+    "closure_environment": [],
+    "computation": { "application_slot": 10, "kind": "InvokeV2" },
+    "profile": "Cire-TR₀/2026-08-01",
+    "schema_version": 2
   },
   "expectation": {
-    "callback_flow": ["ReturnsV2(Next[clock,Int,L])", "AbortsV2", "TransfersV2"],
+    "callback_flow": ["ReturnsV2(Next[clock,Int,L])", "AbortsV2", "TransfersV2(site=3)", "TransfersV2(site=4)"],
+    "canonical_json": "RFC8785-JCS+NFC-V1",
+    "contract_ref_invocations": [0, 1],
+    "distinct_application_worlds": true,
+    "distinct_projected_q_lambda_keys": true,
     "later_contract_preserved": true,
-    "single_atomic_application": 0,
-    "terminal_paths_bypass_caller_suffix": true,
+    "runtime_callback_argument_index": 1,
+    "substituted_contract_invoked_twice": true,
+    "terminal_paths_bypass_second_invocation": true,
     "visible_row_exact": "{Branch}"
   },
   "imports": [
     {
-      "artifact_hash": "sha256:14bf6dd174c152a5851f2c927e5cfca63814843dff6bab30f98650ea7fc11541",
-      "computation_pointer": "/open_computation",
-      "file": "clock-package-paths.json",
-      "function_name": "mixed_next_callback",
-      "result_type": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "NoCaptureV1" }, "provenance": { "kind": "StableV1" }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }
+      "artifact_hash": "sha256:71e3de1e6710fa282899a92e272a8b7b074bbdb9c114ef0d9efcd75a9cf4a69a",
+      "file": "apply-later-function-contract.json",
+      "function_name": "apply_later"
+    },
+    {
+      "artifact_hash": "sha256:b20f76c49c62f346248d329324fced090baef4ea192c8ab729306e606793fc35",
+      "file": "mixed-next-callback-function-contract.json",
+      "function_name": "mixed_next_callback"
     }
   ],
   "profile": "Cire-TR₀/2026-08-01",
+  "projection_evidence": [
+    { "application_slot": 0, "discharged_call_keys": [{ "application_slot": 0, "local_id": 0 }], "retained_latent_sites": [{ "install_obligation_keys": [{ "application_slot": 0, "local_id": 1 }], "key": { "application_slot": 0, "local_id": 0 }, "source_site_slot": 0 }], "retained_obligations": [{ "key": { "application_slot": 0, "local_id": 1 }, "source_local_id": 1, "stage": "HandlerInstall" }], "source_artifact_hash": "sha256:b20f76c49c62f346248d329324fced090baef4ea192c8ab729306e606793fc35" },
+    { "application_slot": 1, "discharged_call_keys": [{ "application_slot": 1, "local_id": 0 }], "retained_latent_sites": [{ "install_obligation_keys": [{ "application_slot": 1, "local_id": 1 }], "key": { "application_slot": 1, "local_id": 0 }, "source_site_slot": 0 }], "retained_obligations": [{ "key": { "application_slot": 1, "local_id": 1 }, "source_local_id": 1, "stage": "HandlerInstall" }], "source_artifact_hash": "sha256:b20f76c49c62f346248d329324fced090baef4ea192c8ab729306e606793fc35" }
+  ],
   "schema_version": 2,
-  "subject": "cross-module-HOF-mixed-flow-Later-result"
+  "subject": "cross-module-HOF-substituted-callback-twice-mixed-flow-Later-result"
 }

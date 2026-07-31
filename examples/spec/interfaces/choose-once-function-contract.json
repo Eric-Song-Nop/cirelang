@@ -1,6 +1,12 @@
 {
   "applications": [],
   "artifact": "FunctionContractV2",
+  "declaration_kind": {
+    "kind": "FunctionContractKindV2",
+    "parameter_type": { "arguments": [{ "kind": "TypeParameterV2", "slot": 0 }], "constructor": { "kind": "BuiltinConstructorV1", "name": "Array" }, "kind": "ApplyTypeV2" },
+    "result_type": { "kind": "TypeParameterV2", "slot": 0 },
+    "visible_row": { "entries": [{ "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Choice" }, "kind": "AnonV1" }], "kind": "ClosedV1" }
+  },
   "binders": {
     "clock_binders": [],
     "contract_binders": [],
@@ -33,7 +39,7 @@
                   "kind": "LegacyCaptureExprV2",
                   "value": { "kind": "NoCaptureV1" }
                 },
-                "nominal_index": { "kind": "NoNominalIndexV1" },
+                "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } },
                 "origin": "choose-once.cire:options",
                 "provenance": {
                   "kind": "LegacyProvenanceExprV2",

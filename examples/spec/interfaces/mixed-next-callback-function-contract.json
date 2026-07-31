@@ -1,0 +1,214 @@
+{
+  "applications": [],
+  "artifact": "FunctionContractV2",
+  "declaration_kind": {
+    "kind": "FunctionContractKindV2",
+    "parameter_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+    "result_type": {
+      "clock": { "namespace": "Clock", "slot": 0 },
+      "kind": "NextTypeV2",
+      "later_contract": {
+        "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } },
+        "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } },
+        "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] },
+        "semantic_summary": { "kind": "PureV1" }
+      },
+      "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }
+    },
+    "visible_row": { "entries": [{ "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "AnonV1" }], "kind": "ClosedV1" }
+  },
+  "binders": {
+    "clock_binders": [{ "identity": { "namespace": "Identity", "slot": 0 }, "owner": { "namespace": "Owner", "slot": 0 }, "slot": 0 }],
+    "contract_binders": [],
+    "identity_binders": [{ "binder": "FreshCap", "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["cire", "temporal"], "name": "FrameClock" }, "identity_slot": 0, "owner": { "namespace": "Owner", "slot": 0 } }],
+    "owner_binders": [{ "slot": 0, "source": { "namespace": "ClosureCapture", "slot": 0 } }],
+    "parameter_binders": [{ "slot": 0, "type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }],
+    "prompt_binders": [],
+    "row_binders": [],
+    "type_binders": []
+  },
+  "closure_environment": [
+    {
+      "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } },
+      "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "OwnerV1", "owner": { "namespace": "Owner", "slot": 0 } } },
+      "slot": { "namespace": "ClosureCapture", "slot": 0 },
+      "type": { "kind": "OwnerTypeV2", "owner": { "namespace": "Owner", "slot": 0 } }
+    }
+  ],
+  "computation": {
+    "continuation": {
+      "kind": "LiteralPathsV2",
+      "paths": [
+        {
+          "LatentSites": [],
+          "ParametricObligations": [],
+          "attributed_demand": [],
+          "outcome": {
+            "kind": "ReturnsV2",
+            "result_transformer": { "kind": "LegacyResultTransformerV2", "value": { "capture": { "kind": "NoCaptureV1" }, "kind": "ParametricResultV1", "provenance": { "kind": "StableV1" } } },
+            "transition": { "kind": "SameWorldV1" }
+          },
+          "required_phase": { "allowed_phases": ["Action"], "current_owner": { "namespace": "Owner", "slot": 0 }, "required_authorities": [{ "kind": "OwnerAuthorityV1", "owner": { "namespace": "Owner", "slot": 0 } }] },
+          "residual_row": { "kind": "EmptyV1" },
+          "semantic_summary": { "kind": "PureV1" },
+          "suspension": { "atoms": [], "grade": "NoSuspend" },
+          "usage": []
+        },
+        {
+          "LatentSites": [],
+          "ParametricObligations": [],
+          "attributed_demand": [],
+          "outcome": { "kind": "AbortsV2", "origin": "mixed-next-callback.cire:abort" },
+          "required_phase": { "allowed_phases": ["Action"], "current_owner": { "namespace": "Owner", "slot": 0 }, "required_authorities": [{ "kind": "OwnerAuthorityV1", "owner": { "namespace": "Owner", "slot": 0 } }] },
+          "residual_row": { "kind": "EmptyV1" },
+          "semantic_summary": { "kind": "PureV1" },
+          "suspension": { "atoms": [], "grade": "NoSuspend" },
+          "usage": []
+        },
+        {
+          "LatentSites": [],
+          "ParametricObligations": [],
+          "attributed_demand": [],
+          "outcome": {
+            "kind": "TransfersV2",
+            "park_contract": {
+              "claim": { "claim_cell_slot": 3, "completion_generation_gate": "EqualCurrentGeneration", "completion_transition": "UnclaimedToCompleted", "failure_transition": "NoStateChange", "finalization_generation_gate": "EqualCurrentGenerationOrOwnerRetireAuthority", "finalization_transition": "UnclaimedToFinalized", "generation_transition": "PreserveGeneration", "source_generation": "ClaimTicketGeneration" },
+              "claim_cell_slot": 3,
+              "completion_port": { "claim_cell_slot": 3, "owner": { "namespace": "Owner", "slot": 0 }, "port_slot": 3, "value_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } },
+              "disposition": {
+                "claim_cell_slot": 3,
+                "completion_transition": "UnclaimedToCompleted",
+                "continuation_site_slot": 3,
+                "finalization_transition": "UnclaimedToFinalized",
+                "resumption": {
+                  "answer": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } },
+                  "argument": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+                  "continuation": {
+                    "answer_type": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } },
+                    "applications": [],
+                    "cleanup": { "attributed_demand": [], "residual_row": { "kind": "EmptyV1" }, "semantic_summary": { "kind": "PureV1" }, "suspension": { "atoms": [], "grade": "NoSuspend" }, "transition": { "kind": "SameWorldV1" } },
+                    "computation": { "kind": "LiteralPathsV2", "paths": [{ "LatentSites": [], "ParametricObligations": [], "attributed_demand": [], "outcome": { "kind": "ReturnsV2", "result_transformer": { "kind": "LegacyResultTransformerV2", "value": { "capture": { "kind": "NoCaptureV1" }, "kind": "ParametricResultV1", "provenance": { "kind": "StableV1" } } }, "transition": { "kind": "SameWorldV1" } }, "required_phase": { "allowed_phases": ["Action"], "current_owner": { "namespace": "Owner", "slot": 0 }, "required_authorities": [{ "kind": "OwnerAuthorityV1", "owner": { "namespace": "Owner", "slot": 0 } }] }, "residual_row": { "kind": "EmptyV1" }, "semantic_summary": { "kind": "PureV1" }, "suspension": { "atoms": [], "grade": "NoSuspend" }, "usage": [] }] },
+                    "live_bindings": []
+                  },
+                  "live_capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } },
+                  "live_provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } },
+                  "owner": { "namespace": "Owner", "slot": 0 },
+                  "usage": "Once"
+                },
+                "states": ["Unclaimed", "Completed", "Finalized"]
+              },
+              "origin": "mixed-next-callback.cire:park3",
+              "owner_slot": 0,
+              "required_phase": { "allowed_phases": ["Action"], "current_owner": { "namespace": "Owner", "slot": 0 }, "required_authorities": [{ "kind": "OwnerAuthorityV1", "owner": { "namespace": "Owner", "slot": 0 } }] },
+              "site_slot": 3,
+              "source": { "generation_model": "Unsigned64NoWrap", "owner": { "namespace": "Owner", "slot": 0 }, "value_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }, "write_authority": "OwnerExecutorOnly" }
+            }
+          },
+          "required_phase": { "allowed_phases": ["Action"], "current_owner": { "namespace": "Owner", "slot": 0 }, "required_authorities": [{ "kind": "OwnerAuthorityV1", "owner": { "namespace": "Owner", "slot": 0 } }] },
+          "residual_row": { "kind": "EmptyV1" },
+          "semantic_summary": { "kind": "PureV1" },
+          "suspension": { "atoms": [], "grade": "NoSuspend" },
+          "usage": []
+        },
+        {
+          "LatentSites": [],
+          "ParametricObligations": [],
+          "attributed_demand": [],
+          "outcome": {
+            "kind": "TransfersV2",
+            "park_contract": {
+              "claim": { "claim_cell_slot": 4, "completion_generation_gate": "EqualCurrentGeneration", "completion_transition": "UnclaimedToCompleted", "failure_transition": "NoStateChange", "finalization_generation_gate": "EqualCurrentGenerationOrOwnerRetireAuthority", "finalization_transition": "UnclaimedToFinalized", "generation_transition": "PreserveGeneration", "source_generation": "ClaimTicketGeneration" },
+              "claim_cell_slot": 4,
+              "completion_port": { "claim_cell_slot": 4, "owner": { "namespace": "Owner", "slot": 0 }, "port_slot": 4, "value_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } },
+              "disposition": {
+                "claim_cell_slot": 4,
+                "completion_transition": "UnclaimedToCompleted",
+                "continuation_site_slot": 4,
+                "finalization_transition": "UnclaimedToFinalized",
+                "resumption": {
+                  "answer": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } },
+                  "argument": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+                  "continuation": {
+                    "answer_type": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } },
+                    "applications": [],
+                    "cleanup": { "attributed_demand": [], "residual_row": { "kind": "EmptyV1" }, "semantic_summary": { "kind": "PureV1" }, "suspension": { "atoms": [], "grade": "NoSuspend" }, "transition": { "kind": "SameWorldV1" } },
+                    "computation": { "kind": "LiteralPathsV2", "paths": [{ "LatentSites": [], "ParametricObligations": [], "attributed_demand": [], "outcome": { "kind": "ReturnsV2", "result_transformer": { "kind": "LegacyResultTransformerV2", "value": { "capture": { "kind": "NoCaptureV1" }, "kind": "ParametricResultV1", "provenance": { "kind": "StableV1" } } }, "transition": { "kind": "SameWorldV1" } }, "required_phase": { "allowed_phases": ["Action"], "current_owner": { "namespace": "Owner", "slot": 0 }, "required_authorities": [{ "kind": "OwnerAuthorityV1", "owner": { "namespace": "Owner", "slot": 0 } }] }, "residual_row": { "kind": "EmptyV1" }, "semantic_summary": { "kind": "PureV1" }, "suspension": { "atoms": [], "grade": "NoSuspend" }, "usage": [] }] },
+                    "live_bindings": []
+                  },
+                  "live_capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } },
+                  "live_provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } },
+                  "owner": { "namespace": "Owner", "slot": 0 },
+                  "usage": "Once"
+                },
+                "states": ["Unclaimed", "Completed", "Finalized"]
+              },
+              "origin": "mixed-next-callback.cire:park4",
+              "owner_slot": 0,
+              "required_phase": { "allowed_phases": ["Action"], "current_owner": { "namespace": "Owner", "slot": 0 }, "required_authorities": [{ "kind": "OwnerAuthorityV1", "owner": { "namespace": "Owner", "slot": 0 } }] },
+              "site_slot": 4,
+              "source": { "generation_model": "Unsigned64NoWrap", "owner": { "namespace": "Owner", "slot": 0 }, "value_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }, "write_authority": "OwnerExecutorOnly" }
+            }
+          },
+          "required_phase": { "allowed_phases": ["Action"], "current_owner": { "namespace": "Owner", "slot": 0 }, "required_authorities": [{ "kind": "OwnerAuthorityV1", "owner": { "namespace": "Owner", "slot": 0 } }] },
+          "residual_row": { "kind": "EmptyV1" },
+          "semantic_summary": { "kind": "PureV1" },
+          "suspension": { "atoms": [], "grade": "NoSuspend" },
+          "usage": []
+        }
+      ]
+    },
+    "kind": "PathBindV2",
+    "prefix": {
+      "kind": "LiteralPathsV2",
+      "paths": [
+        {
+          "LatentSites": [
+            {
+              "actual_arguments": [{ "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } }, "origin": "mixed-next-callback.cire:value", "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "argument": { "namespace": "Parameter", "slot": 0 }, "kind": "ArgumentV1" } }, "source": { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 0 } }, "type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }, "usage": null }],
+              "call_obligation_ids": [0],
+              "install_obligation_ids": [1],
+              "instantiated_signature": { "mode": "ctl", "obligation_ids": [0, 1], "parameters": [{ "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }], "required_phase": { "allowed_phases": ["Action"], "current_owner": { "namespace": "Owner", "slot": 0 }, "required_authorities": [{ "kind": "OwnerAuthorityV1", "owner": { "namespace": "Owner", "slot": 0 } }] }, "result": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }, "result_transformer": { "capture": { "kind": "NoCaptureV1" }, "kind": "ParametricResultV1", "provenance": { "kind": "OperationResultProvenanceV1", "site_slot": 0 } }, "secondary_sites": { "kind": "Closed", "sites": [] }, "suspension": { "atoms": [], "grade": "NoSuspend" }, "transition": { "kind": "SameWorldV1" }, "type_binders": [] },
+              "operation": { "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "ExactOperationV1", "name": "branch" },
+              "origin": "mixed-next-callback.cire:Branch.branch",
+              "receiver": { "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "AnonV1" },
+              "route": { "kind": "ResolveAtInstallationV1", "on_missing": "RootOfEntryV1" },
+              "secondary_sites": { "kind": "Closed", "sites": [] },
+              "site_slot": 0,
+              "stage": "HandlerInstall",
+              "suffix": {
+                "answer_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+                "applications": [],
+                "cleanup": { "attributed_demand": [], "residual_row": { "kind": "EmptyV1" }, "semantic_summary": { "kind": "PureV1" }, "suspension": { "atoms": [], "grade": "NoSuspend" }, "transition": { "kind": "SameWorldV1" } },
+                "computation": { "kind": "LiteralPathsV2", "paths": [{ "LatentSites": [], "ParametricObligations": [], "attributed_demand": [], "outcome": { "kind": "ReturnsV2", "result_transformer": { "kind": "LegacyResultTransformerV2", "value": { "capture": { "kind": "OperationResultCaptureV1", "site_slot": 0 }, "kind": "ParametricResultV1", "provenance": { "kind": "OperationResultProvenanceV1", "site_slot": 0 } } }, "transition": { "kind": "SameWorldV1" } }, "required_phase": { "allowed_phases": ["Action"], "current_owner": { "namespace": "Owner", "slot": 0 }, "required_authorities": [{ "kind": "OwnerAuthorityV1", "owner": { "namespace": "Owner", "slot": 0 } }] }, "residual_row": { "kind": "EmptyV1" }, "semantic_summary": { "kind": "PureV1" }, "suspension": { "atoms": [], "grade": "NoSuspend" }, "usage": [] }] },
+                "live_bindings": []
+              }
+            }
+          ],
+          "ParametricObligations": [
+            { "kind": "LegacyObligationV2", "value": { "boundary": "CallArgument", "id": 0, "kind": "BoundarySafeV1", "origin": "mixed-next-callback.cire:branch", "slots": [{ "namespace": "Parameter", "slot": 0 }], "stage": "Call" } },
+            { "kind": "LegacyObligationV2", "value": { "id": 1, "kind": "DuplicableEnvV1", "origin": "mixed-next-callback.cire:Branch.branch", "site_slot": 0, "slots": [{ "namespace": "ClosureCapture", "slot": 0 }], "stage": "HandlerInstall" } }
+          ],
+          "attributed_demand": [{ "entry": { "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "AnonV1" }, "operation": { "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "ExactOperationV1", "name": "branch" }, "route": { "kind": "ResolveAtInstallationV1", "on_missing": "RootOfEntryV1" }, "site_role": "Primary", "site_slot": 0 }],
+          "outcome": { "kind": "ReturnsV2", "result_transformer": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "OperationResultCaptureV1", "site_slot": 0 } }, "kind": "ParametricResultV2", "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "OperationResultProvenanceV1", "site_slot": 0 } } }, "transition": { "kind": "SameWorldV1" } },
+          "required_phase": { "allowed_phases": ["Action"], "current_owner": { "namespace": "Owner", "slot": 0 }, "required_authorities": [{ "kind": "OwnerAuthorityV1", "owner": { "namespace": "Owner", "slot": 0 } }] },
+          "residual_row": { "entries": [{ "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "AnonV1" }], "kind": "ClosedV1" },
+          "semantic_summary": { "kind": "PureV1" },
+          "suspension": { "atoms": [{ "entry": { "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "AnonV1" }, "grade": "NoSuspend", "kind": "RequestV1", "operation": { "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "ExactOperationV1", "name": "branch" }, "origin": "mixed-next-callback.cire:Branch.branch", "route": { "kind": "ResolveAtInstallationV1", "on_missing": "RootOfEntryV1" }, "site_role": "Primary", "site_slot": 0 }], "grade": "NoSuspend" },
+          "usage": []
+        }
+      ]
+    },
+    "return_binder": {
+      "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "OperationResultCaptureV1", "site_slot": 0 } },
+      "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } },
+      "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "OperationResultProvenanceV1", "site_slot": 0 } },
+      "slot": 0,
+      "type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+      "usage": null,
+      "world": { "kind": "ApplyWorldTransitionV2", "input": { "kind": "LegacyWorldExprV2", "value": { "kind": "EntryWorldV1", "site_slot": 0 } }, "transition": { "kind": "SameWorldV1" } }
+    },
+    "terminal_policy": "PreserveTerminalV2"
+  },
+  "profile": "Cire-TR₀/2026-08-01",
+  "schema_version": 2
+}

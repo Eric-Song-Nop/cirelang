@@ -1,5 +1,15 @@
 {
   "artifact": "CireClockPackageOracleV2",
+  "binders": {
+    "clock_binders": [],
+    "contract_binders": [],
+    "identity_binders": [],
+    "owner_binders": [{ "slot": 0, "source": { "namespace": "Parameter", "slot": 0 } }],
+    "parameter_binders": [{ "slot": 0, "type": { "kind": "OwnerTypeV2", "owner": { "namespace": "Owner", "slot": 0 } } }],
+    "prompt_binders": [],
+    "row_binders": [],
+    "type_binders": []
+  },
   "lost_acquire_path": {
     "LatentSites": [],
     "ParametricObligations": [],
@@ -7,7 +17,7 @@
     "outcome": { "kind": "ReturnsV2", "result_transformer": { "kind": "LegacyResultTransformerV2", "value": { "capture": { "kind": "NoCaptureV1" }, "kind": "ParametricResultV1", "provenance": { "kind": "StableV1" } } }, "transition": { "kind": "SameWorldV1" } },
     "required_phase": { "allowed_phases": ["Action"], "current_owner": null, "required_authorities": [] },
     "residual_row": { "kind": "EmptyV1" },
-    "semantic_summary": { "kind": "PureV1" },
+    "semantic_summary": { "fork": "Share", "kind": "CertificateV1", "origin": "cire.temporal:packed-acquire", "publish": "None", "replay_origin": "SharedPersistent", "suspend": "StackOnly", "temporal": "HostObservable", "trust": { "kind": "Sealed", "module": ["cire", "temporal"] } },
     "suspension": { "atoms": [], "grade": "NoSuspend" },
     "usage": []
   },
@@ -17,12 +27,12 @@
       {
         "LatentSites": [], "ParametricObligations": [], "attributed_demand": [],
         "outcome": { "kind": "ReturnsV2", "result_transformer": { "kind": "LegacyResultTransformerV2", "value": { "capture": { "kind": "NoCaptureV1" }, "kind": "ParametricResultV1", "provenance": { "kind": "StableV1" } } }, "transition": { "kind": "SameWorldV1" } },
-        "required_phase": { "allowed_phases": ["Action"], "current_owner": null, "required_authorities": [] }, "residual_row": { "kind": "EmptyV1" }, "semantic_summary": { "kind": "PureV1" }, "suspension": { "atoms": [], "grade": "NoSuspend" }, "usage": []
+        "required_phase": { "allowed_phases": ["Action"], "current_owner": null, "required_authorities": [] }, "residual_row": { "kind": "EmptyV1" }, "semantic_summary": { "kind": "SequenceSummaryV1", "members": [{ "fork": "Share", "kind": "CertificateV1", "origin": "cire.temporal:packed-acquire", "publish": "None", "replay_origin": "SharedPersistent", "suspend": "StackOnly", "temporal": "HostObservable", "trust": { "kind": "Sealed", "module": ["cire", "temporal"] } }, { "fork": "Share", "kind": "CertificateV1", "origin": "cire.temporal:packed-release", "publish": "None", "replay_origin": "SharedPersistent", "suspend": "StackOnly", "temporal": "HostObservable", "trust": { "kind": "Sealed", "module": ["cire", "temporal"] } }] }, "suspension": { "atoms": [], "grade": "NoSuspend" }, "usage": []
       },
       {
         "LatentSites": [], "ParametricObligations": [], "attributed_demand": [],
         "outcome": { "kind": "AbortsV2", "origin": "packed-mixed.cire:abort" },
-        "required_phase": { "allowed_phases": ["Action"], "current_owner": null, "required_authorities": [] }, "residual_row": { "kind": "EmptyV1" }, "semantic_summary": { "kind": "PureV1" }, "suspension": { "atoms": [], "grade": "NoSuspend" }, "usage": []
+        "required_phase": { "allowed_phases": ["Action"], "current_owner": null, "required_authorities": [] }, "residual_row": { "kind": "EmptyV1" }, "semantic_summary": { "kind": "SequenceSummaryV1", "members": [{ "fork": "Share", "kind": "CertificateV1", "origin": "cire.temporal:packed-acquire", "publish": "None", "replay_origin": "SharedPersistent", "suspend": "StackOnly", "temporal": "HostObservable", "trust": { "kind": "Sealed", "module": ["cire", "temporal"] } }, { "fork": "Share", "kind": "CertificateV1", "origin": "cire.temporal:packed-release", "publish": "None", "replay_origin": "SharedPersistent", "suspend": "StackOnly", "temporal": "HostObservable", "trust": { "kind": "Sealed", "module": ["cire", "temporal"] } }] }, "suspension": { "atoms": [], "grade": "NoSuspend" }, "usage": []
       },
       {
         "LatentSites": [], "ParametricObligations": [], "attributed_demand": [],
@@ -47,7 +57,7 @@
             "source": { "generation_model": "Unsigned64NoWrap", "owner": { "namespace": "Owner", "slot": 0 }, "value_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }, "write_authority": "OwnerExecutorOnly" }
           }
         },
-        "required_phase": { "allowed_phases": ["Action"], "current_owner": null, "required_authorities": [] }, "residual_row": { "kind": "EmptyV1" }, "semantic_summary": { "kind": "PureV1" }, "suspension": { "atoms": [], "grade": "NoSuspend" }, "usage": []
+        "required_phase": { "allowed_phases": ["Action"], "current_owner": null, "required_authorities": [] }, "residual_row": { "kind": "EmptyV1" }, "semantic_summary": { "kind": "SequenceSummaryV1", "members": [{ "fork": "Share", "kind": "CertificateV1", "origin": "cire.temporal:packed-acquire", "publish": "None", "replay_origin": "SharedPersistent", "suspend": "StackOnly", "temporal": "HostObservable", "trust": { "kind": "Sealed", "module": ["cire", "temporal"] } }, { "fork": "Share", "kind": "CertificateV1", "origin": "cire.temporal:packed-release", "publish": "None", "replay_origin": "SharedPersistent", "suspend": "StackOnly", "temporal": "HostObservable", "trust": { "kind": "Sealed", "module": ["cire", "temporal"] } }] }, "suspension": { "atoms": [], "grade": "NoSuspend" }, "usage": []
       },
       {
         "LatentSites": [], "ParametricObligations": [], "attributed_demand": [],
@@ -72,13 +82,13 @@
             "source": { "generation_model": "Unsigned64NoWrap", "owner": { "namespace": "Owner", "slot": 0 }, "value_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }, "write_authority": "OwnerExecutorOnly" }
           }
         },
-        "required_phase": { "allowed_phases": ["Action"], "current_owner": null, "required_authorities": [] }, "residual_row": { "kind": "EmptyV1" }, "semantic_summary": { "kind": "PureV1" }, "suspension": { "atoms": [], "grade": "NoSuspend" }, "usage": []
+        "required_phase": { "allowed_phases": ["Action"], "current_owner": null, "required_authorities": [] }, "residual_row": { "kind": "EmptyV1" }, "semantic_summary": { "kind": "SequenceSummaryV1", "members": [{ "fork": "Share", "kind": "CertificateV1", "origin": "cire.temporal:packed-acquire", "publish": "None", "replay_origin": "SharedPersistent", "suspend": "StackOnly", "temporal": "HostObservable", "trust": { "kind": "Sealed", "module": ["cire", "temporal"] } }, { "fork": "Share", "kind": "CertificateV1", "origin": "cire.temporal:packed-release", "publish": "None", "replay_origin": "SharedPersistent", "suspend": "StackOnly", "temporal": "HostObservable", "trust": { "kind": "Sealed", "module": ["cire", "temporal"] } }] }, "suspension": { "atoms": [], "grade": "NoSuspend" }, "usage": []
       }
     ]
   },
   "package": {
     "artifact": "PackedNextPackageV2",
-    "body": { "clock": { "namespace": "Clock", "slot": 2 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "NoCaptureV1" }, "provenance": { "kind": "StableV1" }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } },
+    "body": { "clock": { "namespace": "Clock", "slot": 2 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } },
     "child_owner_binder": { "owner_slot": 1 },
     "clock_binder": { "clock_refinement": { "clock_slot": 2, "identity": { "namespace": "Identity", "slot": 2 } }, "family_witness": { "kind": "CanonicalFrameClockV2", "module": ["cire", "temporal"], "name": "FrameClock", "sealed_origin": "cire.temporal:FrameClock" }, "identity_slot": 2, "owner": { "namespace": "Owner", "slot": 1 } },
     "control_protocol": {
@@ -91,6 +101,7 @@
     "schema_version": 2,
     "sealed_origin": "cire.temporal:pack_next",
     "storage_owner": { "namespace": "Owner", "slot": 0 },
+    "owner_relation": { "child": { "namespace": "Owner", "slot": 1 }, "parent": { "namespace": "Owner", "slot": 0 }, "relation": "DirectChild", "sealed_origin": "cire.temporal:pack_next" },
     "summary_binder": { "contract_slot": 3, "kind": { "clock": { "namespace": "Clock", "slot": 2 }, "kind": "ClockPackageSummaryKindV2", "payload_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } } }
   },
   "profile": "Cire-TR₀/2026-08-01",

@@ -58,9 +58,17 @@ evidence artifact，不得只检查 parser 是否接受。
 两次调用：每次 Call Q在自己的 application处 discharge，HandlerInstall Q
 与 Lambda exact key以 `(application_slot,local_id)` 保留，两个 invocation
 site id不得 alias；prefix terminal path必须 byte-for-byte旁路第二次调用。
-`interfaces/hof-mixed-later.json` 则固定跨模块 Function contract parameter的
-exact visible row、mixed Returns/Aborts/Transfers flow与 `Next[...,L]` Later
-result必须从同一 `AppliedContractV2` 投影。
+`interfaces/mixed-next-callback-function-contract.json` 是可独立导入的
+`FunctionContractV2`：它有 exact `{Branch}` row、nonempty Call/HandlerInstall
+Q与 Lambda，并保存 Returns(`Next[...,L]`)/Aborts/两个 Transfers
+path。`interfaces/hof-mixed-later.json` 则用同一
+`ContractParameterRefV2` 在两个独立 application world调用该 callback
+两次；这个 generic contract亦以
+`interfaces/apply-later-function-contract.json` 作为 root
+`FunctionContractV2` 导出。consumer导入该 root，并同时传入真实 runtime
+callback value与指向 mixed-callback root contract的
+`ContractSubstitutionEntryV2`；runtime callback的 `FunctionTypeV2`也携带同一
+`ImportedFunctionRefV2`，不只是同 kind的本地 placeholder。
 `interfaces/flow-abort-transfer-owner.json` 则逐 variant固定 `AbortsV2`、
 `TransfersV2(ParkContractV2)`、`OwnerBoundV1`、root route以及
 Owner/generation-CAS wire形状。它显式使用 `A=Int`、`B=Array[Int]`，要求
@@ -73,12 +81,23 @@ lost-acquire `MayReturn`，以及实际 Returns/Aborts/两个完整
 `TransfersV2(ParkContractV2)` 的 exactly-once release与 tag preservation。
 `runtime/packed-next-lease-runtime.json` 覆盖 dispose/acquire线性化、active
 acquire存活、两个同时 lease 的 Closing递减、幂等 dispose与 unique final close；
-`mutations/v1-rejects-v2-tags.json` 以 base file + JSON Patch operation给出
-可执行 malformed payload，保证 V1 decoder拒绝 V2 tag，并拒绝 terminal
-bind、Q stage和 Lambda key破坏。JSON oracle的 `canonical_json`
+`mutations/v1-rejects-v2-tags.json` 以 base file + JSON Patch operation和显式
+`decoder_target` 给出可执行 malformed payload，保证 V1 decoder拒绝 V2
+tag，并拒绝 terminal bind、Q stage和 Lambda key破坏。JSON oracle的 `canonical_json`
 expectation固定 schema规定的
 `RFC8785-JCS+NFC-V1` serializer；repository中的 oracle envelope保留
 human-readable layout，本身不是 raw artifact byte golden。
+
+从 repository root执行真实 decoder/import/runtime gate：
+
+```sh
+python3 examples/spec/validate-oracles.py
+```
+
+该 gate以 NFC validation后的 RFC 8785 JCS bytes重算所有 import
+SHA-256，不使用 pretty-file raw bytes；每个 mutation都先应用 JSON
+Patch，再把 `decoder_target` 指向的实际节点交给声明的 decoder，
+并校验精确 diagnostic id。
 
 `diagnostics-v2.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；
 新增或重命名 id需要新 registry version，不能让 parser recovery改变同一

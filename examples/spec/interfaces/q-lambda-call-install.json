@@ -6,7 +6,7 @@
         "actual_arguments": [
           {
             "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } },
-            "nominal_index": { "kind": "NoNominalIndexV1" },
+            "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } },
             "origin": "invoke-twice.cire:first-options",
             "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } },
             "source": { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 0 } },
@@ -24,7 +24,7 @@
         "application_slot": 0,
         "callee_summary": {
           "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } },
-          "nominal_index": { "kind": "NoNominalIndexV1" },
+          "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } },
           "origin": "invoke-twice.cire:choose-once-ref",
           "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } },
           "source": null,
@@ -40,7 +40,7 @@
           "usage": null
         },
         "contract": {
-          "artifact_hash": "sha256:ad7812a775107855e2de37cd0cf77a431e3d302ee41005f63a10a5dcc43d8ceb",
+          "artifact_hash": "sha256:9d1a221e029e2035ce2bc51e513ee2f8f2c9fd7c0c206003c53bec41d6e78af7",
           "kind": "ImportedFunctionRefV2",
           "module": ["library"],
           "name": "choose_once"
@@ -68,7 +68,7 @@
         "actual_arguments": [
           {
             "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } },
-            "nominal_index": { "kind": "NoNominalIndexV1" },
+            "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } },
             "origin": "invoke-twice.cire:second-options",
             "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } },
             "source": { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 1 } },
@@ -86,7 +86,7 @@
         "application_slot": 1,
         "callee_summary": {
           "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } },
-          "nominal_index": { "kind": "NoNominalIndexV1" },
+          "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } },
           "origin": "invoke-twice.cire:choose-once-ref",
           "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } },
           "source": null,
@@ -102,7 +102,7 @@
           "usage": null
         },
         "contract": {
-          "artifact_hash": "sha256:ad7812a775107855e2de37cd0cf77a431e3d302ee41005f63a10a5dcc43d8ceb",
+          "artifact_hash": "sha256:9d1a221e029e2035ce2bc51e513ee2f8f2c9fd7c0c206003c53bec41d6e78af7",
           "kind": "ImportedFunctionRefV2",
           "module": ["library"],
           "name": "choose_once"
@@ -128,6 +128,7 @@
       }
     ],
     "artifact": "FunctionContractV2",
+    "declaration_kind": null,
     "binders": {
       "clock_binders": [],
       "contract_binders": [],
@@ -183,25 +184,31 @@
         "kind": "PathBindV2",
         "prefix": { "application_slot": 1, "kind": "InvokeV2" },
         "return_binder": {
-          "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "OperationResultCaptureV1", "site_slot": 1 } },
-          "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "OperationResultProvenanceV1", "site_slot": 1 } },
+          "capture": { "kind": "LegacyCaptureExprV2", "value": { "argument": { "namespace": "Parameter", "slot": 1 }, "kind": "ArrayElementCaptureV1" } },
+          "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } },
+          "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "argument": { "namespace": "Parameter", "slot": 1 }, "kind": "ArrayElementProvenanceV1" } },
           "slot": 1,
           "type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
-          "world": { "kind": "ReturnWorldV2", "return_slot": 1 }
-        }
+          "usage": null,
+          "world": { "input": { "application_slot": 1, "kind": "ApplicationEntryWorldV2" }, "kind": "ApplyWorldTransitionV2", "transition": { "kind": "SameWorldV1" } }
+        },
+        "terminal_policy": "PreserveTerminalV2"
       },
       "kind": "PathBindV2",
       "prefix": { "application_slot": 0, "kind": "InvokeV2" },
       "return_binder": {
-        "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "OperationResultCaptureV1", "site_slot": 0 } },
-        "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "OperationResultProvenanceV1", "site_slot": 0 } },
+        "capture": { "kind": "LegacyCaptureExprV2", "value": { "argument": { "namespace": "Parameter", "slot": 0 }, "kind": "ArrayElementCaptureV1" } },
+        "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } },
+        "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "argument": { "namespace": "Parameter", "slot": 0 }, "kind": "ArrayElementProvenanceV1" } },
         "slot": 0,
         "type": {
           "kind": "LegacyTypeRefV2",
           "value": { "kind": "BuiltinTypeV1", "name": "Int" }
         },
-        "world": { "kind": "ReturnWorldV2", "return_slot": 0 }
-      }
+        "usage": null,
+        "world": { "input": { "application_slot": 0, "kind": "ApplicationEntryWorldV2" }, "kind": "ApplyWorldTransitionV2", "transition": { "kind": "SameWorldV1" } }
+      },
+      "terminal_policy": "PreserveTerminalV2"
     },
     "profile": "Cire-TR₀/2026-08-01",
     "schema_version": 2
@@ -227,7 +234,7 @@
   },
   "imports": [
     {
-      "artifact_hash": "sha256:ad7812a775107855e2de37cd0cf77a431e3d302ee41005f63a10a5dcc43d8ceb",
+      "artifact_hash": "sha256:9d1a221e029e2035ce2bc51e513ee2f8f2c9fd7c0c206003c53bec41d6e78af7",
       "file": "choose-once-function-contract.json"
     }
   ],
@@ -238,14 +245,14 @@
       "discharged_call_keys": [{ "application_slot": 0, "local_id": 0 }],
       "retained_latent_sites": [{ "install_obligation_keys": [{ "application_slot": 0, "local_id": 1 }], "key": { "application_slot": 0, "local_id": 0 }, "source_site_slot": 0 }],
       "retained_obligations": [{ "key": { "application_slot": 0, "local_id": 1 }, "source_local_id": 1, "stage": "HandlerInstall" }],
-      "source_artifact_hash": "sha256:ad7812a775107855e2de37cd0cf77a431e3d302ee41005f63a10a5dcc43d8ceb"
+      "source_artifact_hash": "sha256:9d1a221e029e2035ce2bc51e513ee2f8f2c9fd7c0c206003c53bec41d6e78af7"
     },
     {
       "application_slot": 1,
       "discharged_call_keys": [{ "application_slot": 1, "local_id": 0 }],
       "retained_latent_sites": [{ "install_obligation_keys": [{ "application_slot": 1, "local_id": 1 }], "key": { "application_slot": 1, "local_id": 0 }, "source_site_slot": 0 }],
       "retained_obligations": [{ "key": { "application_slot": 1, "local_id": 1 }, "source_local_id": 1, "stage": "HandlerInstall" }],
-      "source_artifact_hash": "sha256:ad7812a775107855e2de37cd0cf77a431e3d302ee41005f63a10a5dcc43d8ceb"
+      "source_artifact_hash": "sha256:9d1a221e029e2035ce2bc51e513ee2f8f2c9fd7c0c206003c53bec41d6e78af7"
     }
   ],
   "schema_version": 2,
