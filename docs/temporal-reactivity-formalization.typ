@@ -888,7 +888,7 @@ TypeConstructorRefV1 =
 
 ContractParameterV1 {
   slot: u32
-  kind: Function | Later | Continuation | Handler
+  kind: Function | Later | Continuation | Handler | ClockPackageSummary
 }
 LaterContractV1 {
   provenance: ProvenanceExprV1
@@ -1406,27 +1406,52 @@ Clock view；declaration-level `IdentitySlotDeclV1`/`ClockBinderV1.identity`
 `LaterContract(i,A)` 引用 paired Clock view；importer只沿显式 witness校验同一
 nominal identity，绝不按相同数值 slot或 source spelling猜 alias。
 existential的 `summary_binder.kind.ClockPackageSummaryKindV1.clock` 必须恰好
-引用这个 paired Clock view，不能另指 declaration或 outer clock。
+引用这个 paired Clock view，不能另指 declaration或 outer clock；其
+`payload_type` 必须与 imported `body` alpha-equal。summary Contract slot即使
+不自由出现于 payload type，也必须在 body import前声明，因为它是 unpack时
+可用的 sealed package evidence，不能被 importer丢弃。
 
 ```text
 import_quantified_identity(binder, body, scope):
   i = scope.declare(Identity, binder.identity_slot,
                     binder.family, binder.owner)
+  body_scope = scope + i
   if binder.clock_refinement != null:
     r = binder.clock_refinement
     require r.identity == SlotRefV1(Identity, binder.identity_slot)
-    c = scope.declare(Clock, r.clock_slot,
-                      same_nominal_identity = i)
-  return import_type(body, scope + i + optional(c))
+    c = body_scope.declare(Clock, r.clock_slot,
+                           same_nominal_identity = i)
+    body_scope += c
+  return import_type(body, body_scope)
 
-import_quantified_clock(binder, body, scope):
-  i = scope.declare(Identity, binder.identity_slot,
-                    binder.family, binder.owner)
-  r = binder.clock_refinement
-  require r.identity == SlotRefV1(Identity, binder.identity_slot)
-  c = scope.declare(Clock, r.clock_slot,
-                    same_nominal_identity = i)
-  return import_type(body, scope + i + c)
+import_clock_package(clock_binder, summary_binder, body, scope):
+  i = scope.declare(Identity, clock_binder.identity_slot,
+                    clock_binder.family, clock_binder.owner)
+  r = clock_binder.clock_refinement
+  require r.identity ==
+    SlotRefV1(Identity, clock_binder.identity_slot)
+  c = (scope + i).declare(Clock, r.clock_slot,
+                          same_nominal_identity = i)
+  require summary_binder.kind is ClockPackageSummaryKindV1
+  require summary_binder.kind.clock ==
+    SlotRefV1(Clock, r.clock_slot)
+  A = import_type(summary_binder.kind.payload_type, scope + i + c)
+  L = (scope + i + c).declare(
+    Contract, summary_binder.contract_slot,
+    ClockPackageSummaryKindV1(clock = c, payload_type = A))
+  imported_body = import_type(body, scope + i + c + L)
+  require alpha_equal(imported_body, weaken(A, L))
+  return imported_body
+
+serialize_clock_package(i, c, L, A, body):
+  require c is the paired Clock view of i
+  emit clock_binder with identity_slot = slot(i),
+    clock_refinement = { clock_slot: slot(c), identity: ref(i) },
+    family = family(i), owner = owner(i)
+  emit summary_binder with contract_slot = slot(L),
+    kind = ClockPackageSummaryKindV1(clock = ref(c), payload_type = A)
+  require alpha_equal(body, weaken(A, L))
+  emit body under scopes i, c and L
 ```
 
 `OwnerIndexedTypeV1.payload=null` 当且仅当 constructor是
@@ -2729,58 +2754,9 @@ Checking rule：
 
 == Functions
 
-#irule(
-  [T-Lambda],
-  (
-    [$eta_f=⟨A,B,Phi_f⟩$],
-    [$(pi_x,xi_x)="freshRigidSummaryVars"(A)$],
-    [$Theta_x = "bind"(Theta,x:A @[pi_x] ▷ xi_x)$],
-    [$K;I;Phi_f;Omega_"sym"@Theta_x ⊢ e ⇒ B @[pi_B] ! epsilon ▷ s;delta;chi_B @Theta_b⊣Omega_b$],
-    [$Theta_o="dropBinder"(Theta_b,x)$],
-    [$chi_c="captureFV"(e-{x},Theta) quad Pi_c="provenanceFV"(e-{x},Theta)$],
-    [$pi_c="Env"(Pi_c)$],
-    [$u="latentUsage"(Omega_"sym",Omega_b) quad zeta="abstractLocks"(Theta,Theta_o)$],
-    [$Lambda="abstractSites"("typed"(e),x)$],
-    [$"AbstractParametricSummary"(pi_x,xi_x,pi_B,chi_B,"evidence"(e))=(Q,R_"out")$],
-    [$"ManyCallSafe"(Pi_c,u,chi_c)$],
-  ),
-  [$K;I;Phi@Theta ⊢_v lambda^[eta_f] x.e ⇒ A arrow.r.long^⟨epsilon,zeta,"MayReturn",s,delta,Pi_c,chi_c,u,R_"out",Phi_f,Q,Lambda⟩ B @[pi_c] ▷ chi_c$],
-)
-
-`Omega_sym` 是 closure body的符号 usage环境；构造 closure不修改定义点的
-$Omega$。`ManyCallSafe` 要求 $u$ 不使用任何 one-shot entry，并同时验证
-$Pi_c$ / $chi_c$ 中 provenance与 authority可由 many-call closure共享；
-T-Lambda否则拒绝。
-`freshRigidSummaryVars` 不能被 rule-schema实例化为 `Stable/∅`；
-`AbstractParametricSummary` 对所有 admissible argument summary普遍抽象，
-把 derivation产生的 boundary/stability/outlives constraints存入 $Q$，
-并把 symbolic result存成 $R_"out"$。T-App先 discharge $Q$ 后才能应用
-$R_"out"$。
-`abstractLocks` 只抽象 lock transformer，局部 binder已经被 `dropBinder`
-删除。
-
-#irule(
-  [T-Lambda-Abort],
-  (
-    [$eta_f=⟨A,B,Phi_f⟩ quad (pi_x,xi_x)="freshRigidSummaryVars"(A)$],
-    [$Theta_x="bind"(Theta,x:A @[pi_x] ▷ xi_x)$],
-    [$K;I;Phi_f;Omega_"sym"@Theta_x ⊢_"abort" e ! epsilon ▷ s;delta ⊣Omega_b$],
-    [$(Pi_c,chi_c,u,Lambda)="analyzeAbortClosure"(e,x,Theta,Omega_"sym",Omega_b)$],
-    [$Q="AbstractParametricAbortObligations"(pi_x,xi_x,"evidence"(e))$],
-    [$pi_c="Env"(Pi_c) quad "ManyCallSafe"(Pi_c,u,chi_c)$],
-  ),
-  [$K;I;Phi@Theta ⊢_v lambda^[eta_f] x.e ⇒ A arrow.r.long^⟨epsilon,bot,"NoReturn",s,delta,Pi_c,chi_c,u,bot,Phi_f,Q,Lambda⟩ B @[pi_c] ▷ chi_c$],
-)
-
-`NoReturn` contract没有 normal $zeta/R_"out"$；其中的 $bot$ 不能被
-T-App当作任意 world transformer。`analyzeAbortClosure` 只是
-`captureFV`、`provenanceFV`、latent usage与site extraction的打包写法，
-不是新 oracle。参数相关的 boundary/stability/outlives obligation仍由
-`AbstractParametricAbortObligations` 对 rigid $(pi_x,xi_x)$ 普遍抽象为
-$Q$；abortive body不能借“不产生结果”绕过实参相关的前缀安全条件。
-
-T-Lambda 与 T-Lambda-Abort 是下列 path-set rule 的单一路径投影；真正
-checker使用后者，所以带 terminal transfer 的具名函数仍可形成：
+Lambda只有下面这条 path-set rule是 normative；旧名称 T-Lambda 与
+T-Lambda-Abort 在规则后定义为它的单一路径 projection，不再各自重新检查
+body。这样带 terminal transfer 的具名函数仍可形成：
 
 #irule(
   [T-Lambda-Paths],
@@ -2809,6 +2785,20 @@ $r_f="NoReturn"$、$hat(zeta)=hat(R)=bot$，但
 `flow(C)={Transfers(P)}`；它不会被改写成 abort。Surface named `def`
 的一元 tuple elaboration使用同一 rule。$S_f$ 在 closure contract中抽象为
 Call-stage route selectors，不捕获 lambda definition stack。
+若 `flow(C)` 恰为 singleton `Returns`，其 scalar projection称为 T-Lambda；
+若恰为 singleton `Aborts`，以 explicit bottom transition/result编码的
+projection称为 T-Lambda-Abort。两者复用同一个 T-Lambda-Paths derivation、
+$S_f$ 与 `ManyCallSafe` evidence，不存在第二条 ambient-context body premise。
+$
+  "T-Lambda" := "ProjectSingletonReturns"("T-Lambda-Paths")
+  quad
+  "T-Lambda-Abort" := "ProjectSingletonAborts"("T-Lambda-Paths")
+$
+`Omega_sym` 是 closure body的 symbolic usage环境；构造 closure不修改定义点
+$Omega$。`freshRigidSummaryVars` 与 `AbstractParametricFlow` 对所有 admissible
+argument summary、boundary/stability/outlives约束普遍抽象；T-App先 discharge
+$Q$ 才能应用 result transformer。完全 abortive path不能借“不产生结果”
+绕过这些约束。
 
 后文 `$"body"_A(e) ⇓ cal(F)$` 是所有 expression都可使用的 normative
 path judgment，不只用于 handler body。其 strict bind为：
@@ -4077,7 +4067,7 @@ transition。插入动作的 row、suspension、summary与 usage都进入 $f_d$�
       "finalize"(k_kappa) ⇒ "Unit" @["Stable"] !
       epsilon_f;Delta_f ▷ s_f;delta_f ⊗ delta_"finalize";
       emptyset @Theta_f⊣Omega'$],
-    [$K;I;Phi_h@Theta_f;S_i ⊢_v y ⇒ B @[pi_o] ▷ chi_o$],
+    [$K;I;Phi_h@Theta_f ⊢_v y ⇒ B @[pi_o] ▷ chi_o$],
     [$"dropBinder"(Theta_f,y)=Theta_"answer" quad Omega'(k_kappa)="Closed"$],
     [$"ExtractClauseContract"(
       "typedAbortPath",Xi_k,pi_o,chi_o,b_k) ⇓ H_c$],
@@ -6103,10 +6093,17 @@ synth(ctx, e):
     Lambda(x, A, B, Φrequired, body):
       require well_formed(A, B, Φrequired)
       symbolic = fresh_rigid_usage_and_argument_summary(A)
-      rb = check_body_flow(
-        bind(ctx.with_phase(Φrequired).with_usage(symbolic.Ω),
+      Scall = fresh_symbolic_prompt_stack()
+      call_ctx =
+        ctx.with_prompts(Scall).with_route_stage(Call)
+      rb_symbolic = check_body_flow(
+        bind(call_ctx.with_phase(Φrequired).with_usage(symbolic.Ω),
              x, A, symbolic.π, symbolic.χ),
         body, B)
+      rb = abstract_lambda_call_context(
+        rb_symbolic, Scall,
+        unresolved_route_stage = Call)
+      require rb contains no concrete prompt selected from ctx.prompts
       χclosure = capture_fv(body - x, ctx.Θ)
       Πclosure = provenance_fv(body - x, ctx.Θ)
       u = latent_usage(symbolic.Ω, rb.Ω_out)
@@ -6813,6 +6810,12 @@ eliminate_entry_with_contract(
       fresh_prompt_node(
         prompt, handled_node(prompt, body.typed_core, handler))
 ```
+
+`Lambda` branch保留 definition $Theta$ 以计算 lexical captures，但在检查 body前
+必须用 fresh $S_"call"$ 替换 ambient prompt stack并把 route stage设为 `Call`。
+`abstract_lambda_call_context` 随后把该 symbolic stack上的 route统一封成
+`ResolveAtCall` 并量化 $S_"call"$；任何来自 `ctx.prompts` 的 concrete prompt
+都会被拒绝。该步骤与 T-Lambda-Paths 的 $S_f$ 是同一算法，不是 optimizer。
 
 Handler definition只捕获 `Πenv/χenv`，不捕获 definition-site prompt stack。
 `with_route_stage(HandlerInstall)` 令 schema内命中 symbolic handled entry的
