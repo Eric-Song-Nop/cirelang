@@ -55,7 +55,7 @@ def[A, B] map(
 | 函数类型 | `(A) -> B`、`(A, B) -> C` |
 | 可变局部绑定 | `let mut value = ...` |
 | 方法声明 | `def Type::method(self : Type, ...)` |
-| package-qualified name | `@pkg.name` |
+| package-qualified name | `@pkg::name`（多段 package path 可写 `@org.pkg::name`） |
 | labelled parameter | `key~ : Key` |
 | labelled argument | `key=value` 或 label punning |
 | 结构化退出动作 | `defer cleanup()` |
@@ -854,8 +854,9 @@ let opened = @temporal::try_with_packed_next(packed) { frame, pending =>
 `None`；成功 body的 Returns映射为 `Some`；Aborts/Transfers保持 terminal tag，
 但必须先证明 private frame/Next/Later/lease没有通过任何 outward evidence逃逸，
 再 exactly-once release。Handle可复制，alias共享
-`Open(n)|Closing(n)|Closed` cell；dispose幂等、NoSuspend、非 Pure，并不等待
-active lease归零。三段 block是 contextual HIR，不是用户可声明的普通 callback
+`Open(n)|Closing(n)|Closed` cell；dispose幂等、NoSuspend、非 Pure；
+`Open(0)` 立即唯一 close，有 active lease时只进入 Closing而不等待归零。
+三段 block是 contextual HIR，不是用户可声明的普通 callback
 contract；同名用户函数无 privileged lowering。
 
 ## 9. 不采用宏系统

@@ -32,6 +32,7 @@ evidence artifact，不得只检查 parser 是否接受。
 | `accept/packed-next-open.cire` | accept | pack/open/yield/advance、won path exactly-once release |
 | `accept/packed-next-after-dispose.cire` | accept | lost acquire返回 `None` 且 try-open仍 `MayReturn` |
 | `accept/packed-next-local-use.cire` | accept | private clock/Next在 delimiter内完全消费 |
+| `accept/packed-next-mixed-exits.cire` | accept | Returns/Aborts/两个Transfers逐 path release并保留tag |
 | `accept/secondary-row.cire` | accept | operation dispatch entry ∪ `SecondaryRow` |
 | `accept/secondary-row-closed-forms.cire` | accept | `! {}` 与多 entry closed secondary |
 | `accept/named-cap-lexical-scope.cire` | accept | named cap binder 的 scoped lexical visibility |
@@ -49,6 +50,8 @@ evidence artifact，不得只检查 parser 是否接受。
 | `reject/open-secondary-row.cire` | reject | TR₀ operation secondary row 必须 closed |
 | `reject/bare-open-secondary-row.cire` | reject | bare `! E` 经 recovery CST 到 closed-only WF |
 
+`interfaces/choose-once-function-contract.json` 是可独立导入的
+`FunctionContractV2`，实际含 nonempty Q与 `LatentSiteV2`；
 `interfaces/q-lambda-call-install.json` 是
 `CireSpecInterfaceOracleV2` envelope。其 `FunctionContractV2` 以两个
 `AppliedContractV2` 和一个有序 `PathBindV2` 固定同一 imported callback的
@@ -64,13 +67,15 @@ Owner/generation-CAS wire形状。它显式使用 `A=Int`、`B=Array[Int]`，要
 source/port/resumption argument三者一致，并保留完整 `ResumeTypeV2`、
 `SuffixContractV2` continuation/live evidence。
 
-`interfaces/clock-package-paths.json` 固定 sealed FrameClock witness、
-Identity→Clock→Summary→Body binder顺序、lost-acquire `MayReturn`，以及每个
-Returns/Aborts/Transfers path的 exactly-once release与 tag preservation。
+`interfaces/clock-package-paths.json` 携带完整 `PackedNextPackageV2` 和
+`LiteralPathsV2`，固定 child-Owner→Identity→Clock→Summary→Body binder顺序、
+lost-acquire `MayReturn`，以及实际 Returns/Aborts/两个完整
+`TransfersV2(ParkContractV2)` 的 exactly-once release与 tag preservation。
 `runtime/packed-next-lease-runtime.json` 覆盖 dispose/acquire线性化、active
-acquire存活、幂等 dispose与 unique final close；
-`mutations/v1-rejects-v2-tags.json` 保证 V1 decoder拒绝 V2 tag，并拒绝
-terminal bind、Q stage和 Lambda key破坏。JSON oracle的 `canonical_json`
+acquire存活、两个同时 lease 的 Closing递减、幂等 dispose与 unique final close；
+`mutations/v1-rejects-v2-tags.json` 以 base file + JSON Patch operation给出
+可执行 malformed payload，保证 V1 decoder拒绝 V2 tag，并拒绝 terminal
+bind、Q stage和 Lambda key破坏。JSON oracle的 `canonical_json`
 expectation固定 schema规定的
 `RFC8785-JCS+NFC-V1` serializer；repository中的 oracle envelope保留
 human-readable layout，本身不是 raw artifact byte golden。

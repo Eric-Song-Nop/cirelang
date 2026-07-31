@@ -233,7 +233,7 @@ AbilityRef        <- Type
 ```
 
 Package identity and dependency selection belong to the package manifest. 源文件通过
-`@package.name` 和 `Type::member` 使用 package-qualified name；本 profile
+`@package::name` 和 `Type::member` 使用 package-qualified name；本 profile
 不增加会在文件内改变解析环境的 wildcard import。
 
 ## 3. 形参、实参与约束
@@ -700,7 +700,8 @@ let value = @temporal::try_with_packed_next(packed) { frame, pending =>
 三者使用现有 `QualifiedName`、labelled argument与 trailing-lambda CST；只有
 resolver确认 exact sealed origin时才产生 contextual HIR。builder/open block
 不是普通 first-class callback type：前者获得 fresh FrameClock，后者只在
-lexical scope内获得 raw `frame` 与 exact `Next[frame,A,L]`。
+lexical scope内获得 raw `frame` 与 surface `Next[frame,A]`；hidden Later
+contract $L$ 只存在于 Core/interface，不能在 source type中拼写。
 `PackedNext[A]` 是 copyable shared handle；`try_with_packed_next` 的
 Closing/Closed path显式返回 `None`，成功 body的 Returns映射为 `Some`，而
 安全的 Aborts/Transfers在完整 identity-nonescape后 exactly-once release并

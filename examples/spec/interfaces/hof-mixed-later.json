@@ -5,11 +5,11 @@
       {
         "actual_arguments": [
           {
-            "capture": { "kind": "NoCaptureV1" },
+            "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } },
             "nominal_index": { "kind": "NoNominalIndexV1" },
             "origin": "consumer.cire:value",
-            "provenance": { "kind": "StableV1" },
-            "source": null,
+            "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } },
+            "source": { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 1 } },
             "type": {
               "kind": "LegacyTypeRefV2",
               "value": { "kind": "BuiltinTypeV1", "name": "Int" }
@@ -19,10 +19,10 @@
         ],
         "application_slot": 0,
         "callee_summary": {
-          "capture": { "kind": "NoCaptureV1" },
+          "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } },
           "nominal_index": { "kind": "NoNominalIndexV1" },
           "origin": "consumer.cire:callback",
-          "provenance": { "kind": "StableV1" },
+          "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } },
           "source": null,
           "type": {
             "contract": {
@@ -91,7 +91,10 @@
       ],
       "identity_binders": [{ "binder": "FreshCap", "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["cire", "temporal"], "name": "FrameClock" }, "identity_slot": 0, "owner": { "namespace": "Owner", "slot": 0 } }],
       "owner_binders": [{ "slot": 0, "source": { "namespace": "Parameter", "slot": 0 } }],
-      "parameter_binders": [{ "slot": 0, "type": { "kind": "OwnerTypeV2", "owner": { "namespace": "Owner", "slot": 0 } } }],
+      "parameter_binders": [
+        { "slot": 0, "type": { "kind": "OwnerTypeV2", "owner": { "namespace": "Owner", "slot": 0 } } },
+        { "slot": 1, "type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }
+      ],
       "prompt_binders": [],
       "row_binders": [],
       "type_binders": []
@@ -101,6 +104,29 @@
     "profile": "Cire-TR₀/2026-08-01",
     "schema_version": 2
   },
+  "consumer_contract": {
+    "applications": [
+      {
+        "actual_arguments": [
+          { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "nominal_index": { "kind": "OwnerIndexV1", "owner": { "namespace": "Owner", "slot": 0 } }, "origin": "consumer.cire:owner", "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "OwnerV1", "owner": { "namespace": "Owner", "slot": 0 } } }, "source": { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 0 } }, "type": { "kind": "OwnerTypeV2", "owner": { "namespace": "Owner", "slot": 0 } }, "usage": null },
+          { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "nominal_index": { "kind": "NoNominalIndexV1" }, "origin": "consumer.cire:value", "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "source": { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 1 } }, "type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }, "usage": null }
+        ],
+        "application_slot": 10,
+        "callee_summary": { "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } }, "nominal_index": { "kind": "NoNominalIndexV1" }, "origin": "consumer.cire:apply_later", "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } }, "source": null, "type": { "arguments": [], "kind": "NominalTypeV2", "module": ["library"], "name": "ApplyLaterFunction" }, "usage": null },
+        "contract": { "artifact_hash": "envelope-local:/contract", "kind": "ImportedFunctionRefV2", "module": ["library"], "name": "apply_later" },
+        "entry_world": { "application_slot": 10, "kind": "ApplicationEntryWorldV2" },
+        "origin": "consumer.cire:apply-later-call",
+        "substitution": {
+          "clock_arguments": [],
+          "contract_arguments": [{ "binder_slot": 0, "contract": { "artifact_hash": "sha256:14bf6dd174c152a5851f2c927e5cfca63814843dff6bab30f98650ea7fc11541", "kind": "ImportedFunctionRefV2", "module": ["fixtures"], "name": "mixed_next_callback" } }],
+          "identity_arguments": [], "owner_arguments": [], "row_arguments": [], "type_arguments": []
+        }
+      }
+    ],
+    "artifact": "FunctionContractV2",
+    "binders": { "clock_binders": [{ "identity": { "namespace": "Identity", "slot": 0 }, "owner": { "namespace": "Owner", "slot": 0 }, "slot": 0 }], "contract_binders": [{ "kind": "FunctionContractBinderV2", "parameter_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }, "result_type": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "NoCaptureV1" }, "provenance": { "kind": "StableV1" }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }, "slot": 0, "visible_row": { "entries": [{ "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["library"], "name": "Branch" }, "kind": "AnonV1" }], "kind": "ClosedV1" } }], "identity_binders": [{ "binder": "FreshCap", "family": { "arguments": [], "kind": "NominalTypeV1", "module": ["cire", "temporal"], "name": "FrameClock" }, "identity_slot": 0, "owner": { "namespace": "Owner", "slot": 0 } }], "owner_binders": [{ "slot": 0, "source": { "namespace": "Parameter", "slot": 0 } }], "parameter_binders": [{ "slot": 0, "type": { "kind": "OwnerTypeV2", "owner": { "namespace": "Owner", "slot": 0 } } }, { "slot": 1, "type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }], "prompt_binders": [], "row_binders": [], "type_binders": [] },
+    "closure_environment": [], "computation": { "application_slot": 10, "kind": "InvokeV2" }, "profile": "Cire-TR₀/2026-08-01", "schema_version": 2
+  },
   "expectation": {
     "callback_flow": ["ReturnsV2(Next[clock,Int,L])", "AbortsV2", "TransfersV2"],
     "later_contract_preserved": true,
@@ -108,6 +134,15 @@
     "terminal_paths_bypass_caller_suffix": true,
     "visible_row_exact": "{Branch}"
   },
+  "imports": [
+    {
+      "artifact_hash": "sha256:14bf6dd174c152a5851f2c927e5cfca63814843dff6bab30f98650ea7fc11541",
+      "computation_pointer": "/open_computation",
+      "file": "clock-package-paths.json",
+      "function_name": "mixed_next_callback",
+      "result_type": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextTypeV2", "later_contract": { "capture": { "kind": "NoCaptureV1" }, "provenance": { "kind": "StableV1" }, "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "current_owner": null, "required_authorities": [] }, "semantic_summary": { "kind": "PureV1" } }, "payload": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }
+    }
+  ],
   "profile": "Cire-TR₀/2026-08-01",
   "schema_version": 2,
   "subject": "cross-module-HOF-mixed-flow-Later-result"

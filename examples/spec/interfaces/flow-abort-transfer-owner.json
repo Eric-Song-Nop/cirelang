@@ -111,9 +111,12 @@
                     "outcome": {
                       "kind": "ReturnsV2",
                       "result_transformer": {
-                        "capture": { "kind": "NoCaptureV1" },
-                        "kind": "ParametricResultV1",
-                        "provenance": { "kind": "StableV1" }
+                        "kind": "LegacyResultTransformerV2",
+                        "value": {
+                          "capture": { "kind": "NoCaptureV1" },
+                          "kind": "ParametricResultV1",
+                          "provenance": { "kind": "StableV1" }
+                        }
                       },
                       "transition": { "kind": "SameWorldV1" }
                     },
@@ -132,12 +135,18 @@
               "live_bindings": [
                 {
                   "capture": {
-                    "kind": "CaptureSlotsV1",
-                    "slots": [{ "namespace": "Owner", "slot": 0 }]
+                    "kind": "LegacyCaptureExprV2",
+                    "value": {
+                      "kind": "CaptureSlotsV1",
+                      "slots": [{ "namespace": "Owner", "slot": 0 }]
+                    }
                   },
                   "provenance": {
-                    "kind": "GenerationBoundV1",
-                    "owner": { "namespace": "Owner", "slot": 0 }
+                    "kind": "LegacyProvenanceExprV2",
+                    "value": {
+                      "kind": "GenerationBoundV1",
+                      "owner": { "namespace": "Owner", "slot": 0 }
+                    }
                   },
                   "slot": { "namespace": "SuffixLive", "slot": 0 },
                   "type": {
@@ -152,12 +161,18 @@
               ]
             },
             "live_capture": {
-              "kind": "CaptureSlotsV1",
-              "slots": [{ "namespace": "Owner", "slot": 0 }]
+              "kind": "LegacyCaptureExprV2",
+              "value": {
+                "kind": "CaptureSlotsV1",
+                "slots": [{ "namespace": "Owner", "slot": 0 }]
+              }
             },
             "live_provenance": {
-              "kind": "GenerationBoundV1",
-              "owner": { "namespace": "Owner", "slot": 0 }
+              "kind": "LegacyProvenanceExprV2",
+              "value": {
+                "kind": "GenerationBoundV1",
+                "owner": { "namespace": "Owner", "slot": 0 }
+              }
             },
             "owner": { "namespace": "Owner", "slot": 0 },
             "usage": "Once"

@@ -123,7 +123,7 @@ defer cleanup()
 callee(arg1, arg2)
 receiver.method(arg)
 Type::qualified(arg)
-@package.name(arg)
+@package::name(arg)
 
 if condition {
   consequent

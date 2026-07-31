@@ -1971,7 +1971,8 @@ let opened = @temporal::try_with_packed_next(packed) { frame, pending =>
 ```
 
 `PackedNext[A]` 是 shared handle，不是 affine token。alias共享
-`Open(n)|Closing(n)|Closed`：dispose只发起幂等 Closing；已经成功 acquire的
+`Open(n)|Closing(n)|Closed`：有 active lease时 dispose只发起幂等 Closing，
+`Open(0)` 立即唯一 close；已经成功 acquire的
 lease继续，最后 release唯一关闭 runner/child Owner；Closing/Closed的新
 acquire返回 `None`。raw frame与 exact Next只存在于 open block lexical scope。
 Returns变成 `Some`；Aborts/Transfers在递归 nonescape gate后 release一次并

@@ -136,11 +136,11 @@ def[A : Show] render(value : A) -> View
 
 ## 6. Package 与限定名
 
-Package 是主要代码组织边界。导入的 package 用 `@alias.name` 访问：
+Package 是主要代码组织边界。导入的 package path 与声明名之间用 `::`：
 
 ```cire
-let value = @math.clamp(input, min=0, max=100)
-let request = @http.Request::get(url)
+let value = @math::clamp(input, min=0, max=100)
+let request = @http::Request::get(url)
 ```
 
 这让来源在大型代码库中仍然清楚，也给 compiler 和 LSP 一个稳定的

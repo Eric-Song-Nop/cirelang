@@ -2,81 +2,85 @@
   "artifact": "CireMutationOracleV2",
   "cases": [
     {
+      "base_file": "../interfaces/choose-once-function-contract.json",
       "decoder": "FunctionContractV1",
       "diagnostic": "unsupported-contract-schema-version",
-      "mutation": { "field": "computation", "tag": "PathBindV2" },
-      "result": "reject"
+      "mutations": [
+        { "op": "replace", "path": "/artifact", "value": "FunctionContractV1" },
+        { "op": "replace", "path": "/schema_version", "value": 1 }
+      ],
+      "result": "reject",
+      "retained_v2_path": "/computation/kind=LiteralPathsV2"
     },
     {
+      "base_file": "../interfaces/flow-abort-transfer-owner.json",
       "decoder": "ParkContractV1",
       "diagnostic": "unsupported-contract-schema-version",
-      "mutation": { "field": "disposition", "tag": "OneShotDispositionV2" },
-      "result": "reject"
+      "mutations": [{ "op": "replace", "path": "/schema_version", "value": 1 }],
+      "result": "reject",
+      "retained_v2_path": "/flow_summary/1/park_contract/disposition/resumption"
     },
     {
+      "base_file": "../interfaces/q-lambda-call-install.json",
       "decoder": "FunctionContractV2",
       "diagnostic": "path-bind-terminal-not-preserved",
-      "mutation": "apply-continuation-to-prefix-AbortsV2",
+      "mutations": [{ "op": "replace", "path": "/contract/computation/kind", "value": "ApplyContinuationToAllPathsV2" }],
       "result": "reject"
     },
     {
+      "base_file": "../interfaces/choose-once-function-contract.json",
       "decoder": "FunctionContractV2",
       "diagnostic": "projected-obligation-stage-lost",
-      "mutation": "drop-HandlerInstall-Q-after-InvokeV2",
+      "mutations": [{ "op": "remove", "path": "/computation/paths/0/ParametricObligations/1" }],
       "result": "reject"
     },
     {
+      "base_file": "../interfaces/q-lambda-call-install.json",
       "decoder": "FunctionContractV2",
       "diagnostic": "projected-latent-site-key-mismatch",
-      "mutation": "reuse-application-0-Lambda-key-for-application-1",
+      "mutations": [{ "from": "/projection_evidence/0/retained_latent_sites/0/key", "op": "copy", "path": "/projection_evidence/1/retained_latent_sites/0/key" }],
       "result": "reject"
     },
     {
+      "base_file": "../interfaces/flow-abort-transfer-owner.json",
       "decoder": "ParkContractV2",
       "diagnostic": "park-source-payload-mismatch",
-      "mutation": "source-A-port-B",
+      "mutations": [{ "op": "replace", "path": "/flow_summary/1/park_contract/completion_port/value_type/value/name", "value": "String" }],
       "result": "reject"
     },
     {
+      "base_file": "../interfaces/flow-abort-transfer-owner.json",
       "decoder": "ParkContractV2",
       "diagnostic": "park-resumption-type-mismatch",
-      "mutation": "swap-resumption-argument-A-and-answer-B",
+      "mutations": [{ "op": "copy", "from": "/flow_summary/1/park_contract/disposition/resumption/answer", "path": "/flow_summary/1/park_contract/disposition/resumption/argument" }],
       "result": "reject"
     },
     {
-      "decoder": "ParkContractV2",
-      "diagnostic": "park-resumption-type-mismatch",
-      "mutation": "identity-substitute-result-transformer-for-Dk",
-      "result": "reject"
-    },
-    {
-      "decoder": "ExistsClockPackageTypeV2",
+      "base_file": "../interfaces/clock-package-paths.json",
+      "decoder": "PackedNextPackageV2",
       "diagnostic": "clock-package-family-not-clock-indexing",
-      "mutation": "arbitrary-effect-family-or-forged-clock-refinement",
+      "mutations": [{ "op": "replace", "path": "/package/clock_binder/family_witness/name", "value": "UserClock" }],
       "result": "reject"
     },
     {
+      "base_file": "../interfaces/clock-package-paths.json",
       "decoder": "T-Clock-Unpack-Paths",
       "diagnostic": "clock-package-private-identity-escape",
-      "mutation": {
-        "hide_private_identity_in_each": [
-          "result", "row", "demand", "route", "secondary-site",
-          "actual-summary", "Q", "Lambda", "cleanup", "live-binding",
-          "ParkContractV2"
-        ]
-      },
-      "result": "reject-each"
-    },
-    {
-      "decoder": "FunctionContractV2",
-      "diagnostic": "contract-parameter-inconsistent-instantiation",
-      "mutation": "project-row-demand-suspension-or-site-from-different-actuals",
+      "mutations": [{ "op": "add", "path": "/open_computation/paths/0/ParametricObligations/0", "value": { "kind": "StableAcrossV2", "clock_slot": { "namespace": "Clock", "slot": 2 }, "id": 99, "origin": "mutation:private-clock-Q", "slots": [], "stage": "Call", "worlds": [] } }],
       "result": "reject"
     },
     {
+      "base_file": "../interfaces/clock-package-paths.json",
+      "decoder": "T-Clock-Unpack-Paths",
+      "diagnostic": "clock-package-transfer-captures-private-identity",
+      "mutations": [{ "op": "replace", "path": "/open_computation/paths/2/outcome/park_contract/source/owner", "value": { "namespace": "Owner", "slot": 1 } }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/q-lambda-call-install.json",
       "decoder": "FunctionContractV2",
-      "diagnostic": "projected-latent-site-key-mismatch",
-      "mutation": "duplicate-site-or-Q-id-or-capture-definition-prompt",
+      "diagnostic": "contract-parameter-inconsistent-instantiation",
+      "mutations": [{ "op": "replace", "path": "/contract/applications/1/substitution/type_arguments/0/value/value/name", "value": "String" }],
       "result": "reject"
     }
   ],
