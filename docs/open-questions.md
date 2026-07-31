@@ -285,6 +285,13 @@ Owner
 
 ## 6. 增量内核
 
+Modal time、world-indexed resumption、async 与 replay 的最新压力测试见
+[Temporal modality、代数效应与增量计算：语法实验和反例审查](temporal-reactivity-design-experiment.md)。
+该文档把 logical `Next`、Task completion 与 incremental Epoch 分开，并把
+sealed checkpoint 作为演算候选；它仍是研究草案，不改变本节的开放状态。
+逐规则的 PEG、typing judgment 与 replacement machine 见
+[Cire-TR₀ Typst 形式化草案](temporal-reactivity-formalization.typ)。
+
 ### 6.1 `Observe.read` 的控制模式
 
 候选包括：
