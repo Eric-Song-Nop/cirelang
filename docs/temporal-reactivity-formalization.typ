@@ -663,7 +663,11 @@ ContractBinderV1 =
       input_type: TypeRefV1, answer_type: TypeRefV1
     }
 OwnerBinderV1    { slot: u32, source: SlotRefV1 }
-ClockBinderV1    { slot: u32, owner: SlotRefV1 }
+ClockBinderV1 {
+  slot: u32
+  identity: SlotRefV1                  // paired Identity namespace
+  owner: SlotRefV1                     // Owner namespace
+}
 
 RowExprV1 =
     EmptyV1
@@ -839,14 +843,21 @@ TypeRefV1 =
 
 QuantifiedIdentityBinderV1 {
   identity_slot: u32
+  clock_refinement: QuantifiedClockRefinementV1 | null
   family: TypeRefV1
   owner: SlotRefV1                       // enclosing Owner namespace
 }
 
 QuantifiedClockBinderV1 {
-  clock_slot: u32
+  identity_slot: u32
+  clock_refinement: QuantifiedClockRefinementV1
   family: TypeRefV1
   owner: SlotRefV1                       // enclosing Owner namespace
+}
+
+QuantifiedClockRefinementV1 {
+  clock_slot: u32
+  identity: SlotRefV1                    // local paired Identity namespace
 }
 
 QuantifiedOwnerBinderV1 { owner_slot: u32 }
@@ -863,7 +874,7 @@ QuantifiedContractBinderV1 {
         payload_type: TypeRefV1
       }
     | ClockPackageSummaryKindV1 {
-        clock: SlotRefV1,                // locally bound Identity/Clock
+        clock: SlotRefV1,                // paired local Clock namespace
         payload_type: TypeRefV1
       }
 }
@@ -1070,6 +1081,7 @@ PromptSlotDeclV1 {
 IdentitySlotDeclV1 {
   identity_slot: u32
   family: TypeRefV1
+  owner: SlotRefV1                       // Owner namespace
   binder: FreshCap | NamedHandler
 }
 
@@ -1249,6 +1261,11 @@ source变量名或运行时地址。`DeclarationBindersV1` 是 artifact自己的
 validation context；importer不重解析 source即可验证 parameter/type/row/
 contract/Owner/clock/identity/prompt引用。所有 `ObligationV1.slots`、actual-summary引用与
 suffix-live引用都使用 `SlotRefV1`；相同数值但不同 namespace绝不 alias。
+`ClockBinderV1.identity` 是显式 refinement witness：它必须解析到同一
+declaration context中的唯一 `IdentitySlotDeclV1`，且两者 family/owner一致。
+importer先注册 Owner与Identity declaration，再验证 Clock view；Clock与Identity
+slot仍是不同 namespace ref，只有该 witness允许把二者解释为同一个 nominal
+capability identity。
 `SlotArgumentV1` 可引用 parameter/closure/suffix-live slot；
 `ComputedArgumentV1` 用于没有可引用 binder的 local/computed actual，
 两者都必须携带完整 type、nominal-index、provenance与 result-capture
@@ -1379,6 +1396,39 @@ slot/id、非 canonical collection或另一种等价 encoding一律拒绝。
 `ClockPackageSummary` evidence。importer必须按 binder出现顺序检查 kind、
 依赖与 body，禁止把 nested existential/universal无条件全提到 declaration
 binder table。
+当 `QuantifiedIdentityBinderV1.family` 是 FrameClock等 clock-indexing family时，
+`clock_refinement` 必填；否则它必须为 `null`。其中 `identity` 必须恰为
+`SlotRefV1 { namespace: Identity, slot: identity_slot }`，并在 body scope中
+同时声明 `Clock(clock_slot)` view。`QuantifiedClockBinderV1` 对 existential
+package同构地先声明 `identity_slot`，再由必填 `clock_refinement` 声明 paired
+Clock view；declaration-level `IdentitySlotDeclV1`/`ClockBinderV1.identity`
+使用同一关系。于是 `Cap[i,FrameClock]` 引用 Identity view，`Next[i,A]` 与
+`LaterContract(i,A)` 引用 paired Clock view；importer只沿显式 witness校验同一
+nominal identity，绝不按相同数值 slot或 source spelling猜 alias。
+existential的 `summary_binder.kind.ClockPackageSummaryKindV1.clock` 必须恰好
+引用这个 paired Clock view，不能另指 declaration或 outer clock。
+
+```text
+import_quantified_identity(binder, body, scope):
+  i = scope.declare(Identity, binder.identity_slot,
+                    binder.family, binder.owner)
+  if binder.clock_refinement != null:
+    r = binder.clock_refinement
+    require r.identity == SlotRefV1(Identity, binder.identity_slot)
+    c = scope.declare(Clock, r.clock_slot,
+                      same_nominal_identity = i)
+  return import_type(body, scope + i + optional(c))
+
+import_quantified_clock(binder, body, scope):
+  i = scope.declare(Identity, binder.identity_slot,
+                    binder.family, binder.owner)
+  r = binder.clock_refinement
+  require r.identity == SlotRefV1(Identity, binder.identity_slot)
+  c = scope.declare(Clock, r.clock_slot,
+                    same_nominal_identity = i)
+  return import_type(body, scope + i + c)
+```
+
 `OwnerIndexedTypeV1.payload=null` 当且仅当 constructor是
 `CommitTicket/CommitGate`；其余 owner-indexed constructors必须带 payload。
 每个 `ContractParameterV1.kind` 必须与对应 use site及
@@ -1414,6 +1464,11 @@ $
 $
 
 $L_f$ 是从 function body求解并写入 interface的 sealed result contract。
+该 universal的 wire projection使用一个 `QuantifiedIdentityBinderV1`：
+`identity_slot` 供 `CapabilityTypeV1.identity`，必填的
+`clock_refinement.clock_slot` 供 `NextTypeV1.clock` 与 Later contract；
+`clock_refinement.identity` 显式回指前者。两种 namespace view因 witness
+表示同一个 $i$，而不是因 slot数字相同而 alias。
 若 `Next[i,A]` 出现在 parameter位置，则 declaration boundary反而引入：
 
 $
@@ -2732,13 +2787,14 @@ checker使用后者，所以带 terminal transfer 的具名函数仍可形成：
   (
     [$eta_f=⟨A,B,Phi_f⟩ quad
       (pi_x,xi_x)="freshRigidSummaryVars"(A)$],
+    [$S_f " fresh symbolic Call-stage stack"$],
     [$Theta_x="bind"(Theta,x:A @[pi_x] ▷ xi_x)$],
-    [$K;I;Phi_f;Omega_"sym"@Theta_x ⊢ "body"_B(e) ⇓
+    [$K;I;Phi_f;Omega_"sym"@Theta_x;S_f ⊢ "body"_B(e) ⇓
       cal(F)_b ! epsilon;Delta;s;delta ⊣Omega_b$],
     [$(Pi_c,chi_c,u,Lambda)="analyzeFlowClosure"(
       e,x,Theta,Omega_"sym",Omega_b,cal(F)_b,Delta)$],
     [$(r_f,hat(zeta),hat(R),Q)="AbstractParametricFlow"(
-      pi_x,xi_x,cal(F)_b)$],
+      S_f,pi_x,xi_x,cal(F)_b)$],
     [$C_0=⟨epsilon,hat(zeta),r_f,s,delta,Pi_c,chi_c,u,
       hat(R),Phi_f,Q,Lambda⟩$],
     [$C="attachFlow"(C_0,"abstractFlow"(cal(F)_b))$],
@@ -2751,7 +2807,8 @@ checker使用后者，所以带 terminal transfer 的具名函数仍可形成：
 若 $cal(F)_b={"Transfers"(P)}$，则
 $r_f="NoReturn"$、$hat(zeta)=hat(R)=bot$，但
 `flow(C)={Transfers(P)}`；它不会被改写成 abort。Surface named `def`
-的一元 tuple elaboration使用同一 rule。
+的一元 tuple elaboration使用同一 rule。$S_f$ 在 closure contract中抽象为
+Call-stage route selectors，不捕获 lambda definition stack。
 
 后文 `$"body"_A(e) ⇓ cal(F)$` 是所有 expression都可使用的 normative
 path judgment，不只用于 handler body。其 strict bind为：
@@ -4113,20 +4170,33 @@ Returns path时的投影。
 #irule(
   [T-Clause-Path-Abort],
   (
+    [$"TopPrompt"(S_i)=⟨p_i,a_i⟩
+      quad "SchemaRouteStage"(S_i)="HandlerInstall"$],
+    [$"route"(kappa)=p_i quad "entry"(kappa)=a_i
+      quad "suffix"(kappa)=D_k$],
     [$k:"Resume"[q,D_k,A_k,B,Pi_k,chi_k,rho_h] quad Omega(k)="Open"(q)$],
-    [$K;I;Phi_h;Omega@Theta_k ⊢_"abort" e ! epsilon_e;Delta_e ▷ s_e;delta_e ⊣Omega_e$],
+    [$"ExistingClauseDisposition"(
+      b_k,k,kappa,"type"(k))$],
+    [$K;I;Phi_h;Omega@Theta_k;S_i ⊢_"abort" e !
+      epsilon_e;Delta_e ▷ s_e;delta_e ⊣Omega_e$],
     [$(Omega_o,delta_o)="AbortClauseScopeExit"(k,D_k,Omega_e,delta_e)$],
     [$"NoOpenDisposition"(k,Omega_o)$],
-    [$"ExtractAbortPathContract"(epsilon_e,Delta_e,s_e,delta_o) ⇓ H_a$],
+    [$"ExtractAbortPathContract"(
+      epsilon_e,Delta_e,s_e,delta_o,b_k) ⇓ H_a$],
   ),
-  [$K;I;Phi_h;H_h ⊢ "clauseAbortPath"(k,e) ⇓ "Aborts"(H_a,Omega_o)$],
+  [$K;I;Phi_h;H_h;S_i;p_i;a_i ⊢
+    "clauseAbortPath"(kappa,k,b_k,e) ⇓ "Aborts"(H_a,Omega_o)$],
 )
 
 Clause schema对 normal rules与 T-Clause-Path-Abort 的 reachable path做有限
 join；all-abort schema没有 $R_h$ normal branch，但仍保留 residual row、
 suspension、semantic summary与 cleanup evidence。该 rule同样覆盖
 `fun` argument计算、`once/ctl` clause body以及 hidden abort-clause
-disposition的 abortive path。
+disposition的 abortive path。这里的 $b_k$ 是 enclosing clause schema已经
+建立的同一 binder；`ExistingClauseDisposition` 逐字段匹配 enclosing
+`BindClauseDisposition` 的结果并禁止为 abort path另建 slot。
+因此该 path在 `;Si` 与固定 HandlerInstall stage下产生的 residual route、
+cleanup以及 disposition evidence都并入同一个 `ClauseFlowSetV1`。
 
 Handled body使用 path-set辅助 judgment：
 
@@ -4144,7 +4214,7 @@ branching computation可以同时保存 `Returns`、`Aborts` 与一个或多个
 world可 join时合并；transfer contract不能被 join成 abort。
 
 $
-  K;I;Phi;Omega@Theta
+  K;I;Phi;Omega@Theta;S
   ⊢ "body"_A(e) ⇓ cal(F) ! epsilon;Delta;s;delta
   ⊣ Omega'
 $
@@ -4153,7 +4223,9 @@ $
 完全 abortive body得到 `${Aborts}`。`Transfers(ParkContract)` 是经过
 T-Park验证的 terminal ownership transfer，不是 `Unit` result，也不能进入
 sequence 的 suffix。三类 flow都保留 typed Core、operation sites、row、
-suspension、summary 与 attributed demand。
+suspension、summary 与 attributed demand。$S$ 与 typing context中的 route
+stage在所有 body premises/conclusions间原样线程；普通 checking使用 `Call`，
+handler clause由 enclosing premise固定为 `HandlerInstall`。
 
 Clause checking使用严格扩展而不扩大 public flow：
 
@@ -4170,28 +4242,30 @@ FunctionContractV1.flow_summary。
 #irule(
   [T-Body-Return],
   (
-    [$K;I;Phi;Omega@Theta ⊢ e ⇐ A @[pi] ! epsilon;Delta ▷ s;delta;chi @Theta'⊣Omega'$],
+    [$K;I;Phi;Omega@Theta;S ⊢ e ⇐ A @[pi] !
+      epsilon;Delta ▷ s;delta;chi @Theta'⊣Omega'$],
   ),
-  [$K;I;Phi;Omega@Theta ⊢ "body"_A(e) ⇓
+  [$K;I;Phi;Omega@Theta;S ⊢ "body"_A(e) ⇓
     {"Returns"(pi,chi,Theta')} ! epsilon;Delta;s;delta ⊣Omega'$],
 )
 
 #irule(
   [T-Body-Abort],
   (
-    [$K;I;Phi;Omega@Theta ⊢_"abort" e ! epsilon;Delta ▷ s;delta ⊣Omega'$],
+    [$K;I;Phi;Omega@Theta;S ⊢_"abort" e !
+      epsilon;Delta ▷ s;delta ⊣Omega'$],
   ),
-  [$K;I;Phi;Omega@Theta ⊢ "body"_A(e) ⇓
+  [$K;I;Phi;Omega@Theta;S ⊢ "body"_A(e) ⇓
     {"Aborts"} ! epsilon;Delta;s;delta ⊣Omega'$],
 )
 
 #irule(
   [T-Body-Transfer],
   (
-    [$K;I;Phi;Omega@Theta ⊢_"transfer" e ⇓
+    [$K;I;Phi;Omega@Theta;S ⊢_"transfer" e ⇓
       "Transfers"(P) ! epsilon;Delta ▷ s;delta @Theta'⊣Omega'$],
   ),
-  [$K;I;Phi;Omega@Theta ⊢ "body"_A(e) ⇓
+  [$K;I;Phi;Omega@Theta;S ⊢ "body"_A(e) ⇓
     {"Transfers"(P)} ! epsilon;Delta;s;delta ⊣Omega'$],
 )
 
@@ -6619,8 +6693,25 @@ install_handler(
   for κ in sites:
     require κ.installation_prompt == prompt
     require κ.route == prompt
-    clause = instantiate installed matching clause schema with
+    wire_clause = instantiate installed matching clause schema with
       operation skolems, prompt, κ.entry_world, κ
+    internal_disposition = disposition_for(κ)
+    clause_scope = resolve_clause_disposition_binder(
+      binder = wire_clause.disposition_binder,
+      required_namespace = SuffixLive,
+      expected_site_slot = κ.site_slot,
+      expected_type = type(internal_disposition),
+      internal_token = internal_disposition)
+    require clause_scope is exactly {
+      SlotRefV1(SuffixLive,
+        wire_clause.disposition_binder.slot)
+        -> internal_disposition }
+    clause = import_clause_flow(
+      wire_clause, disposition_scope = clause_scope)
+    require every clause-level disposition evidence/usage reference
+      resolves uniquely in clause_scope and none escapes that
+      ClauseFlowSetV1; nested SuffixContractV1 live bindings use their
+      own lexical scopes
     discharge imported handler environment is valid
       at κ.entry_world
     if κ.instantiated_signature.mode == ctl:
@@ -6660,11 +6751,13 @@ install_handler(
         Delegates(κf):
           require κf.instantiated_signature ==
             κ.instantiated_signature
+          require path.disposition_evidence.inner_disposition ==
+            internal_disposition
           require path.disposition_evidence ==
             OpenToForwardedExclusive(
-              disposition_for(κ), κf.site_slot, κf.continuation)
+              internal_disposition, κf.site_slot, κf.continuation)
           require path.usage_context[
-            disposition_for(κ)] == Forwarded(κf)
+            internal_disposition] == Forwarded(κf)
           forward_evidence = derive_forward_residual_evidence(
             installed, prompt_stack, prompt, κf)
           require attributed_ok(
@@ -6730,6 +6823,13 @@ site指向 $p_"inst"$，其余普通 return/clause residual site编码为
 在两种 outer stack安装会得到各自唯一的 residual routes。安装后才可消去
 这些 route selector，`install_handler` 拒绝仍含未解析 installation route
 或来自 definition stack的 concrete prompt。
+同一次 instantiation还必须消费每个 `ClauseFlowSetV1.disposition_binder`：
+`resolve_clause_disposition_binder` 逐字段检查 exact site/type与 lexical scope，
+只建立一个 `SuffixLive(binder.slot) → disposition_for(κ)` 映射，然后才导入
+flow/evidence/usage。后续 Delegates检查只能使用该 resolved token；再次独立
+调用 `disposition_for(κ)`、按 slot数字猜 token或让该 disposition ref跨
+clause scope逃逸都不是合法 importer实现；nested `SuffixContractV1` 的其他
+live slot仍按各自 lexical scope独立验证。
 
 `analyze_sites` 对 local typed ANF结构递归；遇到 function call时读取并 compose
 callee interface中的 finite $Lambda$，而不是要求内联源码。Recursive SCC
