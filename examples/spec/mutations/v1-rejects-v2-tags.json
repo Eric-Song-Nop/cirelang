@@ -133,6 +133,174 @@
       "diagnostic": "contract-component-kind-mismatch",
       "mutations": [{ "op": "replace", "path": "/contract/applications/0/callee_summary/type", "value": { "arguments": [], "kind": "NominalTypeV2", "module": ["library"], "name": "ChooseOnceFunction" } }],
       "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/hof-mixed-later.json",
+      "decoder": "CireSpecInterfaceOracleV2",
+      "decoder_target": "",
+      "diagnostic": "hof-complete-path-observer-mismatch",
+      "mutations": [{ "op": "replace", "path": "/expectation/evaluated_path_contracts/0/path_hash", "value": "sha256:0000000000000000000000000000000000000000000000000000000000000000" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/q-lambda-call-install.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "/contract",
+      "diagnostic": "semantic-summary-not-normalized",
+      "mutations": [{ "op": "replace", "path": "/contract/computation/continuation/continuation/paths/0/semantic_summary", "value": { "kind": "SequenceSummaryV1", "members": [{ "kind": "PureV1" }, { "kind": "PureV1" }] } }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/clock-package-paths.json",
+      "decoder": "CireClockPackageOracleV2",
+      "decoder_target": "",
+      "diagnostic": "packed-next-pack-phase-mismatch",
+      "mutations": [{ "op": "replace", "path": "/pack_observers/0/required_phase/allowed_phases/0", "value": "Compute" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/handler-forward-contract.json",
+      "decoder": "HandlerContractV2",
+      "decoder_target": "/handler_contract",
+      "diagnostic": "handler-disposition-escapes-scope",
+      "mutations": [{ "op": "replace", "path": "/handler_contract/clause_computations/0/computation/continuation/paths/0/usage/0/value/slot/slot", "value": 999 }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/handler-forward-contract.json",
+      "decoder": "HandlerContractV2",
+      "decoder_target": "/handler_contract",
+      "diagnostic": "forward-operation-mismatch",
+      "mutations": [{ "op": "replace", "path": "/handler_contract/clause_computations/0/computation/continuation/paths/0/outcome/forward_contract/operation/name", "value": "wrong_operation" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/handler-forward-contract.json",
+      "decoder": "HandlerContractV2",
+      "decoder_target": "/handler_contract",
+      "diagnostic": "forward-route-mismatch",
+      "mutations": [{ "op": "replace", "path": "/handler_contract/clause_computations/0/computation/continuation/paths/0/outcome/forward_contract/route/prompt_slot", "value": 0 }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/handler-forward-contract.json",
+      "decoder": "HandlerContractV2",
+      "decoder_target": "/handler_contract",
+      "diagnostic": "forward-application-arity-type-mismatch",
+      "mutations": [{ "op": "add", "path": "/handler_contract/clause_computations/0/computation/continuation/paths/0/outcome/forward_contract/instantiated_signature/parameters/0", "value": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/q-lambda-call-install.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "/contract",
+      "diagnostic": "imported-function-export-mismatch",
+      "mutations": [{ "op": "replace", "path": "/contract/applications/0/contract/name", "value": "wrong_export" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/local-function-call.json",
+      "decoder": "CireLocalContractOracleV2",
+      "decoder_target": "",
+      "diagnostic": "local-function-ref-unresolved",
+      "mutations": [{ "op": "replace", "path": "/contract/applications/0/contract/declaration_slot", "value": 999 }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/local-function-call.json",
+      "decoder": "CireLocalContractOracleV2",
+      "decoder_target": "",
+      "diagnostic": "application-arity-mismatch",
+      "mutations": [{ "op": "remove", "path": "/contract/applications/0/actual_arguments/0" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/local-function-call.json",
+      "decoder": "CireLocalContractOracleV2",
+      "decoder_target": "",
+      "diagnostic": "application-argument-type-mismatch",
+      "mutations": [{ "op": "replace", "path": "/contract/applications/0/actual_arguments/0/type/value/name", "value": "String" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/flow-abort-transfer-owner.json",
+      "decoder": "ParkContractV2",
+      "decoder_target": "/flow_summary/1/park_contract",
+      "diagnostic": "park-generation-protocol-mismatch",
+      "mutations": [{ "op": "replace", "path": "/flow_summary/1/park_contract/claim/completion_generation_gate", "value": "Always" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/flow-abort-transfer-owner.json",
+      "decoder": "ParkContractV2",
+      "decoder_target": "/flow_summary/1/park_contract",
+      "diagnostic": "park-disposition-protocol-mismatch",
+      "mutations": [{ "op": "replace", "path": "/flow_summary/1/park_contract/disposition/states/1", "value": "Claimed" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/flow-abort-transfer-owner.json",
+      "decoder": "ParkContractV2",
+      "decoder_target": "/flow_summary/1/park_contract",
+      "diagnostic": "park-required-phase-mismatch",
+      "mutations": [{ "op": "replace", "path": "/flow_summary/1/park_contract/required_phase/allowed_phases/0", "value": "Compute" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/flow-abort-transfer-owner.json",
+      "decoder": "CireSpecWireVariantOracleV2",
+      "decoder_target": "",
+      "diagnostic": "park-owner-outlives-missing",
+      "mutations": [{ "op": "remove", "path": "/park_obligations/0" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/clock-package-paths.json",
+      "decoder": "T-Clock-Unpack-Paths",
+      "decoder_target": "/open_computation",
+      "diagnostic": "clock-package-path-observer-mismatch",
+      "mutations": [{ "op": "replace", "path": "/open_computation/paths/2/suspension", "value": { "atoms": [], "grade": "NoSuspend" } }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/clock-package-paths.json",
+      "decoder": "T-Clock-Unpack-Paths",
+      "decoder_target": "/open_computation",
+      "diagnostic": "clock-package-path-observer-mismatch",
+      "mutations": [{ "op": "remove", "path": "/open_computation/paths/2/semantic_summary/members/1" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/clock-package-paths.json",
+      "decoder": "T-Clock-Unpack-Paths",
+      "decoder_target": "/open_computation",
+      "diagnostic": "clock-package-path-observer-mismatch",
+      "mutations": [{ "op": "replace", "path": "/open_computation/paths/2/required_phase/current_owner", "value": null }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/clock-package-paths.json",
+      "decoder": "PackedNextPackageV2",
+      "decoder_target": "/package",
+      "diagnostic": "packed-next-control-protocol-mismatch",
+      "mutations": [{ "op": "replace", "path": "/package/control_protocol/release/1", "value": "Closing(1)->Closing(0)" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../runtime/packed-next-lease-runtime.json",
+      "decoder": "CireRuntimeModelOracleV2",
+      "decoder_target": "",
+      "diagnostic": "packed-next-runtime-protocol-mismatch",
+      "mutations": [{ "op": "replace", "path": "/initial_state/leases", "value": 1 }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../runtime/packed-next-lease-runtime.json",
+      "decoder": "CireRuntimeModelOracleV2",
+      "decoder_target": "",
+      "diagnostic": "packed-next-runtime-protocol-mismatch",
+      "mutations": [{ "op": "replace", "path": "/transition_table/0/to", "value": "Open(n+2)" }],
+      "result": "reject"
     }
   ],
   "profile": "Cire-TR₀/2026-08-01",

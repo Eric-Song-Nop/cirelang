@@ -99,21 +99,31 @@ Parser、测试 fixture 或历史实现从不裁决语言设计。未来实现�
   只传 operation result `A`，完整 `Resume[A,B]` 再执行 `A→B` answer transform；source 保存
   `(owner,generation,claim)` 并只向宿主暴露 completion port。completion、
   cancel 与 close 竞争同一个 CAS；普通 callback、many-call closure 或容器
-  不能捕获 raw `Resume`。
+  不能捕获 raw `Resume`。parked与resumption Owner可不同，但 transfer path必须
+  携 exact `Outlives(shorter=resumption,longer=parked)`；CAS、disposition states
+  与 Action/Owner phase全部是 exact wire protocol。
 - `PackedNext[A]` 是 sealed、shared 的 first-party type，不开放一般 existential
   或 rank-2 source syntax。`try_with_packed_next` 只在 lexical intrinsic body
   引入 private frame与 exact Next；Closing/Closed返回 `None`，所有成功打开的
   Returns/Aborts/Transfers path在完整 nonescape gate后 exactly-once release。
   won observer逐字段保留 body，summary固定为 acquire/body/release；Park的
   OwnerBound、δpark与 Owner phase不能丢失。pack的 allocation与 terminal
-  close同样是 sealed、NoSuspend但非 Pure observer。
+  close同样是 sealed、NoSuspend但非 Pure observer。所有 ordered summary先
+  flatten并删除 Pure identity；pack path还强制 Action + storage
+  OwnerAuthority/current Owner的 phase组合。package JSON control protocol是
+  runtime transition table的唯一 source of truth。
 - 高阶 contract 不再逐字段独立 projection。V2 先建立含完整 actual summary/
   substitution的 `AppliedContractV2`，再用 `Invoke/PathBind/Join` computation
-  派生 row/flow/result/suspension/summary/phase/usage/Q/Λ。
+  派生 row/flow/result/suspension/summary/phase/usage/Q/Λ。PathBind goldens覆盖
+  complete canonical paths而非 tag；ImportedFunctionRef必须匹配 hash/module/name
+  export，LocalFunctionRef必须解析 declaration slot；T-App统一检查 substitution
+  domain、callee FunctionType及 actual arity/type。
 - `HandlerContractV2` 自带 return/clause共享的 application ledger；
   `DelegatesV2` 只在所属 clause disposition binder的 lexical scope合法。
   V2 decoder穷尽 computation/outcome tag并线程 return/disposition context，
-  Function、Suffix和 handler return不得携带 outward Delegates。
+  Function、Suffix和 handler return不得携带 outward Delegates。Forward必须精确
+  等于当前 clause operation/handled entry/site，路由到严格 outer prompt，并让
+  actual/signature/continuation/obligation projection逐字段一致。
 - Public effect row 是 attributed demand `Δ` 的擦除。Handler 只移除路由到
   自己 prompt 的 site；同 family forwarding、named identity 和 secondary row
   都不能用 raw set subtraction 近似。

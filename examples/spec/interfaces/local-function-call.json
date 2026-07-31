@@ -1,0 +1,108 @@
+{
+  "artifact": "CireLocalContractOracleV2",
+  "profile": "Cire-TR₀/2026-08-01",
+  "schema_version": 2,
+  "subject": "local::invoke_identity",
+  "local_declarations": [
+    {
+      "declaration_slot": 0,
+      "module": ["fixtures", "local"],
+      "name": "identity",
+      "contract": {
+        "artifact": "FunctionContractV2",
+        "profile": "Cire-TR₀/2026-08-01",
+        "schema_version": 2,
+        "declaration_kind": {
+          "kind": "FunctionContractKindV2",
+          "parameter_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+          "result_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+          "visible_row": { "kind": "EmptyV1" }
+        },
+        "binders": {
+          "parameter_binders": [], "type_binders": [], "row_binders": [], "contract_binders": [],
+          "owner_binders": [], "clock_binders": [], "identity_binders": [], "prompt_binders": []
+        },
+        "applications": [],
+        "computation": {
+          "kind": "LiteralPathsV2",
+          "paths": [
+            {
+              "LatentSites": [],
+              "ParametricObligations": [],
+              "attributed_demand": [],
+              "outcome": {
+                "kind": "ReturnsV2",
+                "transition": { "kind": "SameWorldV1" },
+                "result_transformer": {
+                  "kind": "LegacyResultTransformerV2",
+                  "value": { "kind": "ParametricResultV1", "provenance": { "kind": "StableV1" }, "capture": { "kind": "NoCaptureV1" } }
+                }
+              },
+              "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "required_authorities": [], "current_owner": null },
+              "residual_row": { "kind": "EmptyV1" },
+              "semantic_summary": { "kind": "PureV1" },
+              "suspension": { "atoms": [], "grade": "NoSuspend" },
+              "usage": []
+            }
+          ]
+        },
+        "closure_environment": []
+      }
+    }
+  ],
+  "contract": {
+    "artifact": "FunctionContractV2",
+    "profile": "Cire-TR₀/2026-08-01",
+    "schema_version": 2,
+    "declaration_kind": {
+      "kind": "FunctionContractKindV2",
+      "parameter_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+      "result_type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+      "visible_row": { "kind": "EmptyV1" }
+    },
+    "binders": {
+      "parameter_binders": [], "type_binders": [], "row_binders": [], "contract_binders": [],
+      "owner_binders": [], "clock_binders": [], "identity_binders": [], "prompt_binders": []
+    },
+    "applications": [
+      {
+        "application_slot": 0,
+        "contract": { "kind": "LocalFunctionRefV2", "declaration_slot": 0 },
+        "callee_summary": {
+          "source": null,
+          "type": {
+            "kind": "FunctionTypeV2",
+            "parameter": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+            "result": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+            "contract": { "kind": "LocalFunctionRefV2", "declaration_slot": 0 }
+          },
+          "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } },
+          "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } },
+          "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } },
+          "usage": null,
+          "origin": "local-call.cire:identity"
+        },
+        "actual_arguments": [
+          {
+            "source": null,
+            "type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } },
+            "nominal_index": { "kind": "LegacyNominalIndexExprV2", "value": { "kind": "NoNominalIndexV1" } },
+            "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } },
+            "capture": { "kind": "LegacyCaptureExprV2", "value": { "kind": "NoCaptureV1" } },
+            "usage": null,
+            "origin": "local-call.cire:value"
+          }
+        ],
+        "substitution": {
+          "type_arguments": [], "row_arguments": [], "contract_arguments": [],
+          "owner_arguments": [], "identity_arguments": [], "clock_arguments": []
+        },
+        "entry_world": { "kind": "ApplicationEntryWorldV2", "application_slot": 0 },
+        "origin": "local-call.cire:invoke"
+      }
+    ],
+    "computation": { "kind": "InvokeV2", "application_slot": 0 },
+    "closure_environment": []
+  },
+  "expectation": { "resolved_local_slots": [0] }
+}

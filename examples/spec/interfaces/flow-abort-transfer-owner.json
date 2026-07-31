@@ -8,6 +8,10 @@
       {
         "slot": 0,
         "source": { "namespace": "Parameter", "slot": 0 }
+      },
+      {
+        "slot": 1,
+        "source": { "namespace": "Parameter", "slot": 1 }
       }
     ],
     "parameter_binders": [
@@ -16,6 +20,13 @@
         "type": {
           "kind": "OwnerTypeV2",
           "owner": { "namespace": "Owner", "slot": 0 }
+        }
+      },
+      {
+        "slot": 1,
+        "type": {
+          "kind": "OwnerTypeV2",
+          "owner": { "namespace": "Owner", "slot": 1 }
         }
       }
     ],
@@ -142,7 +153,7 @@
               "kind": "LegacyProvenanceExprV2",
               "value": { "kind": "StableV1" }
             },
-            "owner": { "namespace": "Owner", "slot": 0 },
+            "owner": { "namespace": "Owner", "slot": 1 },
             "usage": "Once"
           },
           "states": ["Unclaimed", "Completed", "Finalized"]
@@ -170,6 +181,16 @@
           "write_authority": "OwnerExecutorOnly"
         }
       }
+    }
+  ],
+  "park_obligations": [
+    {
+      "id": 0,
+      "kind": "OutlivesV2",
+      "longer": { "kind": "LegacySlotRefV2", "value": { "namespace": "Owner", "slot": 0 } },
+      "origin": "wire-variants.cire:park-owner-outlives",
+      "shorter": { "kind": "LegacySlotRefV2", "value": { "namespace": "Owner", "slot": 1 } },
+      "stage": "Call"
     }
   ],
   "profile": "Cire-TR₀/2026-08-01",

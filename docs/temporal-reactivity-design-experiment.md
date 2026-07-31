@@ -1982,7 +1982,11 @@ Park resumption，不能只看 result type。
 transfer，其 OwnerBound suspension、park summary、Owner authority/current Owner
 都保留。pack本身在所有 builder path前记录非 Pure allocation；Aborts/Transfers
 还在相同 terminal tag之前记录唯一 non-Pure child-close。三个状态动作与这两种
-pack动作都必须经过 `Allowed`，不能以 `NoSuspend` 推断成 `Pure`。
+pack动作都必须经过 `Allowed`，不能以 `NoSuspend` 推断成 `Pure`。所有 ordered
+summary在 wire前 flatten并删除 Pure identity，empty/singleton不能保留 Sequence
+wrapper；pack输出 phase是 body与 Action + storage OwnerAuthority/current Owner的
+精确组合。shared lease runtime从 package JSON control protocol导出 transition
+table，不维护另一份 hardcoded state/count规则。
 
 该 API 使用普通 call/trailing-lambda CST，但只有解析到 sealed
 `@temporal` origin才有 privileged binder lowering。同名用户函数不能构造

@@ -11,12 +11,9 @@
             "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } },
             "source": { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 0 } },
             "type": {
-              "kind": "LegacyTypeRefV2",
-              "value": {
-                "arguments": [{ "kind": "BuiltinTypeV1", "name": "Int" }],
-                "constructor": { "kind": "BuiltinConstructorV1", "name": "Array" },
-                "kind": "ApplyTypeV1"
-              }
+              "arguments": [{ "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }],
+              "constructor": { "kind": "BuiltinConstructorV1", "name": "Array" },
+              "kind": "ApplyTypeV2"
             },
             "usage": null
           }
@@ -70,12 +67,9 @@
             "provenance": { "kind": "LegacyProvenanceExprV2", "value": { "kind": "StableV1" } },
             "source": { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 1 } },
             "type": {
-              "kind": "LegacyTypeRefV2",
-              "value": {
-                "arguments": [{ "kind": "BuiltinTypeV1", "name": "Int" }],
-                "constructor": { "kind": "BuiltinConstructorV1", "name": "Array" },
-                "kind": "ApplyTypeV1"
-              }
+              "arguments": [{ "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } }],
+              "constructor": { "kind": "BuiltinConstructorV1", "name": "Array" },
+              "kind": "ApplyTypeV2"
             },
             "usage": null
           }
@@ -229,7 +223,9 @@
   "imports": [
     {
       "artifact_hash": "sha256:9d1a221e029e2035ce2bc51e513ee2f8f2c9fd7c0c206003c53bec41d6e78af7",
-      "file": "choose-once-function-contract.json"
+      "file": "choose-once-function-contract.json",
+      "function_name": "choose_once",
+      "module": ["library"]
     }
   ],
   "profile": "Cire-TR₀/2026-08-01",

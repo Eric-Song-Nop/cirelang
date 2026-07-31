@@ -218,6 +218,16 @@
       "app0:ReturnsV2>app1:TransfersV2(site=4)",
       "app0:ReturnsV2>app1:ReturnsV2"
     ],
+    "evaluated_observer_counts": [1, 1, 1, 2, 2, 2, 2],
+    "evaluated_path_contracts": [
+      { "path_hash": "sha256:886711fcaa425b41de2bab68c5fae86d3592899d29265c0af3edfae1a186941a", "trace": "app0:AbortsV2" },
+      { "path_hash": "sha256:043d687c5723d594430f369598e4098961639bb6174ab737874761e3fd49c0fc", "trace": "app0:TransfersV2(site=3)" },
+      { "path_hash": "sha256:3a428968a20155607baf3c7367e5fa052939b92b1fee3dfc0818ace9e6185ca8", "trace": "app0:TransfersV2(site=4)" },
+      { "path_hash": "sha256:4fc933d32b7bf6dc26dd45220a143101e8a64a305988a6a5404cb0bcb539ff07", "trace": "app0:ReturnsV2>app1:AbortsV2" },
+      { "path_hash": "sha256:30677c7da468a6f623951ce8200bca5f373056e38f887d9df373dafbc4ee6d2b", "trace": "app0:ReturnsV2>app1:TransfersV2(site=3)" },
+      { "path_hash": "sha256:32cd29fde4310af6cfcbd95f6cf0e77d9ab220d5bf4284516c761a069ff19b3a", "trace": "app0:ReturnsV2>app1:TransfersV2(site=4)" },
+      { "path_hash": "sha256:9592fdc71bbb7219540d45fb6299ca7ea2e53baad7445401341425676432b192", "trace": "app0:ReturnsV2>app1:ReturnsV2" }
+    ],
     "later_contract_preserved": true,
     "runtime_callback_argument_index": 1,
     "substituted_contract_invoked_twice": true,
@@ -228,12 +238,14 @@
     {
       "artifact_hash": "sha256:16a505579f265471d19dde748413ae709bd80502f4a0fe956a981cc5dc4b5a84",
       "file": "apply-later-function-contract.json",
-      "function_name": "apply_later"
+      "function_name": "apply_later",
+      "module": ["fixtures"]
     },
     {
       "artifact_hash": "sha256:b20f76c49c62f346248d329324fced090baef4ea192c8ab729306e606793fc35",
       "file": "mixed-next-callback-function-contract.json",
-      "function_name": "mixed_next_callback"
+      "function_name": "mixed_next_callback",
+      "module": ["fixtures"]
     }
   ],
   "profile": "Cire-TR₀/2026-08-01",

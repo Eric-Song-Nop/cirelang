@@ -13,8 +13,8 @@
     { "event": "dispose", "from": "Closing(n)", "to": "Closing(n)" },
     { "event": "dispose", "from": "Closed", "to": "Closed" },
     { "event": "release", "from": "Open(n+1)", "to": "Open(n)" },
-    { "event": "release", "from": "Closing(n+1), n>=1", "to": "Closing(n)" },
-    { "event": "release", "from": "Closing(1)", "side_effect": "CloseChildOnce", "to": "Closed" }
+    { "event": "release", "from": "Closing(1)", "side_effect": "CloseChildOnce", "to": "Closed" },
+    { "event": "release", "from": "Closing(n+1), n>=1", "to": "Closing(n)" }
   ],
   "traces": [
     {

@@ -1964,6 +1964,17 @@ list，且 `continuation_transfer` 唯一允许
 `ForwardDispositionEvidenceV2.inner_disposition` 必须解析到当前
 `ClauseDispositionBinderV2`，其 `ResumeTypeV2.usage` 必须与 clause mode的
 $q in {0,1,omega}$ 一致，不再把 V2 硬编码为 `Once`。
+该 clause binder的 `SuffixLive` slot只在所属 clause computation的全部递归
+usage/live/suffix节点中可见；handler return、其他 clause或任意未绑定 slot
+一律报 `handler-disposition-escapes-scope`。Forward本身还必须逐字段满足：
+`operation`等于当前 clause operation，`entry`等于 handler handled entry，
+`site_slot`等于 disposition site；`route`是当前 handler prompt的严格外层
+`InstallationPromptV1`，不能是本 prompt、root或 unresolved selector；
+`entry_world`是该 site的 exact `EntryWorldV1`；actual summary的长度/type按位
+等于 instantiated signature parameters；call/install ids只能投影 signature
+声明的 obligation ids；continuation/result/answer/usage逐字段等于 disposition
+Resume contract。以上分别稳定诊断 operation、route、application与 obligation
+mismatch，不能由一个宽松“Forward-like”检查代替。
 `ParkContractV2` 序列化 alpha-normalized Owner/site/claim-cell slot、完整
 `ResumeTypeV2` 与 generation-CAS protocol，不序列化某次运行时 generation
 值或地址。`ParkContractV1` 只属于 legacy V1。
@@ -1982,6 +1993,13 @@ source或 disposition。`OneShotDispositionV2.resumption` 必须是 usage=Once
 $A$；completion成功后由 $D_k:A→B$ 产生 answer，不能把 $B$ 当 host payload。
 若 clause disposition binder存在，其 Resume type必须 alpha-equal。其
 `required_phase` 必须覆盖 T-Park 的 Action/Owner authority gate。
+parked Owner（source/port/`owner_slot`）与 resumption Owner可以不同；不同时
+同一 transfer path的 `ParametricObligations` 必须含 exact
+`OutlivesV2(shorter=resumption.owner,longer=parked.owner)`，相同 Owner则不要求
+冗余 witness。`GenerationCASV1` 的 generation model/single-writer gate、两条
+CAS transition、preserve-generation与 failure-no-state-change，以及
+`OneShotDispositionV2.states=[Unclaimed,Completed,Finalized]` 都是 exact wire
+protocol，不是描述性字符串集合；任一字段漂移必须在 import时拒绝。
 V2 normal transition/result只允许由 `normal_return(computation)` 派生；
 importer不得接受独立可写的第二份 top-level projection。legacy V1仍用
 `NormalizeReturnProjectionV1` 检查 concrete fields，但不能表达 symbolic
@@ -1995,7 +2013,12 @@ idempotent join，并把成员排序去重后产生 `PathJoin*V1`。它不查看
 join、FlowSet）都递归 flatten、按 canonical byte encoding排序并去重；
 empty/singleton分别使用该 domain唯一的 empty/scalar表示，不能保留一元
 union/join。ordered semantic sequence不排序，只 flatten nested sequence并
-删除 `PureV1` identity。`PhaseRequirementV1.allowed_phases` 按
+删除 `PureV1` identity；零个非 identity member编码为 scalar `PureV1`，一个
+member直接编码为该 scalar，两个以上才允许
+`SequenceSummaryV1 { members=[...] }`。因此 nested sequence、含 Pure 的
+sequence、empty/singleton sequence都不是另一种合法 wire encoding；importer
+必须报 `semantic-summary-not-normalized`，而不是在 hash之后静默修复。
+`PhaseRequirementV1.allowed_phases` 按
 `Pure, Compute, Action, Commit` 固定 enum顺序去重，authority set按 canonical
 encoding排序去重；`RequireBoth` 规范化为 allowed-phase intersection、authority
 union与相容的单一 current Owner，不相容则拒绝。
@@ -2152,6 +2175,16 @@ Contract slot处理，跨 family或跨 scope同 slot数字不匹配。Function k
 必须逐字段匹配 visible row；`AppliedContractV2.application_slot` 是每次
 invocation的 observer入口。
 
+`ContractRefV2` resolution不允许只凭“像一个函数”或只凭 hash成功。
+`ImportedFunctionRefV2(module,name,artifact_hash)` 必须在当前 artifact的 import
+table中解析到同一个三元组；hash目标必须是该 module/name实际导出的 root
+`FunctionContractV2`。hash存在但 export name/module不一致产生
+`imported-function-export-mismatch`。`LocalFunctionRefV2(declaration_slot)` 只在
+当前 module的 local declaration table中解析；slot必须唯一指向带非 null
+`FunctionContractKindV2` 的 root contract，否则产生
+`local-function-ref-unresolved`。二者都不能 fallback到同 kind的 contract
+parameter或另一个 local declaration。
+
 `ContractSubstitutionEntryV2` 把一个 contract binder映射到 exact
 `ContractRefV2`，不映射到某次 application。每次使用该 substituted contract
 仍创建独立 `AppliedContractV2`，保存自己的 callee/actual summaries、entry
@@ -2164,12 +2197,48 @@ binder kind；只写 contract hash而留空这些必需 nominal mapping不能通
 `AppliedContractV2.callee_summary.type` 必须是
 `FunctionTypeV2(instantiated_parameter, instantiated_result,
 application.contract)`；nominal “function sentinel”不能替代这条 T-App premise。
+T-App先要求每一类 substitution domain恰好等于目标 declaration对应 binder
+slots（不缺失、不多出、不重复），再作 capture-avoiding substitution。若
+instantiated parameter是 canonical `*Arguments` pack，其 elements是 ordered
+formal parameter list；否则它是单参数 list。`actual_arguments` 的长度必须
+精确相等，且每个 `ValueSummaryExprV2.type` 按位置逐字段等于对应 formal；
+分别以 `application-arity-mismatch` 与
+`application-argument-type-mismatch` 拒绝。`entry_world` 还必须是带同一
+`application_slot` 的 `ApplicationEntryWorldV2`。这些 premise对 imported、
+local与 contract-parameter ref统一成立。
 对 `PathBindV2(prefix,binder,continuation,PreserveTerminalV2)` 的实际求值先原样
 保留 prefix 的每个 Aborts/Transfers，只对每个 Returns建立 binder并求值一次
 continuation。因而一个具有 1 Returns、1 Aborts、2 Transfers 的 callback顺序
 调用两次时，结果严格为第一调用的 3 个 terminal bypass path，加上其唯一
 Returns进入第二调用得到的 4 个 path，共 7 个；不能用“两次调用”布尔字段代替
 这次 computation evaluation。
+
+这 7 项不是 outcome label列表。每个 `InvokeV2` 先以 application slot对
+site/claim/Q key做 alpha refresh，完成全部 type/Owner/identity/clock/contract
+substitution，在 invocation点 discharge Call-stage Q，并保留
+HandlerInstall-stage Q及其 exact Lambda key。`PathBindV2` 对 returning prefix
+path $f$ 与 continuation path $g$ 的唯一完整组合为：
+
+```text
+composePath(f, g):
+  require f.outcome is ReturnsV2
+  return PathContractV2(
+    outcome               = g.outcome,
+    residual_row          = rowSeq(f.residual_row, g.residual_row),
+    attributed_demand     = canonicalUnion(f.demand, g.demand),
+    suspension            = attributedJoin(f.suspension, g.suspension),
+    semantic_summary      = OrderedSummaryNF(
+                              f.semantic_summary, g.semantic_summary),
+    usage                 = usageSeq(f.usage, g.usage),
+    required_phase        = RequireBoth(f.required_phase, g.required_phase),
+    ParametricObligations = canonicalQualifiedUnion(f.Q, g.Q),
+    LatentSites           = canonicalQualifiedUnion(f.Lambda, g.Lambda))
+```
+
+prefix的 Aborts/Transfers则整个 `PathContractV2` byte-for-byte旁路，不进入上述
+组合。故 HOF golden必须覆盖 7 个 complete canonical path bytes（或其 JCS
+hash），并逐项覆盖 row/demand/suspension/summary/usage/phase/Q/Lambda；只固定
+7个 tag或trace label不足以构成 observer oracle。
 
 `PathBindV2.return_binder` 同时声明 `ReturnSlotRefV2`、
 `ReturnWorldV2`、`ReturnProvenanceV2`、`ReturnCaptureV2` 与
@@ -2267,6 +2336,17 @@ term区分 kind/instantiation/scope/cycle、terminal bind、return-flow、Q stag
 `unknown-contract-computation-variant` 与 `unknown-path-outcome-v2`。V1
 decoder看到 V2 field/tag必须产生
 `unsupported-contract-schema-version`，不能忽略或回填。
+本轮 exactness diagnostics另外固定 summary/HOF、ContractRef/T-App、
+Handler/Forward、Park/Packed/runtime各自的稳定 id：
+`semantic-summary-not-normalized`、`hof-complete-path-observer-mismatch`、
+`imported-function-export-mismatch`、`local-function-ref-unresolved`、
+`application-arity-mismatch`、`application-argument-type-mismatch`、
+`handler-disposition-escapes-scope`、`forward-operation-mismatch`、
+`forward-route-mismatch`、`forward-application-arity-type-mismatch`、
+`park-generation-protocol-mismatch`、`park-disposition-protocol-mismatch`、
+`park-required-phase-mismatch`、`park-owner-outlives-missing`、
+`clock-package-path-observer-mismatch`、`packed-next-control-protocol-mismatch`、
+`packed-next-pack-phase-mismatch` 与 `packed-next-runtime-protocol-mismatch`。
 
 与 hidden $L$ 相同，surface `(A) -> B ! ε` 先 elaboration为
 $A arrow.r.long^(?C) B$，不是把未显示字段填成 `pure/same`。有 initializer
@@ -3127,7 +3207,9 @@ trailing-lambda syntax; resolver creates dedicated contextual HIR nodes.
   [T-Pack-Next-Paths],
   (
     [$o:"Owner"[rho] in Theta quad
-      "PhaseAllows"(Phi,"Action") quad "OwnerAuthorized"(Phi,o,rho)$],
+      Phi_"pack"="requiredPhase"(
+        "Action","OwnerAuthority"(rho),rho) quad
+      "PhaseAllows"(Phi,Phi_"pack") quad "OwnerAuthorized"(Phi,o,rho)$],
     [$rho_c,S_p ∉ "dom"(K) quad j,i ∉ "dom"(I)$],
     [$K_c=K,rho_c:"OwnerRegion"
       quad I_c=I,j:"Identity"("FrameClock")@rho_c,
@@ -3200,10 +3282,14 @@ On Aborts/Transfers it first rejects private-$i$ escape, then closes the new
 runner/child Owner exactly once and preserves the terminal tag. Allocation and
 close are empty-row/NoSuspend sealed summaries, but not `Pure`.
 Precisely, `PackObserverSummary(δalloc,δclose,t)` is
-`SequenceSummaryV1([δalloc, summary(t)])` when $t$ Returns and
-`SequenceSummaryV1([δalloc, summary(t), δclose])` when $t$ Aborts/Transfers.
-`SealOrClosePackPath` preserves every body row/demand/suspension/usage/phase/
-$Q/Lambda$ field, sequences exactly that summary, and on terminal paths records
+`OrderedSummaryNF([δalloc, summary(t)])` when $t$ Returns and
+`OrderedSummaryNF([δalloc, summary(t), δclose])` when $t$ Aborts/Transfers；
+因此 body summary为 `PureV1` 的 Returns path直接输出 scalar $delta_"alloc"$，
+不能保留含 Pure或singleton的 Sequence wrapper。
+`SealOrClosePackPath` preserves every body row/demand/suspension/usage/
+$Q/Lambda$ field, sets
+`required_phase=RequireBoth(t.required_phase, Phi_pack)`, sequences exactly that
+normalized summary, and on terminal paths records
 the unique close-before-same-tag transition. `PackedAllocateSummaryV2` and
 `PackedTerminalCloseSummaryV2` are sealed `CertificateV1` constructors with
 origins `cire.temporal:packed-allocate` and
@@ -3224,6 +3310,14 @@ release: Open(n+1) -> Open(n)
 release: Closing(n+1) -> Closing(n), n >= 1
 release: Closing(1) -> Closed + unique final close
 ```
+
+上述有序 transition列表就是 `PackedNextPackageV2.control_protocol` 的 canonical
+JSON事实。runtime oracle/importer必须从该 JSON逐条编译 pattern table（包括
+`n>=1` guard、`None` result与 `CloseChildOnce` side effect），再用所得 table执行
+trace；不得另写一份 lease count/state machine作为第二 source of truth。
+`initial_state`只能是 `Open(0)`，runtime serialized `transition_table` 必须逐项
+等于从 package导出的 table。任意 package transition、runtime initial state或
+derived table漂移分别以 stable protocol diagnostic拒绝。
 
 An acquire that linearized first is not interrupted by dispose. `dispose` is
 idempotent, empty-row and NoSuspend, returns Unit after requesting Closing, and
@@ -3312,10 +3406,12 @@ its suspension is
 `join(direct(NoSuspend), body.suspension, direct(NoSuspend))`, its required
 phase is the intersection of Action with `body.required_phase` (including the
 body's authorities/current Owner), and its summary is exactly
-`SequenceSummaryV1([δacquire, body.semantic_summary, δrelease])`.
+`OrderedSummaryNF([δacquire, body.semantic_summary, δrelease])`.
 In particular a body `TransfersV2(ParkContractV2)` keeps its
 `OwnerBoundV1(site,owner,MaySuspend)`, $delta_"park"$ and OwnerAuthority/current
-Owner observers; release evidence does not replace any of them.
+Owner observers; release evidence does not replace any of them. Decoder必须对
+transfer path逐字段检查 suspension、ordered summary与 phase，不能只检查 tag、
+release count或 private identity nonescape。
 
 #irule(
   [T-Dispose-PackedNext],
@@ -5663,7 +5759,7 @@ $omega$。
       quad "OwnerAuthorized"(Phi,o,rho)$],
     [$k:"Resume"[1,D_k,A,B,Pi_k,chi_k,rho_k] quad Omega(k)="Open"(1)$],
     [$K;I ⊢ D_k:"SuffixContractV2"(A arrow.r B)$],
-    [$"Outlives"(rho,rho_k)$],
+    [$"Outlives"(rho_k,rho)$],
     [$"SuspensionStable"(rho,"summary"(D_k),Pi_k,chi_k)$],
     [$"OwnerBoundParking"(rho,D_k)$],
     [$kappa_p="freshParkSite"(S)
@@ -5698,6 +5794,10 @@ Surface 第一方协议把 `source.park(k, under = owner)` elaboration为
 generation-bound `CompletionPort[ρ,A]`，并对 resume/finalize承担唯一责任。
 Raw `Resume` 不会被普通 host callback捕获；只有 sealed completion source
 能构造 port 和 $P$。
+这里 `Outlives(shorter,longer)` 的参数顺序与 wire一致：$rho_k$ 是被保存的
+resumption Owner（shorter），$rho$ 是承担 parked source/port lifetime的 Owner
+（longer）。二者相同时该 premise由 reflexivity消去；不同时必须序列化上节的
+exact `OutlivesV2` path obligation。
 
 $tau$ 与 $c_r$ 是 runtime generation ticket/claim-cell handle，只进入
 $Omega$ 的 dynamic transfer state；`ParkContractV2` 不序列化两者。

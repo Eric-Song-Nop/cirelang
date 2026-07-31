@@ -73,12 +73,19 @@ callback value与指向 mixed-callback root contract的
 `ImportedFunctionRefV2`，不只是同 kind的本地 placeholder。
 validator实际求值 generic contract的两层 `PathBindV2`：第一次 callback的
 Aborts/两个 Transfers直接旁路，唯一 Returns进入第二次的四条 flow，规范化后
-严格得到 7 条 path；expectation不是“两次调用”的布尔断言。
+严格得到 7 条 path；每条 expectation固定完整 PathContractV2 的 canonical
+JCS hash，覆盖 row/demand/suspension/ordered-summary/usage/phase/Q/Lambda，
+不是“两次调用”的布尔断言或 outcome label列表。
+`interfaces/local-function-call.json` 固定 `LocalFunctionRefV2` 的 module-local
+declaration-slot resolution，并对同一 T-App算法提供 exact callee
+`FunctionTypeV2`、actual arity与逐位 type正例。
 `interfaces/flow-abort-transfer-owner.json` 则逐 variant固定 `AbortsV2`、
 `TransfersV2(ParkContractV2)`、`OwnerBoundV1`、root route以及
 Owner/generation-CAS wire形状。它显式使用 `A=Int`、`B=Array[Int]`，要求
 source/port/resumption argument三者一致，并保留完整 `ResumeTypeV2`、
-`SuffixContractV2` continuation/live evidence。
+`SuffixContractV2` continuation/live evidence。fixture故意让 parked Owner与
+保存的 resumption Owner不同，并以
+`OutlivesV2(shorter=resumption,longer=parked)` 固定合法 transfer lifetime。
 
 `interfaces/clock-package-paths.json` 携带完整 `PackedNextPackageV2` 和
 `LiteralPathsV2`，固定 child-Owner→Identity→Clock→Summary→Body binder顺序、
@@ -88,17 +95,24 @@ lost-acquire `MayReturn`，以及实际 Returns/Aborts/两个完整
 保留 `OwnerBoundV1`、`δpark`、OwnerAuthority/current Owner，并让 summary
 严格为 acquire/body/release。`pack_observers` 则固定每条 path先出现非 Pure
 allocation，且 Aborts/Transfers在相同 terminal tag前恰好追加一次非 Pure
-terminal-close。
+terminal-close；ordered summary删除 Pure identity/flatten sequence，pack输出
+phase还必须是 body phase与 Action + storage OwnerAuthority/current Owner的
+`RequireBoth`。
 `interfaces/handler-forward-contract.json` 是正向
 `HandlerContractV2`/`DelegatesV2`/`ForwardContractV2` fixture：handler-level
 application ledger、clause disposition lexical scope、exclusive
 Open→Forwarded evidence，以及 return-bound Resume在 path usage、live-site
 usage和 V2 Q slot中的引用全部由同一 context-sensitive decoder检查。
-`runtime/packed-next-lease-runtime.json` 覆盖 dispose/acquire线性化、active
+`runtime/packed-next-lease-runtime.json` 的 transition table由
+`PackedNextPackageV2.control_protocol` JSON逐条导出，不含第二份 hardcoded
+lease machine；它覆盖 dispose/acquire线性化、active
 acquire存活、两个同时 lease 的 Closing递减、幂等 dispose与 unique final close；
 `mutations/v1-rejects-v2-tags.json` 以 base file + JSON Patch operation和显式
 `decoder_target` 给出可执行 malformed payload，保证 V1 decoder拒绝 V2
-tag，并拒绝 terminal bind、Q stage和 Lambda key破坏。JSON oracle的 `canonical_json`
+tag，并拒绝 terminal bind、Q stage、Lambda key、full-observer HOF hash、Pure
+sequence identity、unbound SuffixLive、Forward operation/route/signature、
+import/local ContractRef、T-App arity/type、Park CAS/state/phase/Outlives、unpacked
+Park observer、package control protocol及runtime initial/table破坏。JSON oracle的 `canonical_json`
 expectation固定 schema规定的
 `RFC8785-JCS+NFC-V1` serializer；repository中的 oracle envelope保留
 human-readable layout，本身不是 raw artifact byte golden。
