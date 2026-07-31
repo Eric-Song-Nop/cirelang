@@ -650,7 +650,11 @@ ContractBinderV1 =
     FunctionContractBinderV1 {
       slot: u32, parameter_type: TypeRefV1, result_type: TypeRefV1
     }
-  | LaterContractBinderV1 { slot: u32, payload_type: TypeRefV1 }
+  | LaterContractBinderV1 {
+      slot: u32,
+      clock: SlotRefV1,                  // Clock namespace
+      payload_type: TypeRefV1
+    }
   | ContinuationContractBinderV1 {
       slot: u32, argument_type: TypeRefV1, answer_type: TypeRefV1
     }
@@ -854,7 +858,10 @@ QuantifiedContractBinderV1 {
         parameter_type: TypeRefV1,
         result_type: TypeRefV1
       }
-    | LaterContractKindV1 { payload_type: TypeRefV1 }
+    | LaterContractKindV1 {
+        clock: SlotRefV1,                // enclosing Clock namespace
+        payload_type: TypeRefV1
+      }
     | ClockPackageSummaryKindV1 {
         clock: SlotRefV1,                // locally bound Identity/Clock
         payload_type: TypeRefV1
@@ -893,7 +900,13 @@ HandlerContractV1 {
 }
 ClauseFlowSetV1 {
   operation: OperationSelectorV1
+  disposition_binder: ClauseDispositionBinderV1
   flow: [ClauseFlowPathV1]
+}
+ClauseDispositionBinderV1 {
+  slot: u32                             // declares a SuffixLive slot
+  site_slot: u32
+  type: TypeRefV1                       // must be ResumeTypeV1
 }
 IdentifierV1 = validated NFC UTF-8 identifier string
 ModulePathV1 = nonempty [IdentifierV1]
@@ -1289,7 +1302,12 @@ exact-entry prompt，否则 artifact ill-formed；不能悄悄 fallback到 root�
 `Transfers`。`Delegates` 只存在于 handler 的 `ClauseFlowPathV1`，
 不进入 FunctionContractV1 的 public flow。每个 `Delegates` 必须带
 `ForwardDispositionEvidenceV1`：`inner_disposition` 必须解析到该 clause
-的 authority-bearing resumption slot，input/output固定为
+所在 `ClauseFlowSetV1.disposition_binder` 所声明的
+`SlotRefV1 { namespace: SuffixLive, slot: disposition_binder.slot }`，不得从
+continuation/live bindings反推。`disposition_binder.slot` 是 declaration，
+其 lexical scope恰为同一个 `ClauseFlowSetV1.flow`，在该 scope内不得重复；
+`type` 必须为该 clause mode的 `ResumeTypeV1`，`site_slot` 必须匹配原 site；
+input/output固定为
 `Open→Forwarded`，`forward_site_slot` 必须等于所携
 `ForwardContractV1.site_slot`，且 exclusive transfer中的 continuation
 逐字段等于该 contract的 continuation。缺失或重复处置 evidence一律拒绝。
@@ -1350,6 +1368,10 @@ schema列出的字段
 slot/id、非 canonical collection或另一种等价 encoding一律拒绝。
 `TypeRefV1` 的 identity/Owner/clock/contract-bearing variants可递归出现在
 任意 nested type；旁表 binder只提供引用作用域，不能替 type本身补猜 index。
+`LaterContractBinderV1.clock` 与 nested `LaterContractKindV1.clock` 都必须
+是当前 lexical scope中的 live Clock-namespace ref；其 identity必须与
+`LaterContract(i,A)`/对应 `NextTypeV1.clock` 的 $i$ 相同，payload type也
+必须逐字段相等。只保存 `payload_type` 的 binder不是合法 V1 encoding。
 四个 quantified variants在 `TypeRefV1` 内建立 lexical nested scope；
 `ForAllIdentityTypeV1`、`ForAllContractTypeV1`、`ForAllOwnerTypeV1`
 分别编码 Core 的 `forall i`、`forall p`、`forall ρ`，
@@ -3709,17 +3731,30 @@ Return clause本身也是对安装点 normal-exit world参数化的 schema：
 #irule(
   [T-Return-Clause],
   (
+    [$"TopPrompt"(S_i)=⟨p_i,a_i⟩
+      quad "SchemaRouteStage"(S_i)="HandlerInstall"$],
     [$H_h=⟨rho_h,B,Pi_h,chi_h⟩ quad Theta_"entry" " fresh symbolic"$],
     [$Theta_h="ImportHandlerEnv"(Theta_"entry",H_h)$],
     [$(pi_x,xi_x)="freshRigidSummaryVars"(A)$],
     [$Theta_x="bind"(Theta_h,x:A @[pi_x] ▷ xi_x)$],
-    [$K;I;Phi_h;Omega_"sym"@Theta_x ⊢ "body"_B(e) ⇓ cal(F)_r ! epsilon_r;Delta_r;s_r;delta_r ⊣Omega_r$],
+    [$K;I;Phi_h;Omega_"sym"@Theta_x;S_i ⊢
+      "body"_B(e) ⇓ cal(F)_r !
+      epsilon_r;Delta_r;s_r;delta_r ⊣Omega_r$],
     [$cal(F)_o="dropReturnBinder"(cal(F)_r,x)$],
-    [$"AbstractReturnContract"(Theta_"entry",pi_x,xi_x,cal(F)_o,epsilon_r,Delta_r,s_r,delta_r) ⇓ C_"ret"$],
+    [$"AbstractReturnContract"(
+      S_i,p_i,a_i,Theta_"entry",pi_x,xi_x,
+      cal(F)_o,epsilon_r,Delta_r,s_r,delta_r) ⇓ C_"ret"$],
   ),
-  [$"ReturnClauseOK"(K,I,Phi_h,H_h,"return"(x:A,e),A) ⇓ C_"ret"$],
+  [$"ReturnClauseOK"(
+    K,I,Phi_h,H_h,S_i,p_i,a_i,"return"(x:A,e),A) ⇓ C_"ret"$],
 )
 
+这里及以下的 `SchemaRouteStage(Si)` 是为 handler clause构造的 nested
+typing context字段，不是定义 handler value的外层 route stage，也不由
+$S_i$ 推断；它必须恰为 `HandlerInstall`。因此
+`TopPrompt(Si)=⟨pi,ai⟩` 把 symbolic installation stack、该 stage所解析的
+prompt与 handled entry连成同一组参数，body中的所有 residual route都在
+`;Si` 下检查。
 `AbstractReturnContract` 对 rigid input summary与 symbolic
 $Theta_"entry"$ 普遍抽象出 world/result transformer及 constraints；它不把
 handler定义点 lock写进 contract。
@@ -3736,7 +3771,8 @@ handler定义点 lock写进 contract。
     [$"EnvBoundarySafe"("fv"(bar(c)),Theta,"OwnerStorage"(rho_h))$],
     [$Phi_h " fresh symbolic"$],
     [$S_i,p_i,a_i " fresh symbolic installation parameters"$],
-    [$"TopPrompt"(S_i)=⟨p_i,a_i⟩$],
+    [$"TopPrompt"(S_i)=⟨p_i,a_i⟩
+      quad "SchemaRouteStage"(S_i)="HandlerInstall"$],
     [$H_h=⟨rho_h,B,Pi_h,chi_h⟩$],
     [$"ReturnClauseOK"(
       K,I,Phi_h,H_h,S_i,p_i,a_i,c_"ret",A) ⇓ C_"ret"$],
@@ -3766,8 +3802,9 @@ transformer与 required invocation phase完整检查，产生
 $C_"ret"=⟨epsilon_"ret",Delta_"ret",w_"ret",s_"ret",delta_"ret",
 R_"ret",Phi_"ret"⟩$。它和 operation clause都在 fresh symbolic
 $Theta_"entry"$ 下检查，并通过 $H_h$ 导入经过 boundary check的 definition
-environment；定义点 $Theta$ 本身不进入 clause world。两者的 route context
-都是满足 `TopPrompt(Si)=⟨pi,ai⟩` 的 symbolic installation stack：
+environment；定义点 $Theta$ 本身不进入 clause world。两者的 nested route
+context都固定 `SchemaRouteStage(Si)=HandlerInstall`，并使用满足
+`TopPrompt(Si)=⟨pi,ai⟩` 的 symbolic installation stack：
 命中 $a_i$ 才选择 $p_i$，其余 residual demand保留
 `ResolveAtInstallation`，不得读取 handler definition stack。
 `checkClauseSchemas` 返回以 operation entry为键的
@@ -3882,15 +3919,20 @@ $
 
 `ImportHandlerEnv(Θentry,Hh)` 只把 $Pi_h/chi_h$ 描述的 captured bindings
 导入 symbolic operation-site world；它不复制定义点的 lock。以下 judgment
-对 $Theta_"entry"$、operation skolems、installation prompt $p$ 和
-$kappa$ 普遍量化；`AdmissibleSite` 必须证明 `route(κ)=p`，不能只按
+对 $Theta_"entry"$、operation skolems、完整 symbolic installation
+$(S_i,p_i,a_i)$ 和 $kappa$ 普遍量化，且
+`TopPrompt(Si)=⟨pi,ai⟩` 且 route stage固定为 `HandlerInstall`；
+`AdmissibleSite` 必须证明
+`route(κ)=pi`、`entry(κ)=ai`，不能只按
 handler value或 family匹配。
 
 #irule(
   [T-Clause-Once-Ctl],
   (
     [$m_h in {"once","ctl"} quad q_"once"=1 quad q_"ctl"=omega$],
-    [$kappa=⟨ell_k,p,a,o_k,Theta_"entry",D_k,Pi_k,chi_k,u_k,
+    [$"TopPrompt"(S_i)=⟨p_i,a_i⟩
+      quad "SchemaRouteStage"(S_i)="HandlerInstall"$],
+    [$kappa=⟨ell_k,p_i,a_i,o_k,Theta_"entry",D_k,Pi_k,chi_k,u_k,
       Theta_"answer",Xi_k,O_k,Q_k^"call",Q_k^"install"⟩$],
     [$"siteInstanceOf"(O_k,O)
       quad "AdmissibleSite"(kappa,O_k,H_h)$],
@@ -3898,14 +3940,17 @@ handler value或 family匹配。
     [$Theta_h="ImportHandlerEnv"(Theta_"entry",H_h)$],
     [$Theta_k="bindArgs"(Theta_h,bar(x):"params"(O_k),Xi_k)$],
     [$k:"Resume"[q_(m_h),D_k,"result"(O_k),B,Pi_k,chi_k,rho_h]$],
-    [$K;I;Phi_h;Omega[k↦"Open"(q_(m_h))]@Theta_k ⊢
+    [$b_k="BindClauseDisposition"(k,kappa,"type"(k))$],
+    [$K;I;Phi_h;Omega[k↦"Open"(q_(m_h))]@Theta_k;S_i ⊢
       "clauseBody"_B(e) ⇓ cal(F)_c !
       epsilon_c;Delta_c;s_c;delta_c ⊣Omega_c$],
     [$"PathUsage"(cal(F)_c,k) <= q_(m_h)$],
     [$"DispositionComplete"(m_h,k,cal(F)_c,Omega_c) ⇓ cal(F)_d$],
-    [$"ExtractClauseContract"(cal(F)_d,Delta_c,Xi_k) ⇓ H_c$],
+    [$"ExtractClauseContract"(cal(F)_d,Delta_c,Xi_k,b_k) ⇓ H_c$],
   ),
-  [$K;I;Phi_h;H_h ⊢ "resumptiveClause"(O,m_h,e) ⇓ "ResumeSchema"(kappa,H_c)$],
+  [$K;I;Phi_h;H_h;S_i;p_i;a_i ⊢
+    "resumptiveClause"(O,m_h,e) ⇓
+    "ResumeSchema"(kappa,b_k,H_c)$],
 )
 
 `DispositionComplete` 对 `once` 的每个 exit插入/验证 resume、finalize或显式
@@ -3918,7 +3963,9 @@ transition。插入动作的 row、suspension、summary与 usage都进入 $f_d$�
 #irule(
   [T-Clause-Fun],
   (
-    [$kappa=⟨ell_k,p,a,o_k,Theta_"entry",D_k,Pi_k,chi_k,u_k,
+    [$"TopPrompt"(S_i)=⟨p_i,a_i⟩
+      quad "SchemaRouteStage"(S_i)="HandlerInstall"$],
+    [$kappa=⟨ell_k,p_i,a_i,o_k,Theta_"entry",D_k,Pi_k,chi_k,u_k,
       Theta_"answer",Xi_k,O_k,Q_k^"call",Q_k^"install"⟩$],
     [$D_k=⟨epsilon_k,Delta_k,w_k,s_k,delta_k,R_k,Phi_k,F_k⟩$],
     [$"siteInstanceOf"(O_k,O)
@@ -3929,20 +3976,29 @@ transition。插入动作的 row、suspension、summary与 usage都进入 $f_d$�
     [$Theta_h="ImportHandlerEnv"(Theta_"entry",H_h)$],
     [$Theta_k="bindArgs"(Theta_h,bar(x):bar(A)_k,Xi_k)$],
     [$k:"Resume"[1,D_k,R_k^o,B,Pi_k,chi_k,rho_h]$],
-    [$K;I;Phi_h;Omega,k:"Open"(1)@Theta_k ⊢ e ⇐ R_k^o @[pi_R] ! epsilon_e;Delta_e ▷ s_e;delta_e;chi_R @Theta_R⊣Omega_R$],
+    [$b_k="BindClauseDisposition"(k,kappa,"type"(k))$],
+    [$K;I;Phi_h;Omega,k:"Open"(1)@Theta_k;S_i ⊢
+      e ⇐ R_k^o @[pi_R] ! epsilon_e;Delta_e ▷
+      s_e;delta_e;chi_R @Theta_R⊣Omega_R$],
     [$Theta_y="bind"(Theta_R,y:R_k^o @[pi_R] ▷ chi_R)$],
-    [$K;I;Phi_h;Omega_R@Theta_y ⊢ "resume"(k,y) ⇒ B @[pi_B] ! epsilon_k;Delta_k ▷ s_k;delta_k ⊗ delta_"resume";chi_B @Theta_r⊣Omega'$],
+    [$K;I;Phi_h;Omega_R@Theta_y;S_i ⊢
+      "resume"(k,y) ⇒ B @[pi_B] ! epsilon_k;Delta_k ▷
+      s_k;delta_k ⊗ delta_"resume";chi_B @Theta_r⊣Omega'$],
     [$"dropBinder"(Theta_r,y)=Theta_"answer"$],
     [$"TailOnly"("let" y=e;"resume"(k,y)) quad Omega'(k)="Closed"$],
-    [$"ExtractClauseContract"("typedFunPath",Xi_k,pi_B,chi_B) ⇓ H_c$],
+    [$"ExtractClauseContract"(
+      "typedFunPath",Xi_k,pi_B,chi_B,b_k) ⇓ H_c$],
   ),
-  [$K;I;Phi_h;H_h ⊢ "funClause"(O,e) ⇓ "FunSchema"(kappa,H_c)$],
+  [$K;I;Phi_h;H_h;S_i;p_i;a_i ⊢
+    "funClause"(O,e) ⇓ "FunSchema"(kappa,b_k,H_c)$],
 )
 
 #irule(
   [T-Clause-Abort],
   (
-    [$kappa=⟨ell_k,p,a,o_k,Theta_"entry",D_k,Pi_k,chi_k,u_k,
+    [$"TopPrompt"(S_i)=⟨p_i,a_i⟩
+      quad "SchemaRouteStage"(S_i)="HandlerInstall"$],
+    [$kappa=⟨ell_k,p_i,a_i,o_k,Theta_"entry",D_k,Pi_k,chi_k,u_k,
       Theta_"answer",Xi_k,O_k,Q_k^"call",Q_k^"install"⟩$],
     [$D_k=⟨epsilon_k,Delta_k,w_k,s_k,delta_k,R_k,Phi_k,F_k⟩$],
     [$"siteInstanceOf"(O_k,O)
@@ -3954,22 +4010,33 @@ transition。插入动作的 row、suspension、summary与 usage都进入 $f_d$�
     [$Theta_h="ImportHandlerEnv"(Theta_"entry",H_h)$],
     [$Theta_k="bindArgs"(Theta_h,bar(x):bar(A)_k,Xi_k)$],
     [$k_kappa:"Resume"[1,D_k,R_k^o,B,Pi_k,chi_k,rho_h] quad Omega_k=Omega[k_kappa↦"Open"(1)]$],
-    [$K;I;Phi_h;Omega_k@Theta_k ⊢ e ⇐ B @[pi_B] ! epsilon_e;Delta_e ▷ s_e;delta_e;chi_B @Theta_B⊣Omega_B$],
+    [$b_k="BindClauseDisposition"(
+      k_kappa,kappa,"type"(k_kappa))$],
+    [$K;I;Phi_h;Omega_k@Theta_k;S_i ⊢
+      e ⇐ B @[pi_B] ! epsilon_e;Delta_e ▷
+      s_e;delta_e;chi_B @Theta_B⊣Omega_B$],
     [$Theta_y="bind"(Theta_B,y:B @[pi_B] ▷ chi_B)$],
-    [$K;I;Phi_h;Omega_B@Theta_y ⊢ "finalize"(k_kappa) ⇒ "Unit" @["Stable"] ! epsilon_f;Delta_f ▷ s_f;delta_f ⊗ delta_"finalize";emptyset @Theta_f⊣Omega'$],
-    [$K;I;Phi_h@Theta_f ⊢_v y ⇒ B @[pi_o] ▷ chi_o$],
+    [$K;I;Phi_h;Omega_B@Theta_y;S_i ⊢
+      "finalize"(k_kappa) ⇒ "Unit" @["Stable"] !
+      epsilon_f;Delta_f ▷ s_f;delta_f ⊗ delta_"finalize";
+      emptyset @Theta_f⊣Omega'$],
+    [$K;I;Phi_h@Theta_f;S_i ⊢_v y ⇒ B @[pi_o] ▷ chi_o$],
     [$"dropBinder"(Theta_f,y)=Theta_"answer" quad Omega'(k_kappa)="Closed"$],
-    [$"ExtractClauseContract"("typedAbortPath",Xi_k,pi_o,chi_o) ⇓ H_c$],
+    [$"ExtractClauseContract"(
+      "typedAbortPath",Xi_k,pi_o,chi_o,b_k) ⇓ H_c$],
   ),
-  [$K;I;Phi_h;H_h ⊢ "abortClause"(O,e) ⇓ "AbortSchema"(kappa,H_c)$],
+  [$K;I;Phi_h;H_h;S_i;p_i;a_i ⊢
+    "abortClause"(O,e) ⇓ "AbortSchema"(kappa,b_k,H_c)$],
 )
 
 #irule(
   [T-Clause-Fun-Paths],
   (
-    [$"PrepareClauseSite"(kappa,O,H_h,"fun") ⇓
-      ⟨Theta_k,k,D_k,R_sigma,B,Omega_k⟩$],
-    [$K;I;Phi_h;Omega_k@Theta_k;S ⊢
+    [$"TopPrompt"(S_i)=⟨p_i,a_i⟩
+      quad "SchemaRouteStage"(S_i)="HandlerInstall"$],
+    [$"PrepareClauseSite"(S_i,p_i,a_i,kappa,O,H_h,"fun") ⇓
+      ⟨Theta_k,k,D_k,R_sigma,B,Omega_k,b_k⟩$],
+    [$K;I;Phi_h;Omega_k@Theta_k;S_i ⊢
       "clauseBody"_(R_sigma)(e) ⇓ cal(F)_e !
       epsilon_e;Delta_e;s_e;delta_e ⊣Omega_e$],
     [$cal(F)_r="TailResumeReturns"(
@@ -3977,18 +4044,20 @@ transition。插入动作的 row、suspension、summary与 usage都进入 $f_d$�
     [$"DispositionComplete"(
       "fun",k,cal(F)_r,Omega_e) ⇓ cal(F)_d$],
     [$"ExtractClauseContract"(
-      cal(F)_d,Delta_e,"actualArguments"(kappa)) ⇓ H_c$],
+      cal(F)_d,Delta_e,"actualArguments"(kappa),b_k) ⇓ H_c$],
   ),
-  [$K;I;Phi_h;H_h ⊢
-    "funClausePaths"(O,e) ⇓ "FunSchema"(kappa,H_c)$],
+  [$K;I;Phi_h;H_h;S_i;p_i;a_i ⊢
+    "funClausePaths"(O,e) ⇓ "FunSchema"(kappa,b_k,H_c)$],
 )
 
 #irule(
   [T-Clause-Abort-Paths],
   (
-    [$"PrepareClauseSite"(kappa,O,H_h,"abort") ⇓
-      ⟨Theta_k,k,D_k,R_sigma,B,Omega_k⟩$],
-    [$K;I;Phi_h;Omega_k@Theta_k;S ⊢
+    [$"TopPrompt"(S_i)=⟨p_i,a_i⟩
+      quad "SchemaRouteStage"(S_i)="HandlerInstall"$],
+    [$"PrepareClauseSite"(S_i,p_i,a_i,kappa,O,H_h,"abort") ⇓
+      ⟨Theta_k,k,D_k,R_sigma,B,Omega_k,b_k⟩$],
+    [$K;I;Phi_h;Omega_k@Theta_k;S_i ⊢
       "clauseBody"_B(e) ⇓ cal(F)_e !
       epsilon_e;Delta_e;s_e;delta_e ⊣Omega_e$],
     [$cal(F)_f="FinalizeReturnPaths"(
@@ -3998,10 +4067,10 @@ transition。插入动作的 row、suspension、summary与 usage都进入 $f_d$�
     [$"DispositionComplete"(
       "abort",k,cal(F)_d,"usage"(cal(F)_d))$],
     [$"ExtractClauseContract"(
-      cal(F)_d,Delta_e,"actualArguments"(kappa)) ⇓ H_c$],
+      cal(F)_d,Delta_e,"actualArguments"(kappa),b_k) ⇓ H_c$],
   ),
-  [$K;I;Phi_h;H_h ⊢
-    "abortClausePaths"(O,e) ⇓ "AbortSchema"(kappa,H_c)$],
+  [$K;I;Phi_h;H_h;S_i;p_i;a_i ⊢
+    "abortClausePaths"(O,e) ⇓ "AbortSchema"(kappa,b_k,H_c)$],
 )
 
 这里的 hidden $k_kappa$ / `discardκ` 只存在于 Kernel elaboration，source
@@ -4021,9 +4090,16 @@ $P_sigma$ obligation；它不能只比较 selector。`ExtractClauseContract`
 $H_c=⟨m_h,Q_"site",d_h,Delta_"res",s_"res",delta_h,R_h,P_"park"⟩$，所以
 actual argument与 handler environment的 provenance/capture transformer
 $R_h$ 不会丢失。
+`BindClauseDisposition(k,κ,type(k))` 为这个 clause schema建立唯一
+$b_k$：它把 internal resumption/discard token $k$ alpha-normalize成
+`ClauseDispositionBinderV1`，记录原 `κ.site_slot` 与完整 `ResumeTypeV1`，
+并让同一个 clause flow内每个 `Delegates` 的 `inner_disposition` 只能引用
+该 binder。$b_k$ 的 scope不越过所属 `ClauseFlowSetV1`，也不能从
+$D_k$、continuation或 live bindings重建。
 `PrepareClauseSite` 只是 T-Clause-Fun/Abort共同的 site admissibility、
 exact stored $O_k$ signature、environment/argument bind与 `Open(1)`
-premises的排版缩写；它不重新实例化 operation type arguments。
+premises以及同一 $b_k$ declaration的排版缩写；它不重新实例化 operation
+type arguments。
 `TailResumeReturns` 只给每个 Returns path追加 hidden tail resume；
 `FinalizeReturnPaths` 只给每个 Returns path追加 hidden finalize/return；
 两者都保留 abort/transfer/delegate side paths，并由
@@ -6433,16 +6509,21 @@ check_clause_schema(ctx, handler_shape, op_sig, clause):
     q = clause_mode_budget(clause.mode)
     k = Resume[q, κ.D, opσ.result, handler_shape.answer,
                κ.Π, κ.χ, handler_shape.owner]
+    disposition_binder = bind_clause_disposition(
+      fresh_suffix_live_slot(), κ.site_slot, type(k))
     result = check_body_flow(
       clause_ctx + params + k:Open(q),
       clause.body, handler_shape.answer)
     require path_sensitive_usage(result, k) <= q
     result =
-      disposition_complete_paths(result, k, clause.mode)
+      disposition_complete_paths(
+        result, k, disposition_binder, clause.mode)
   else if clause.mode == fun:
     k = hidden Resume[1, κ.D, opσ.result,
                       handler_shape.answer,
                       κ.Π, κ.χ, handler_shape.owner]
+    disposition_binder = bind_clause_disposition(
+      fresh_suffix_live_slot(), κ.site_slot, type(k))
     value_flow = check_body_flow(
       clause_ctx + params + k:Open(1),
       clause.body, opσ.result)
@@ -6453,21 +6534,38 @@ check_clause_schema(ctx, handler_shape, op_sig, clause):
     result = merge_path_contracts(normal_flow, abort_flow)
     require exactly_one_hidden_tail_resume_per_normal_exit(result, k)
   else if clause.mode == abort:
+    k = hidden Resume[1, κ.D, opσ.result,
+                      handler_shape.answer,
+                      κ.Π, κ.χ, handler_shape.owner]
+    disposition_binder = bind_clause_disposition(
+      fresh_suffix_live_slot(), κ.site_slot, type(k))
     body_flow = check_body_flow(
-      clause_ctx + params, clause.body, handler_shape.answer)
+      clause_ctx + params + k:Open(1),
+      clause.body, handler_shape.answer)
     result = append_hidden_disposition_on_every_exit(
-      body_flow, κ, κ.D.cleanup)
+      body_flow, k, κ.D.cleanup)
     require every normal result world == κ.answer_world
 
   require clause_contract(result) refines opσ.contract
-  return schema universally quantified over
-    handler_shape.installation_stack,
-    handler_shape.handled_entry, skolems, p and κ
+  require every Delegates(κf) path in result carries exactly
+    OpenToForwardedExclusive(k, κf.site_slot, κf.continuation)
+  wire_flow = serialize_clause_flow(
+    clause_contract(result).flow,
+    disposition_substitution = {
+      k -> SlotRefV1(SuffixLive, disposition_binder.slot) })
+  return ClauseSchema(
+    operation = opσ.resolved_selector,
+    disposition_binder = disposition_binder,
+    flow = wire_flow)
+    universally quantified over
+      handler_shape.installation_stack,
+      handler_shape.handled_entry, skolems, p and κ
 
-disposition_complete_paths(result, k, mode):
+disposition_complete_paths(result, k, disposition_binder, mode):
   return map_paths(result, path =>:
     match path:
       Delegates(κf):
+        require disposition_binder.type == type(k)
         require path.disposition_evidence ==
           OpenToForwardedExclusive(k, κf.site_slot, κf.continuation)
         require path.usage_context[k] == Forwarded(κf)
