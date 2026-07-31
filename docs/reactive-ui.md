@@ -376,6 +376,14 @@ key 改变后，policy 决定：
 
 代数效应组合使两种常见情况自然不同。
 
+本节是 UI 层 `resource`/candidate runner 的**概念展开**，不是说最小
+`live : (() -> A ! {Observe}) -> Live[A]` 可以直接包含 `await`。普通
+`live` 排除 Async；第一方 UI runner 必须显式选择 task replacement、snapshot、
+取消和 stale-completion policy。语言层 accept/reject 例见
+[Temporal modality、代数效应与增量计算](temporal-reactivity-design-experiment.md)。
+对应的候选 typing 与 candidate-buffer machine 见
+[Cire-TR₀ Typst 形式化草案](temporal-reactivity-formalization.typ)。
+
 ### 11.1 Observe 在 Await 前
 
 ```text

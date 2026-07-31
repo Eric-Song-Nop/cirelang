@@ -12,6 +12,11 @@
 多态、effect ability 与 named capability 的新工作设计见
 [多态与 effect abstraction 工作设计](polymorphism-design.md)。该文档记录
 双泛型列表基线，也明确区分已接受方向、开放语法和尚未实现的部分。
+Temporal modality、world-indexed resumption 与增量 replacement 的研究设计见
+[语法实验和反例审查](temporal-reactivity-design-experiment.md)；对应的
+candidate calculus、PEG recognition rules 与算法化检查写在
+[Typst 形式化草案](temporal-reactivity-formalization.typ)中。两者都不是当前
+实现规范。
 
 ## 建议阅读顺序
 
@@ -24,10 +29,12 @@
 7. [编译器前端架构](compiler-architecture.md)
 8. [第一方增量计算库](incremental-computation.md)
 9. [第一方响应式 UI 框架](reactive-ui.md)
-10. [WebAssembly 与宿主互操作](webassembly-and-host-interop.md)
-11. [Kokaine 案例研究](kokaine-case-study.md)
-12. [相关语言与设计先例](prior-art.md)
-13. [开放问题与原型验证计划](open-questions.md)
+10. [Temporal modality、效应与增量计算：语法实验](temporal-reactivity-design-experiment.md)
+11. [Cire-TR₀ 候选类型形式化与 PEG 语法（Typst）](temporal-reactivity-formalization.typ)
+12. [WebAssembly 与宿主互操作](webassembly-and-host-interop.md)
+13. [Kokaine 案例研究](kokaine-case-study.md)
+14. [相关语言与设计先例](prior-art.md)
+15. [开放问题与原型验证计划](open-questions.md)
 
 ## 结论状态
 
