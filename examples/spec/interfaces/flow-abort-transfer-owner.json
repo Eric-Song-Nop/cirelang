@@ -29,7 +29,7 @@
     "type_binders": []
   },
   "expectation": {
-    "canonical_json": "sorted-unique-V1",
+    "canonical_json": "RFC8785-JCS+NFC-V1",
     "continuation_projection": "full-SuffixContractV1",
     "disposition_states": [
       "Unclaimed",
@@ -40,7 +40,7 @@
       "Aborts",
       "Transfers"
     ],
-    "owner_generation_protocol": "generation-gated-shared-claim-cell-CAS",
+    "owner_generation_protocol": "completion-current-or-finalize-retire-shared-claim-cell-CAS",
     "suspension_variants": [
       "OwnerBoundV1"
     ],
@@ -56,10 +56,11 @@
       "park_contract": {
         "claim": {
           "claim_cell_slot": 0,
+          "completion_generation_gate": "EqualCurrentGeneration",
           "completion_transition": "UnclaimedToCompleted",
           "failure_transition": "NoStateChange",
+          "finalization_generation_gate": "EqualCurrentGenerationOrOwnerRetireAuthority",
           "finalization_transition": "UnclaimedToFinalized",
-          "generation_gate": "EqualCurrentGeneration",
           "generation_transition": "PreserveGeneration",
           "source_generation": "ClaimTicketGeneration"
         },

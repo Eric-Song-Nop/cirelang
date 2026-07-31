@@ -386,18 +386,10 @@
     "transition": {
       "kind": "SameWorldV1"
     },
-    "usage": [
-      {
-        "kind": "Many",
-        "slot": {
-          "namespace": "Parameter",
-          "slot": 0
-        }
-      }
-    ]
+    "usage": []
   },
   "expectation": {
-    "canonical_json": "sorted-unique-V1",
+    "canonical_json": "RFC8785-JCS+NFC-V1",
     "discharge": [
       0
     ],
@@ -409,7 +401,8 @@
     ],
     "primary_request_sites": [
       0
-    ]
+    ],
+    "usage_authority_slots": []
   },
   "oracle_schema": "CireSpecInterfaceOracleV1",
   "source": "choose-once.cire",

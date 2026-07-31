@@ -49,13 +49,18 @@ metadata，真正 wire payload只在 `contract` 字段，且必须符合
 discharge `stage=Call` 的 obligation，而 `HandlerInstall` obligation和
 latent site必须保留到 fresh prompt存在的 installation；顶层 suspension
 还必须含与该 latent primary site逐字段对应的 `RequestV1` attribution。
+普通 `options: Array[A]` 不携带 $Omega$ authority，所以该 oracle的
+`usage`/`usage_authority_slots` 都必须为空。
 `interfaces/flow-abort-transfer-owner.json` 则逐 variant固定
 `Aborts`、`Transfers(ParkContractV1)`、`OwnerBoundV1`、root route以及
 Owner/generation-CAS wire形状，包括 shared alpha-normalized claim-cell、
-`Unclaimed→Completed | Finalized` race、generation-preserving equality
-gate与完整 `SuffixContractV1` continuation/live evidence；它是 union-variant
+`Unclaimed→Completed | Finalized` race、completion current-generation
+gate、post-revoke Owner-retire finalization gate与完整
+`SuffixContractV1` continuation/live evidence；它是 union-variant
 oracle，不伪装成某个 FunctionContract source projection。两个 JSON oracle
-都使用 schema规定的 canonical object-key encoding。
+的 `canonical_json` expectation都固定 schema规定的
+`RFC8785-JCS+NFC-V1` serializer；repository中的 oracle envelope保留
+human-readable layout，本身不是 raw artifact byte golden。
 
 `diagnostics-v1.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；
 新增或重命名 id需要新 registry version，不能让 parser recovery改变同一

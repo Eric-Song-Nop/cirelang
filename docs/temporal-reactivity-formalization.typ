@@ -578,7 +578,7 @@ $
     | "CompletionPort"[rho,R]
     | "CommitTicket"[rho] | "CommitGate"[rho]
     | "Resume"[q,D,A,B,Pi,chi,rho]
-    | "HandlerTemplate"[F,rho,A,B,epsilon,(p).C,P]$
+    | "HandlerTemplate"[F,rho,A,B,epsilon,(S,p,a).C,P]$
 ]
 
 函数 contract：
@@ -741,12 +741,17 @@ UsageV1 {
 
 PhaseRequirementV1 {
   allowed_phases: [Pure | Compute | Action | Commit]
-  required_authorities: [OwnerAuthorityV1 | IdentityAuthorityV1]
+  required_authorities: [
+    OwnerAuthorityV1
+    | IdentityAuthorityV1
+    | AnonymousEffectAuthorityV1
+  ]
   current_owner: SlotRefV1 | null        // Owner namespace
 }
 
 OwnerAuthorityV1    { owner: SlotRefV1 }     // Owner namespace
 IdentityAuthorityV1 { identity: SlotRefV1 }  // Identity namespace
+AnonymousEffectAuthorityV1 { family: TypeRefV1 }
 
 TypeRefV1 =
     BuiltinTypeV1 { name: Unit | Never | Bool | Int | String }
@@ -810,6 +815,51 @@ TypeRefV1 =
       contract: HandlerContractV1 | ContractParameterV1,
       policy: SummaryV1
     }
+  | ForAllIdentityTypeV1 {
+      binder: QuantifiedIdentityBinderV1,
+      body: TypeRefV1
+    }
+  | ForAllContractTypeV1 {
+      binder: QuantifiedContractBinderV1,
+      body: TypeRefV1
+    }
+  | ExistsClockPackageTypeV1 {
+      clock_binder: QuantifiedClockBinderV1,
+      summary_binder: QuantifiedContractBinderV1,
+      body: TypeRefV1
+    }
+  | ForAllOwnerTypeV1 {
+      binder: QuantifiedOwnerBinderV1,
+      body: TypeRefV1
+    }
+
+QuantifiedIdentityBinderV1 {
+  identity_slot: u32
+  family: TypeRefV1
+  owner: SlotRefV1                       // enclosing Owner namespace
+}
+
+QuantifiedClockBinderV1 {
+  clock_slot: u32
+  family: TypeRefV1
+  owner: SlotRefV1                       // enclosing Owner namespace
+}
+
+QuantifiedOwnerBinderV1 { owner_slot: u32 }
+
+QuantifiedContractBinderV1 {
+  contract_slot: u32
+  kind:
+      FunctionContractKindV1 {
+        parameter_type: TypeRefV1,
+        result_type: TypeRefV1
+      }
+    | LaterContractKindV1 { payload_type: TypeRefV1 }
+    | ClockPackageSummaryKindV1 {
+        clock: SlotRefV1,                // locally bound Identity/Clock
+        payload_type: TypeRefV1
+      }
+}
 
 TypeConstructorRefV1 =
     BuiltinConstructorV1 { name: Array | Option | Result }
@@ -845,9 +895,9 @@ ClauseFlowSetV1 {
   operation: OperationSelectorV1
   flow: [ClauseFlowPathV1]
 }
-IdentifierV1 = validated UTF-8 identifier string
+IdentifierV1 = validated NFC UTF-8 identifier string
 ModulePathV1 = nonempty [IdentifierV1]
-StringV1 = UTF-8 string
+StringV1 = NFC UTF-8 string
 
 NominalIndexExprV1 =
     NoNominalIndexV1
@@ -913,7 +963,9 @@ CompletionPortV1 {
 GenerationCASV1 {
   claim_cell_slot: u32
   source_generation: ClaimTicketGeneration
-  generation_gate: EqualCurrentGeneration
+  completion_generation_gate: EqualCurrentGeneration
+  finalization_generation_gate:
+    EqualCurrentGenerationOrOwnerRetireAuthority
   completion_transition: UnclaimedToCompleted
   finalization_transition: UnclaimedToFinalized
   generation_transition: PreserveGeneration
@@ -950,8 +1002,17 @@ ForwardContractV1 {
 ClauseFlowPathV1 =
     FlowPathV1
   | Delegates {
-      forward_contract: ForwardContractV1
+      forward_contract: ForwardContractV1,
+      disposition_evidence: ForwardDispositionEvidenceV1
     }
+
+ForwardDispositionEvidenceV1 {
+  inner_disposition: SlotRefV1           // authority-bearing SuffixLive slot
+  input_state: Open
+  output_state: Forwarded
+  forward_site_slot: u32
+  continuation_transfer: ExclusiveToForwardContract
+}
 
 SuspensionV1 {
   grade: SuspensionGradeV1
@@ -1006,6 +1067,9 @@ EffectEntrySelectorV1 =
   | NamedV1 {
       identity: SlotRefV1,       // Identity namespace
       family: TypeRefV1
+    }
+  | HandlerEntryParameterV1 {
+      contract_slot: u32         // Handler contract binder
     }
 
 OperationSelectorV1 =
@@ -1179,6 +1243,13 @@ expression，importer不能从一个裸 slot猜测 $Xi_k$。
 `OperationArgument` namespace由当前 site的 `actual_arguments` position绑定；
 instantiated signature中的 parameter/result transformer必须按同一长度与
 type逐项验证。
+`UsageV1.slot` 还必须在当前 binder validation context中满足
+`AuthorityBearingSlot`：它解析到由 $Omega$ 跟踪的
+`ResumeTypeV1`/one-shot disposition authority，而不是任意值 slot。
+因此普通 `Array[A]`、callback data或仅有 provenance的 parameter不能通过
+在 `usage` 中写 `Many` 伪装成 latent authority usage；`kind` 必须等于
+一次 closure调用对该 authority的实际 $0/1/omega$ 消耗，且 `Zero` entry
+的 canonical form是从 finite map省略。
 每个 secondary site有自己的 receiver和 route，
 不能继承 primary route。`SecondarySiteSetV1.kind` 在 V1 只能是 `Closed`；
 没有 open row-slot variant。未知 schema version、variant tag、route selector、
@@ -1197,10 +1268,17 @@ residual row/demand、flow/world、suspension、summary/result、phase、cleanup
 `AttributedOK`。
 `LatentSiteV1.instantiated_signature`、actual arguments与 selector必须相容；
 call/install id分别只能引用 `ParametricObligations` 中同 stage的 obligation。
+importer把这些 ids 与本 site的 actual summaries/entry world一起解析成内部
+`κ.call_obligations` / `κ.install_obligations`；前者必须附 sealed
+call-discharge evidence，后者保留 exact instantiation key到 `InstallOK`。
+不存在可重新读取的泛化 obligations aggregate字段。
 `EffectEntrySelectorV1` 与 `OperationSelectorV1` 只接受上列 tagged variants；
 `NamedV1.identity` 必须引用
 `binders.identity_binders` 中同 family
-的 live generative binder。任何显式 prompt selector都必须引用
+的 live generative binder。`HandlerEntryParameterV1` 只可出现在
+`HandlerContractBinderV1` 的 lexical scope，并在 actual installation
+替换为同 family的 `AnonV1` 或 `NamedV1`；普通 function contract不能使用。
+任何显式 prompt selector都必须引用
 `binders.prompt_binders` 中 scope包含该 site的 declaration。
 `ResolveAtCallV1` 只允许 stage=Call，`ResolveAtInstallationV1` 只允许
 stage=HandlerInstall；两者在指定 stage选择 stack中 nearest exact entry，
@@ -1209,13 +1287,25 @@ stage=HandlerInstall；两者在指定 stage选择 stack中 nearest exact entry�
 exact-entry prompt，否则 artifact ill-formed；不能悄悄 fallback到 root。
 `FlowSetV1` 保持每个 tagged path；同一 contract可有多个不同
 `Transfers`。`Delegates` 只存在于 handler 的 `ClauseFlowPathV1`，
-不进入 FunctionContractV1 的 public flow。`ParkContractV1` 序列化
+不进入 FunctionContractV1 的 public flow。每个 `Delegates` 必须带
+`ForwardDispositionEvidenceV1`：`inner_disposition` 必须解析到该 clause
+的 authority-bearing resumption slot，input/output固定为
+`Open→Forwarded`，`forward_site_slot` 必须等于所携
+`ForwardContractV1.site_slot`，且 exclusive transfer中的 continuation
+逐字段等于该 contract的 continuation。缺失或重复处置 evidence一律拒绝。
+`ForwardContractV1.secondary_sites` 是 routed contract的必填 sealed
+`Closed` set；所有 secondary demand/request side evidence必须由它唯一投影
+且逐字段相等，不能只存在于 local side node而让 serialized contract缺失。
+`ParkContractV1` 序列化
 alpha-normalized Owner/site/claim-cell slot、完整 continuation与
 generation-CAS protocol，不序列化某次运行时 generation值或地址。
 `ParkContractV1.source.owner`、`completion_port.owner` 与 `owner_slot`
 必须相同；source/port result type一致；park、port、CAS与 disposition
-必须逐字段引用同一个 `claim_cell_slot`。generation equality只作 gate，
-成功不递增 Owner generation；completion与 finalize分别竞争
+必须逐字段引用同一个 `claim_cell_slot`。completion只在 source generation
+等于 current Owner generation时竞争；finalize在 Owner仍 current时使用同一
+equality gate，或在 close/revoke已推进 generation后凭该 Owner sealed retire
+authority竞争同一 claim cell。两条路径都不递增 generation；
+completion与 finalize分别竞争
 `Unclaimed→Completed` / `Unclaimed→Finalized`，失败不改变 generation、
 source或 disposition。`OneShotDispositionV1.continuation` 是完整
 `SuffixContractV1`（包含 flow/world/phase/result/cleanup/live bindings），
@@ -1241,12 +1331,32 @@ union/join。ordered semantic sequence不排序，只 flatten nested sequence并
 `Pure, Compute, Action, Commit` 固定 enum顺序去重，authority set按 canonical
 encoding排序去重；`RequireBoth` 规范化为 allowed-phase intersection、authority
 union与相容的单一 current Owner，不相容则拒绝。
+`AnonymousEffectAuthorityV1(F)` 是 $Phi$ 中 `Anon(F)` 的 wire form；
+其 `family` 必须 kind为 `Effect`；它与 named identity authority不 alias，
+因而 Commit runner的
+`Anon(Commit)` requirement可以无损跨模块。
+例如 `wire(⟨Commit,{Anon(Commit)},ρ⟩)` 的 `allowed_phases=[Commit]`、
+`required_authorities=[AnonymousEffectAuthorityV1(Commit)]` 且
+`current_owner=ρ`；三个轴都必须保留。
 
-V1 artifact按 UTF-8 object key的 canonical order编码。schema列出的字段
+V1 canonical bytes是 RFC 8785 JSON Canonicalization Scheme (JCS) 的完整
+UTF-8输出：无 BOM/多余 whitespace，object property按 JCS规则排序，
+number/string escaping严格采用 JCS serializer。所有 identifier、module
+component、origin与其他 string在进入 serializer前必须已经是 Unicode NFC；
+非 NFC input拒绝而不是静默改写。因此 normalization中的 “canonical byte
+encoding” 唯一指 `JCS(NFC-validated value)`，不依赖宿主 JSON pretty printer。
+schema列出的字段
 必须且只能出现一次；duplicate key、unknown field/tag、非最小整数、悬空
 slot/id、非 canonical collection或另一种等价 encoding一律拒绝。
 `TypeRefV1` 的 identity/Owner/clock/contract-bearing variants可递归出现在
 任意 nested type；旁表 binder只提供引用作用域，不能替 type本身补猜 index。
+四个 quantified variants在 `TypeRefV1` 内建立 lexical nested scope；
+`ForAllIdentityTypeV1`、`ForAllContractTypeV1`、`ForAllOwnerTypeV1`
+分别编码 Core 的 `forall i`、`forall p`、`forall ρ`，
+`ExistsClockPackageTypeV1` 同时绑定 generative clock identity与依赖它的
+`ClockPackageSummary` evidence。importer必须按 binder出现顺序检查 kind、
+依赖与 body，禁止把 nested existential/universal无条件全提到 declaration
+binder table。
 `OwnerIndexedTypeV1.payload=null` 当且仅当 constructor是
 `CommitTicket/CommitGate`；其余 owner-indexed constructors必须带 payload。
 每个 `ContractParameterV1.kind` 必须与对应 use site及
@@ -2204,8 +2314,8 @@ $S$ 的拼写，但 Core binder、变量与 module interface不省略。
 )
 
 `Plan[A]` 在 $K;I ⊢ A:"Type"$ 且 `Shareable(A)` 时成型。
-`HandlerTemplate[F,ρ,A,B,ε,(p).C,P]` 在 family、origin region、
-answer types、row、prompt-abstract contract 与 policy
+`HandlerTemplate[F,ρ,A,B,ε,(S,p,a).C,P]` 在 family、origin region、
+answer types、row、installation-stack/prompt/entry-abstract contract 与 policy
 分别 well formed 时成型。以上类型内部可携带 opaque runtime token，
 但 kinding 不比较运行时 generation。
 `ContinuationContract` formation还要求其中的 cleanup contract $F_k$
@@ -3292,6 +3402,7 @@ $kappa$ 携带 route $p$：
     [$"CurrentDisposition"(k,kappa)
       quad Omega(k)="Open"(q)$],
     [$"StrictOuterPrompt"(S,p,p_"outer",a)$],
+    [$"TailOnly"("forward"[p_"outer"](a,o,bar(e)))$],
     [$O_k=(bar(A)_k)->B_k
       @[m,zeta_k,d_k,R_k,Phi_k,P_k,Sigma_k]$],
     [$K;I;Phi;Omega@Theta;S ⊢ bar(e) ⇐ bar(A)_k
@@ -3305,7 +3416,7 @@ $kappa$ 携带 route $p$：
       quad "Discharge"(Q_f^"call")$],
     [$Q_f^"install"="instantiate"(
       "stageHandlerInstall"(P_k),Xi_f,I,Theta_a)$],
-    [$kappa_f="RouteForwardSite"(
+    [$h_f="ForwardSiteHeader"(
       "stableSiteSlot":ell,
       "installationPrompt":p_"outer",
       "entry":a,"operation":o,
@@ -3315,11 +3426,13 @@ $kappa$ 携带 route $p$：
       "instantiatedSignature":O_k,
       "callObligations":Q_f^"call",
       "installObligations":Q_f^"install")$],
+    [$(Delta_"sec",s_"sec",delta_"sec",Sigma_f)=
+      "instantiateSecondaryContract"(
+        Sigma_k,h_f,S)$],
+    [$kappa_f="SealForwardSite"(
+      h_f,"secondarySites":Sigma_f)$],
     [$d_f="Demand"("siteSlot"(kappa_f),p_"outer",a,o,"Primary")
       quad s_"primary"="request"("demandKey"(d_f),d_k)$],
-    [$(Delta_"sec",s_"sec",delta_"sec")=
-      "instantiateSecondaryContract"(
-        Sigma_k,kappa_f,S)$],
     [$Delta_o=Delta_a∪{d_f}∪Delta_"sec"
       quad epsilon_o="eraseDemand"(Delta_o)$],
     [$s_o=s_a⊔s_"primary"⊔s_"sec"
@@ -3328,22 +3441,28 @@ $kappa$ 携带 route $p$：
       quad "Allowed"(Phi,epsilon_o,s_o,delta_a⊗delta_"sec")$],
     [$"AttachSiteObligations"(
       kappa_f,a,Q_f^"call",Q_f^"install",
-      "secondarySites"(Sigma_k))$],
+      Sigma_f)$],
     [$Omega_f=Omega_a[k↦"Forwarded"(kappa_f)]$],
+    [$e_f="SealForwardDispositionEvidence"(
+      k,kappa,kappa_f,Omega_a,Omega_f)$],
   ),
   [$K;I;Phi;Omega@Theta;S ⊢ "clauseBody"_X(
     "forward"[p_"outer"](a,o,bar(e))) ⇓
-    {"Delegates"(kappa_f)} ! epsilon_o;Delta_o;
+    {"Delegates"(kappa_f,e_f)} ! epsilon_o;Delta_o;
     s_o;delta_a⊗delta_"sec" ⊣Omega_f$],
 )
 
 #irule(
   [T-Forward-Paths],
   (
+    [$kappa=⟨ell,p,a,o,Theta_"entry",D_k,Pi_k,chi_k,u_k,
+      Theta_"answer",Xi_k,O_k,Q_k^"call",Q_k^"install"⟩$],
     [$O_k="instantiatedSignature"(kappa)
       quad B_k="result"(O_k)
       quad "CurrentDisposition"(k,kappa)
       quad Omega(k)="Open"(q)$],
+    [$"StrictOuterPrompt"(S,p,p_"outer",a)$],
+    [$"TailOnly"("forward"[p_"outer"](a,o,bar(e)))$],
     [$K;I;Phi;Omega@Theta;S ⊢_"args"
       bar(e) ⇐ "params"(O_k) ⇓ cal(F)_"args" !
       epsilon_a;Delta_a;s_a;delta_a$],
@@ -3372,18 +3491,22 @@ $kappa$ 携带 route $p$：
 `StrictOuterPrompt(S,p,pouter,a)` 要求两个 prompt都 live、`pouter` 在 stack
 中严格位于 $p$ 外层且仍处理精确 entry $a$；family相同不够。Source
 没有任意 prompt操作，这两个 rule只服务 resolver生成的 Kernel forward。
-`RouteForwardSite` 保留 lexical `siteSlot(κ)` 作为 stable slot，但创建新的
-routed contract $kappa_f$：它的 installation prompt 是 $p_"outer"$，
+`ForwardSiteHeader` 保留 lexical `siteSlot(κ)` 作为 stable slot；
+secondary重新路由后，`SealForwardSite` 创建完整 routed contract
+$kappa_f$：它的 installation prompt 是 $p_"outer"$，
 entry world与 actual summaries来自本次 transformed arguments；它严格复用
 原 site已经实例化的 exact $O_k$（包括同一次 invocation的 type arguments），
 再以新 summaries 重建分阶段的 call/install evidence。Forward绝不对
 `K(F,o)` 或 $O_k$ 执行 fresh instantiation，因此 nullary polymorphic
 operation也不能在 reroute时换 type arguments。secondary site以
-$kappa_f$ 为 parent重新路由；它不沿用 inner prompt或旧 $Xi_k$。
+header为 parent重新路由；它不沿用 inner prompt或旧 $Xi_k$，最终 exact
+`SecondarySiteSetV1` 封入 `κf.secondary_sites`。side evidence只能由
+该 sealed field投影，不能成为缺字段的第二来源。
 
 Forward 采用 delegation 语义，不是普通 returning subcall：
 $kappa_f$ 唯一取得原 $D_k$ 的处置权，flow产生 terminal
-`Delegates(κf)`，且原 token由 `Open(q)` 原子转换为 `Forwarded(κf)`。
+`Delegates(κf,ef)`（正文省略 evidence参数时仍指该 pair），且原 token由
+`Open(q)` 原子转换为 `Forwarded(κf)`。
 `DispositionComplete` 把 `Forwarded` 视为已经完整处置；inner clause随后
 不能再次 resume、finalize或 park。`BuildForwardPath` 执行同一原子转移；
 argument evaluation产生 mixed flow时，T-Forward-Paths保留每条 terminal
@@ -3454,7 +3577,7 @@ body judgment处理。
 Core handler value：
 
 $
-  "HandlerTemplate"[F,rho_h,A,B,epsilon_h,(p).C_h,P_h]
+  "HandlerTemplate"[F,rho_h,A,B,epsilon_h,(S_i,p_i,a_i).C_h,P_h]
 $
 
 含义：
@@ -3463,7 +3586,8 @@ $
 - handled computation 正常返回 $A$；
 - handler action 返回 $B$；
 - clause 自身可能产生 residual row $epsilon_h$；
-- $(p).C_h$ 保存对 installation prompt抽象的 mode、site constraints、
+- $(S_i,p_i,a_i).C_h$ 保存对 actual installation stack、prompt与精确
+  handled entry抽象的 mode、site constraints、
   answer-world、suspension、
   path-specific result-summary、handler environment evidence 与 parking
   contract；
@@ -3611,20 +3735,24 @@ handler定义点 lock写进 contract。
     [$chi_h="captureFV"(bar(c),Theta) quad Pi_h="provenanceFV"(bar(c),Theta)$],
     [$"EnvBoundarySafe"("fv"(bar(c)),Theta,"OwnerStorage"(rho_h))$],
     [$Phi_h " fresh symbolic"$],
+    [$S_i,p_i,a_i " fresh symbolic installation parameters"$],
+    [$"TopPrompt"(S_i)=⟨p_i,a_i⟩$],
     [$H_h=⟨rho_h,B,Pi_h,chi_h⟩$],
-    [$"ReturnClauseOK"(K,I,Phi_h,H_h,c_"ret",A) ⇓ C_"ret"$],
-    [$S_h="checkClauseSchemas"(K,I,Phi_h,H_h,F,M_"op")$],
-    [$forall O in "ops"(F). "ClauseSchemaOK"(O,S_h(O),H_h)$],
-    [$"AggregateHandler"(C_"ret",S_h)=(Delta_h,C_0)
+    [$"ReturnClauseOK"(
+      K,I,Phi_h,H_h,S_i,p_i,a_i,c_"ret",A) ⇓ C_"ret"$],
+    [$M_h="checkClauseSchemas"(
+      K,I,Phi_h,H_h,S_i,p_i,a_i,F,M_"op")$],
+    [$forall O in "ops"(F). "ClauseSchemaOK"(O,M_h(O),H_h)$],
+    [$"AggregateHandler"(C_"ret",M_h)=(Delta_h,C_0)
       quad epsilon_h="eraseDemand"(Delta_h)$],
-    [$Phi_"req"="SolveHandlerPhase"(Phi_h,C_"ret",S_h)$],
+    [$Phi_"req"="SolveHandlerPhase"(Phi_h,C_"ret",M_h)$],
     [$C_1="setRequiredPhase"(C_0,Phi_"req")$],
     [$"PolicyOK"(P_h) quad "Origin"(P_h)=rho_h$],
     [$C_h="attachHandlerEnv"(C_1,Pi_h,chi_h)$],
-    [$"returnContract"(C_h)=C_"ret" quad "clauseSummaries"(C_h)=S_h$],
+    [$"returnContract"(C_h)=C_"ret" quad "clauseSummaries"(C_h)=M_h$],
   ),
   [$K;I;Phi@Theta ⊢_v "handler"[F]{bar(c)} ⇒
-    "HandlerTemplate"[F,rho_h,A,B,epsilon_h,(p).C_h,P_h]
+    "HandlerTemplate"[F,rho_h,A,B,epsilon_h,(S_i,p_i,a_i).C_h,P_h]
     @["Owner"(rho_h)] ▷ chi_h$],
 )
 
@@ -3638,13 +3766,17 @@ transformer与 required invocation phase完整检查，产生
 $C_"ret"=⟨epsilon_"ret",Delta_"ret",w_"ret",s_"ret",delta_"ret",
 R_"ret",Phi_"ret"⟩$。它和 operation clause都在 fresh symbolic
 $Theta_"entry"$ 下检查，并通过 $H_h$ 导入经过 boundary check的 definition
-environment；定义点 $Theta$ 本身不进入 clause world。
+environment；定义点 $Theta$ 本身不进入 clause world。两者的 route context
+都是满足 `TopPrompt(Si)=⟨pi,ai⟩` 的 symbolic installation stack：
+命中 $a_i$ 才选择 $p_i$，其余 residual demand保留
+`ResolveAtInstallation`，不得读取 handler definition stack。
 `checkClauseSchemas` 返回以 operation entry为键的
-finite schema map $S_h$；`AggregateHandler` 把具体 return contract与这些
+finite schema map $M_h$；`AggregateHandler` 把具体 return contract与这些
 schema的 residual attributed demand、suspension、summary、path-specific result
 transformer和 required phase逐项合并。它保留各 path，而不把 operation
 clause伪装成 return clause。
-因此 conclusion 中的 $epsilon_h$、$(p).C_h$ 都由已检查 clause决定，而不是
+因此 conclusion 中的 $epsilon_h$、$(S_i,p_i,a_i).C_h$ 都由已检查
+clause决定，而不是
 游离的 annotation。$Pi_h$ 进入 handler construction evidence；
 `EnvBoundarySafe` 成立后才允许把 value自身 provenance记为
 `Owner(ρ_h)`。这里 $rho_h$ 由 `CurrentOwner(Φ)` 与显式 authority premise
@@ -3653,9 +3785,10 @@ $Pi_h/chi_h$ 封入 $C_h$ 的 sealed
 construction evidence并序列化到 interface；所以 handler经变量或模块传递
 后，`InstallOK` 仍可由 `handlerEnv(C_h)` 取得它们。
 
-Handler value只保存以 prompt slot $p$ 参数化的 template；它没有 concrete
-route。每次 `with` installation由 `freshprompt p` 实例化一次，所以同一个
-handler value嵌套安装会得到不同 prompt，site/secondary demand不会混层。
+Handler value只保存以 installation stack、prompt与 exact entry参数化的
+template；它没有 definition-site concrete route。每次 `with` installation
+由 actual $(S_p,p,a)$ 实例化一次，所以同一个 handler value嵌套安装会得到
+各自的 residual route，site/secondary demand不会混层。
 
 `ClauseSchemaOK` 只产生/验证 site constraints。真正的
 `Duplicable(χ_k)`、cleanup replay、world answer与 Owner-bound parking
@@ -4120,7 +4253,7 @@ resume时只消费 $kappa_f$ 拥有的
   [T-Handle-Anon-Paths],
   (
     [$K;I;Phi@Theta ⊢_v h ⇒
-      "HandlerTemplate"[F,rho_h,A,B,epsilon_h,(p).C_h,P_h]
+      "HandlerTemplate"[F,rho_h,A,B,epsilon_h,(S_i,p_i,a_i).C_h,P_h]
       @[pi_h] ▷ chi_h$],
     [$a="Anon"(F) quad p ∉ "prompts"(S)$],
     [$S_p="pushPrompt"(S,p,a)$],
@@ -4128,11 +4261,12 @@ resume时只消费 $kappa_f$ 拥有的
       cal(F)_e ! epsilon_e;Delta_e;s_e;delta_e ⊣Omega_e$],
     [$K;I;Phi@Theta;S_p ⊢ "sites"(e,a,p) ⇓ bar(kappa)$],
     [$E_e=⟨cal(F)_e,epsilon_e,Delta_e,s_e,delta_e⟩$],
-    [$"InstallOK"(S_p,p,h,P_h,a,bar(kappa),E_e,C_h)
+    [$C_i=C_h[S_i,p_i,a_i:=S_p,p,a]$],
+    [$"InstallOK"(S_p,p,h,P_h,a,bar(kappa),E_e,C_i)
       ⇓ E_i$],
     [$cal(F)_o="publicFlow"(E_i)
       quad delta_o="semanticSummary"(E_i)$],
-    [$"PolicyOK"(P_h) quad "PhaseAllows"(Phi,"requiredPhase"(C_h))$],
+    [$"PolicyOK"(P_h) quad "PhaseAllows"(Phi,"requiredPhase"(C_i))$],
     [$"RowSplit"(Delta_e,p)=⟨Delta_"here",Delta_"out"⟩$],
     [$"AttributedOK"(Delta_e,s_e)$],
     [$Delta_h="handlerResidual"(E_i)$],
@@ -4170,7 +4304,7 @@ computation is temporal-pure or replay-safe
   [T-Handle-Named-Paths],
   (
     [$K;I;Phi@Theta ⊢_v h ⇒
-      "HandlerTemplate"[F,rho_h,A,B,epsilon_h,(p).C_h,P_h]
+      "HandlerTemplate"[F,rho_h,A,B,epsilon_h,(S_i,p_i,a_i).C_h,P_h]
       @[pi_h] ▷ chi_h$],
     [$"HandlerOriginOK"(Phi,rho_h) quad i ∉ "dom"(I)
       quad p ∉ "prompts"(S)$],
@@ -4183,11 +4317,12 @@ computation is temporal-pure or replay-safe
       cal(F)_e ! epsilon_e;Delta_e;s_e;delta_e ⊣Omega_e$],
     [$K;I';Phi_i@Theta_i;S_p ⊢ "sites"(e,a,p) ⇓ bar(kappa)$],
     [$E_e=⟨cal(F)_e,epsilon_e,Delta_e,s_e,delta_e⟩$],
-    [$"InstallOK"(S_p,p,h,P_h,a,bar(kappa),E_e,C_h)
+    [$C_i=C_h[S_i,p_i,a_i:=S_p,p,a]$],
+    [$"InstallOK"(S_p,p,h,P_h,a,bar(kappa),E_e,C_i)
       ⇓ E_i$],
     [$cal(F)_h="publicFlow"(E_i)
       quad delta_o="semanticSummary"(E_i)$],
-    [$"PolicyOK"(P_h) quad "PhaseAllows"(Phi_i,"requiredPhase"(C_h))$],
+    [$"PolicyOK"(P_h) quad "PhaseAllows"(Phi_i,"requiredPhase"(C_i))$],
     [$"RowSplit"(Delta_e,p)=⟨Delta_"here",Delta_"out"⟩$],
     [$"AttributedOK"(Delta_e,s_e)$],
     [$Delta_h="handlerResidual"(E_i)
@@ -4412,6 +4547,11 @@ close:
 `Stale | AlreadyCompleted | OwnerClosed`。Port 不是 `Shareable(R)` 的广播
 容器，也没有复制 continuation 的 API；可复制的 `Task` completion handle
 建立在这个 sealed source之上，而不是反过来。
+completion路径必须同时满足 captured generation等于 current generation；
+close/revoke路径在推进 generation并把责任移入 retire set后，凭 sealed
+Owner-retire authority执行 `Unclaimed→Finalized`，不再要求旧 generation
+仍是 current。两者仍竞争同一个 $c$，所以 generation advance不会阻塞
+post-revoke finalizer，也不会让 stale completion获胜。
 
 所有 callback、resume 和 commit 在使用前验证：
 
@@ -5560,8 +5700,10 @@ Host disposer可抛错或同步重入，所以必须先 revoke 再调用。
 并推进 generation；把所属 OpenClaim改为 `RevokedClaim`；关闭或 detach
 所属 cut；移除其 committed wake/dirty entries；把 live candidate改为
 `Aborted(owner-closed)`、清除 candidate slots并 unpin其 epochs；最后把
-resumption、child与 cleanup责任移入 $R_t$。任何 user disposer都只会在
-这个线性化点之后运行。
+resumption、child与 cleanup责任连同 sealed Owner-retire authority移入
+$R_t$。`runOneRetire` 用该 authority执行 generation-independent
+`Unclaimed→Finalized` CAS；它仍与已经成功的 completion互斥。任何 user
+disposer都只会在这个线性化点之后运行。
 
 #irule(
   [INC-Retire],
@@ -5692,6 +5834,7 @@ install_handler(prompt_stack, installation_prompt, handler_contract, policy,
 ```text
 K, I, Φ, Ω, Θ
 prompt stack: fresh installation prompts with handled entry
+route stage: Call normally; HandlerInstall only in handler schemas
 expected answer type
 current Owner is an explicit field of Φ
 constraint worklists
@@ -5703,22 +5846,30 @@ constraint worklists
 
 ```text
 strict_bind(result, typed_prefix, continue_return):
-  mapped = []
-  for path in result.flow:
+  prepared = map(result.flow, path =>:
     match path:
       Returns(Θ, π, χ, Ω):
-        mapped += continue_return(
-          return_projection(result, path, Θ, π, χ, Ω))
+        path
       Aborts | Transfers(_) | Delegates(_):
-        mapped += compose_terminal_prefix(typed_prefix, path)
+        compose_terminal_prefix(typed_prefix, path))
+  continue = path =>:
+    Returns(Θ, π, χ, Ω) = path
+    continue_return(
+      return_projection(result, path, Θ, π, χ, Ω))
+  bound = PathBind(prepared, continue)
   return aggregate_check_result(
-    PathBind(result.flow, mapped), result.evidence, mapped.evidence)
+    bound, result.evidence,
+    path_bind_evidence(typed_prefix, prepared, continue, bound))
 ```
 
 `return_projection` 只暴露该 Returns path自己的 type/π/χ/Θ/Ω。
+`prepared` 只给既有 terminal path附加已经执行的 typed prefix；
+`PathBind` 的第二参数始终是 Returns→flow continuation，因此每个 terminal
+prefix只 composition一次，也不会作为 continuation list再次展开。
 `aggregate_check_result` 只在所有 path-local Q/R/usage/site检查完成后汇总
 row、suspension与 summary evidence；汇总值绝不作为后续 strict context。
-因此没有 `join_returns` 的 distributivity假设，terminal paths原样保留。
+因此没有 `join_returns` 的 distributivity假设；terminal path除恰好一次
+已执行 prefix composition外原样保留。
 `check_args` 是从左到右的有限 fold；每个 argument都立刻经过
 `strict_bind`，
 若某一步没有 return path就立即返回已经执行的 argument prefix；若同时有
@@ -5727,12 +5878,20 @@ terminal entries。所以 site node中的 $Xi_k$ 恰好只来自可达、已类�
 actual argument。
 
 ```text
+resolve_route_for_stage(stage, prompts, entry):
+  if stage == Call:
+    return resolve_route_at_call(prompts, entry)
+  if top_prompt(prompts).entry == entry:
+    return InstallationPrompt(top_prompt(prompts).prompt)
+  return ResolveAtInstallation(on_missing = RootOfEntry)
+
 build_operation_path_algorithm(
   ctx, κ, a, o, sig, ra, call_evidence, install_obligations):
   require call_evidence is discharged for
     (sig.obligations, ra.argument_summaries, ctx.I, ra.Θ_out)
   require phase_allows(ctx.Φ, sig.required_phase)
-  p = resolve_route(ctx.prompts, a)
+  p = resolve_route_for_stage(
+    ctx.route_stage, ctx.prompts, a)
   primary = Demand(κ, p, a, o, Primary)
   require sig.secondary_site_set.kind == Closed
   secondary = instantiate_secondary_sites(
@@ -5752,7 +5911,7 @@ build_operation_path_algorithm(
     site_slot = κ, route = p, entry = a, operation = o,
     instantiated_signature = sig,
     actual_argument_summaries = ra.argument_summaries,
-    discharged_call_evidence = call_evidence,
+    call_obligations = call_evidence,
     install_obligations = install_obligations,
     secondary_sites = secondary.site_evidence)
   if sig.mode == abort:
@@ -5919,7 +6078,7 @@ synth(ctx, e):
       a = row_entry(receiver)
       o = sig.resolved_selector
       κ = fresh_site_slot()
-      args_result = check_args_paths(ctx, args, sig.parameters)
+      args_result = check_args(ctx, args, sig.parameters)
       return strict_bind(
         args_result, evaluated_arg_prefix, ra =>:
           build_operation_path_algorithm(
@@ -5940,19 +6099,18 @@ synth(ctx, e):
       require strictly_outer_live_prompt(
         ctx.prompts, κ.installation_prompt, outer_prompt, κ.entry)
       sig = κ.instantiated_signature
-      arg_paths = check_args_paths(ctx, args, sig.parameters)
+      arg_paths = check_args(ctx, args, sig.parameters)
       forwarded_paths = []
       forward_evidence = []
       for r in arg_paths.returning_paths:
         require r.Ω_out[k] is Open(_)
-        call_obligations = instantiate(
+        call_obligations = discharge_and_seal(instantiate(
           stageCall(sig.obligations), r.argument_summaries,
-          ctx.identities, r.Θ_out)
-        discharge(call_obligations)
+          ctx.identities, r.Θ_out))
         install_obligations = instantiate(
           stageHandlerInstall(sig.obligations),
           r.argument_summaries, ctx.identities, r.Θ_out)
-        κf = route_forward_site(
+        κf_header = prepare_forward_site(
           stable_site_slot = κ.site_slot,
           installation_prompt = outer_prompt,
           entry = κ.entry,
@@ -5963,19 +6121,22 @@ synth(ctx, e):
           instantiated_signature = sig,
           call_obligations = call_obligations,
           install_obligations = install_obligations)
+        require sig.secondary_site_set.kind == Closed
+        secondary = instantiate_secondary_sites(
+          sig.secondary_site_set.sites,
+          parent_site = κf_header,
+          prompt_stack = ctx.prompts)
+        require attributed_ok(
+          secondary.attributed_demand,
+          secondary.attributed_suspension)
+        κf = seal_forward_site(
+          κf_header,
+          secondary_sites = secondary.contract_set)
         primary = Demand(
           κf.site_slot, κf.installation_prompt, κf.entry,
           κf.operation, Primary)
         primary_suspension =
           request(demand_key(primary), sig.suspension)
-        require sig.secondary_site_set.kind == Closed
-        secondary = instantiate_secondary_sites(
-          sig.secondary_site_set.sites,
-          parent_site = κf,
-          prompt_stack = ctx.prompts)
-        require attributed_ok(
-          secondary.attributed_demand,
-          secondary.attributed_suspension)
         Δf = union(r.attributed_demand, {primary},
                    secondary.attributed_demand)
         sf = join(
@@ -5996,9 +6157,16 @@ synth(ctx, e):
           call_obligations = κf.call_obligations,
           install_obligations = κf.install_obligations,
           primary = primary,
-          secondary_sites = secondary.site_evidence,
+          secondary_sites = κf.secondary_sites,
           usage_context_out = Ωf)
-        forwarded_paths += Delegates(κf, usage = Ωf)
+        disposition_evidence = seal_forward_disposition_evidence(
+          inner_disposition = k,
+          original_site = κ,
+          forward_contract = κf,
+          input_usage = r.Ω_out,
+          output_usage = Ωf)
+        forwarded_paths += Delegates(
+          κf, disposition_evidence, usage = Ωf)
         forward_evidence +=
           (Δf, sf, δf, Ωf, {primary} ∪ secondary.site_evidence)
       flow = union(arg_paths.terminal_paths, forwarded_paths)
@@ -6019,7 +6187,7 @@ synth(ctx, e):
     Handle(handler, optional_cap_binder, body):
       rh = check_value(ctx, handler)
       require rh.type has shape
-        HandlerTemplate[F, ρh, A, B, εh, (prompt).Ch, Ph]
+        HandlerTemplate[F, ρh, A, B, εh, (S, prompt, entry).Ch, Ph]
       p = fresh_prompt()
       if optional_cap_binder:
         require handler_origin_ok(ctx.Φ, rh.origin_owner)
@@ -6116,6 +6284,9 @@ synth(ctx, e):
         captures_live = Dk.captures_live,
         disposition_states =
           {Unclaimed, Completed, Finalized},
+        completion_generation_gate = EqualCurrentGeneration,
+        finalization_generation_gate =
+          EqualCurrentGenerationOrOwnerRetireAuthority,
         completion_cas = UnclaimedToCompleted,
         finalization_cas = UnclaimedToFinalized,
         generation_transition = PreserveGeneration,
@@ -6176,16 +6347,26 @@ check_handler(ctx, effect, clauses):
   require owner_authorized(ctx.Φ, owner)
   require env_boundary_safe(
     free_values(clauses), ctx.Θ, OwnerStorage(owner))
+  Sinst = fresh_symbolic_installation_stack()
+  pinst = fresh_symbolic_prompt_slot()
+  ainst = fresh_symbolic_entry_selector(effect)
+  require top_prompt(Sinst) == (pinst, ainst)
+  schema_ctx =
+    ctx.with_prompts(Sinst)
+       .with_route_stage(HandlerInstall)
   shape = { input = A, answer = B, owner = owner,
             phase_symbol = Φsym,
-            env_provenance = Πenv, env_captures = χenv }
+            env_provenance = Πenv, env_captures = χenv,
+            installation_stack = Sinst,
+            installation_prompt = pinst,
+            handled_entry = ainst }
   Creturn = check_return_clause_schema(
-    ctx, shape, return_clause)
+    schema_ctx, shape, return_clause)
   schemas = {}
   for op in operations(effect):
     clause = operation_clause_map[op]
     schemas[op] =
-      check_clause_schema(ctx, shape, op.signature, clause)
+      check_clause_schema(schema_ctx, shape, op.signature, clause)
   C0 = aggregate_handler(Creturn, schemas)
   C0.required_phase = solve_and_generalize_required_phase(
     Φsym, Creturn.constraints ∪ schemas.constraints)
@@ -6194,8 +6375,8 @@ check_handler(ctx, effect, clauses):
   require PolicyOK(P) and Origin(P) == shape.owner
   return HandlerResult(
     type = HandlerTemplate[effect, shape.owner, A, B,
-                           C.residual_row, (prompt).C, P],
-    contract_template = (prompt).C,
+                           C.residual_row, (Sinst, pinst, ainst).C, P],
+    contract_template = (Sinst, pinst, ainst).C,
     policy = P,
     provenance = Owner(shape.owner),
     captures = χenv,
@@ -6213,8 +6394,13 @@ check_return_clause_schema(ctx, handler_shape, clause):
     bind(return_ctx, clause.parameter,
          handler_shape.input, arg.π, arg.χ),
     clause.body, handler_shape.answer)
-  return abstract_return_contract(Θentry, arg, body)
-    universally quantified over Θentry and arg
+  return abstract_return_contract(
+    Θentry, arg, body,
+    unresolved_route_stage = HandlerInstall)
+    universally quantified over
+      handler_shape.installation_stack,
+      handler_shape.installation_prompt,
+      handler_shape.handled_entry, Θentry and arg
 
 check_clause_schema(ctx, handler_shape, op_sig, clause):
   skolems = fresh_skolems(op_sig.type_parameters)
@@ -6223,7 +6409,7 @@ check_clause_schema(ctx, handler_shape, op_sig, clause):
     fresh_rigid_argument_summaries(opσ.parameters)
   params = bind_parameters(opσ.parameters, arg_summaries)
   Θentry = fresh_symbolic_temporal_context()
-  p = fresh_symbolic_prompt_slot()
+  p = handler_shape.installation_prompt
   clause_ctx = import_handler_env(
     ctx.with_phase(handler_shape.phase_symbol).with_Θ(Θentry),
     handler_shape.env_provenance,
@@ -6232,6 +6418,7 @@ check_clause_schema(ctx, handler_shape, op_sig, clause):
   κ = fresh_abstract_site_contract(
     stable_site_slot = fresh_site_slot(),
     installation_prompt = p,
+    entry = handler_shape.handled_entry,
     operation = opσ.resolved_selector,
     entry_world = Θentry,
     first_transition = opσ.resume_transition,
@@ -6239,7 +6426,7 @@ check_clause_schema(ctx, handler_shape, op_sig, clause):
     call_obligations = stageCall(opσ.site_obligations),
     install_obligations = stageHandlerInstall(opσ.site_obligations),
     secondary_contract = opσ.secondary_contract,
-    actual_arguments = arg_summaries,
+    actual_argument_summaries = arg_summaries,
   )
 
   if clause.mode in {once, ctl}:
@@ -6250,12 +6437,8 @@ check_clause_schema(ctx, handler_shape, op_sig, clause):
       clause_ctx + params + k:Open(q),
       clause.body, handler_shape.answer)
     require path_sensitive_usage(result, k) <= q
-    if clause.mode == once:
-      result =
-        close_or_explicitly_park_on_every_exit(result, k)
-    else:
-      result =
-        synchronous_resume_or_finalize_on_every_exit(result, k)
+    result =
+      disposition_complete_paths(result, k, clause.mode)
   else if clause.mode == fun:
     k = hidden Resume[1, κ.D, opσ.result,
                       handler_shape.answer,
@@ -6277,10 +6460,32 @@ check_clause_schema(ctx, handler_shape, op_sig, clause):
     require every normal result world == κ.answer_world
 
   require clause_contract(result) refines opσ.contract
-  return schema universally quantified over skolems, p and κ
+  return schema universally quantified over
+    handler_shape.installation_stack,
+    handler_shape.handled_entry, skolems, p and κ
+
+disposition_complete_paths(result, k, mode):
+  return map_paths(result, path =>:
+    match path:
+      Delegates(κf):
+        require path.disposition_evidence ==
+          OpenToForwardedExclusive(k, κf.site_slot, κf.continuation)
+        require path.usage_context[k] == Forwarded(κf)
+        preserve path
+      Returns | Aborts | Transfers(_):
+        require path.usage_context[k] is not Forwarded(_)
+        if mode == once:
+          close_or_explicitly_park_on_exit(path, k)
+        else:
+          synchronous_resume_or_finalize_on_exit(path, k))
 
 install_handler(
   prompt_stack, prompt, handler, policy, handled_entry, sites, body_flow):
+  installed = instantiate_handler_contract(
+    handler.contract_template,
+    prompt_stack, prompt, handled_entry)
+  require every ResolveAtInstallation route in installed was resolved
+    against prompt_stack to the nearest exact-entry prompt or RootOfEntry
   normal_summaries = []
   answer_worlds = []
   semantic_paths = []
@@ -6290,14 +6495,14 @@ install_handler(
     match path:
       Returns(Θ, π, χ):
         ret = apply_return_contract(
-          handler.return_contract, π, χ, Θ)
+          installed.return_contract, π, χ, Θ)
         normal_summaries += (ret.π, ret.χ)
         answer_worlds += ret.Θ
         semantic_paths += ret.summary
       Aborts:
         outcomes += Aborts
       Transfers(P):
-        require preserves_park_contract(prompt, handler, policy, P)
+        require preserves_park_contract(prompt, installed, policy, P)
         outcomes += Transfers(P)
   accumulate_continuation_path(path, D):
     match path:
@@ -6309,37 +6514,43 @@ install_handler(
       Aborts:
         outcomes += Aborts
       Transfers(P):
-        require preserves_park_contract(prompt, handler, policy, P)
+        require preserves_park_contract(prompt, installed, policy, P)
         outcomes += Transfers(P)
   for path in body_flow.flow:
     accumulate_body_path(path)
   for κ in sites:
     require κ.installation_prompt == prompt
     require κ.route == prompt
-    clause = instantiate matching clause schema with
+    clause = instantiate installed matching clause schema with
       operation skolems, prompt, κ.entry_world, κ
     discharge imported handler environment is valid
       at κ.entry_world
-    if κ.instantiated_operation.max_mode == ctl:
+    if κ.instantiated_signature.mode == ctl:
       discharge DuplicableEnv(κ.Π, κ.χ)
       discharge EnvValidAt(κ.Π, κ.χ, MultiShot)
       discharge ReplayableCleanup(κ.D.cleanup, κ.Π, κ.χ)
       discharge WorldForkSafe(κ.D.world)
-    discharge every stageHandlerInstall(κ.obligations) using policy
-    require stageCall(κ.obligations) was discharged at its call node
-    for secondary in κ.secondary_sites:
+    require κ.call_obligations is the sealed discharged evidence
+      produced at this exact call or forward node
+    require κ.install_obligations.instantiation_key ==
+      (stageHandlerInstall(
+         κ.instantiated_signature.obligation_ids),
+       κ.actual_argument_summaries, κ.entry_world)
+    discharge every obligation in κ.install_obligations using
+      policy, κ.actual_argument_summaries, κ.entry_world
+    for secondary in κ.secondary_sites.sites:
       require secondary.route ==
         resolve_route_at_installation(
-          secondary.route_selector, prompt, κ.prompt_stack)
+          secondary.route_selector, prompt, prompt_stack)
       preserve secondary unless secondary.route == prompt
     for Async.await:
-      derive task region from κ.actual_arguments
+      derive task region from κ.actual_argument_summaries
       check install-await-site(κ, policy)
     for path in clause.flow:
       match path:
         Returns(_, π, χ):
           normal_summaries += clause.result_summary(
-            κ.actual_arguments, κ.Π, κ.χ,
+            κ.actual_argument_summaries, κ.Π, κ.χ,
             handler.env_provenance, handler.captures)
           answer_worlds += clause.answer_world
           semantic_paths += clause.summary
@@ -6351,10 +6562,13 @@ install_handler(
         Delegates(κf):
           require κf.instantiated_signature ==
             κ.instantiated_signature
+          require path.disposition_evidence ==
+            OpenToForwardedExclusive(
+              disposition_for(κ), κf.site_slot, κf.continuation)
           require path.usage_context[
             disposition_for(κ)] == Forwarded(κf)
           forward_evidence = derive_forward_residual_evidence(
-            handler.contract_template, prompt_stack, prompt, κf)
+            installed, prompt_stack, prompt, κf)
           require attributed_ok(
             forward_evidence.attributed_demand,
             forward_evidence.attributed_suspension)
@@ -6374,11 +6588,11 @@ install_handler(
     (πo, χo) = join(normal_summaries)
     outcomes += Returns(the unique answer_world, πo, χo)
   δout = handle_summary(
-    body_flow.summary, handled_entry, handler.contract,
+    body_flow.summary, handled_entry, installed,
     policy, sites, body_flow.flow, semantic_paths)
   require no outcome is Delegates
   Δhandler = instantiate_handler_residual(
-    handler.contract_template, prompt_stack, prompt,
+    installed, prompt_stack, prompt,
     sites, body_flow, delegation_evidence)
   return sealed evidence(
     outcomes = outcomes,
@@ -6403,11 +6617,21 @@ eliminate_entry_with_contract(
     row = εout
     attributed_demand = Δout
     suspension = sout
-    summary = install.δout
+    summary = install.semantic_summary
     typed_core =
       fresh_prompt_node(
         prompt, handled_node(prompt, body.typed_core, handler))
 ```
+
+Handler definition只捕获 `Πenv/χenv`，不捕获 definition-site prompt stack。
+`with_route_stage(HandlerInstall)` 令 schema内命中 symbolic handled entry的
+site指向 $p_"inst"$，其余普通 return/clause residual site编码为
+`ResolveAtInstallation`，不提前降为 definition-stack prompt或 root。
+`(Sinst,pinst,ainst).C` 在每次 `Handle` 处用 actual
+`(prompt_stack,prompt,handled_entry)` 一次实例化；同一个 first-class handler
+在两种 outer stack安装会得到各自唯一的 residual routes。安装后才可消去
+这些 route selector，`install_handler` 拒绝仍含未解析 installation route
+或来自 definition stack的 concrete prompt。
 
 `analyze_sites` 对 local typed ANF结构递归；遇到 function call时读取并 compose
 callee interface中的 finite $Lambda$，而不是要求内联源码。Recursive SCC
