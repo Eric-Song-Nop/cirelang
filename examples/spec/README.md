@@ -176,6 +176,16 @@ projection、terminal Join与 nested PathBind；secondary id/ref共同 qualifica
 repository fixture构造完整 root并走同一 validator/evaluator，不是 isolated helper
 assertion。
 
+另有 16 个 task #29 full-root probe继续固定递归与 exact-decoding边界：local和
+generic HOF都允许合法 `PathBindV2` term再次作为 prefix且保留完整 terminal flow；
+Call-Q按 boundary求 provenance、拒绝 unresolved Owner formal，并把 application与
+latent site的 `OperationArgument`绑定到各自 actual position；`StableAcross` 对
+`EnvironmentV2`逐 binding求值并要求 capture具备 cross-world witness。Type projection
+只由 `kind: Type` binder绑定，不能由同号 Effect binder冒充；object-valued binder kind、
+非 String source origin、root closure binding的未知 capture，以及未知 declaration/
+signature enum都必须在 untrusted-wire阶段给稳定 diagnostic，不能 ACCEPT或泄漏内部
+assertion。
+
 `diagnostics-v2.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；
 新增或重命名 id需要新 registry version，不能让 parser recovery改变同一
 profile的静态诊断接口。

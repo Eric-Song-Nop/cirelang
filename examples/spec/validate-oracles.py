@@ -5,8 +5,8 @@ This is the executable reference decoder for the frozen V2 wire profile, not a
 compiler implementation. Its computation/outcome import is exhaustive and
 threads application, return-binder, and Handler-clause disposition scope. It
 also evaluates each mutation through the named decoder and checks the exact
-diagnostic that decoder emits. Task #28 regressions additionally exercise six
-formal-conformance clusters through complete root contracts.
+diagnostic that decoder emits. Task #28 and #29 regressions additionally
+exercise ten formal-conformance clusters through complete root contracts.
 """
 
 from __future__ import annotations
@@ -301,6 +301,24 @@ def validate_wire_u32_fields(value: Any) -> None:
         validate_wire_u32_fields(member)
 
 
+def validate_source_origins(value: Any) -> None:
+    """SourceOriginV1/V2 is always the canonical file:subject string."""
+
+    if isinstance(value, list):
+        for member in value:
+            validate_source_origins(member)
+        return
+    if not isinstance(value, dict):
+        return
+    if "origin" in value:
+        reject(
+            not isinstance(value["origin"], str),
+            "contract-component-kind-mismatch",
+        )
+    for member in value.values():
+        validate_source_origins(member)
+
+
 ReturnScope = dict[int, dict[str, Any]]
 ApplicationScope = dict[int, dict[str, Any]]
 LocalFunctionScope = dict[int, dict[str, Any]]
@@ -543,7 +561,11 @@ def validate_type_binder(binder: Any) -> None:
     binder = validate_contract_object(binder)
     exact_fields(binder, {"slot", "kind"}, "TypeBinderV1")
     validate_u32(binder["slot"], "TypeBinderV1 slot")
-    reject(binder["kind"] not in {"Type", "Effect", "OwnerRegion"}, "contract-component-kind-mismatch")
+    reject(
+        not isinstance(binder["kind"], str)
+        or binder["kind"] not in {"Type", "Effect", "OwnerRegion"},
+        "contract-component-kind-mismatch",
+    )
 
 
 def validate_type_constructor_v1(constructor: Any) -> None:
@@ -592,7 +614,10 @@ def validate_type_v1(type_ref: Any) -> None:
         "ExistsClockPackageTypeV1": {"kind", "clock_binder", "summary_binder", "body"},
         "ForAllOwnerTypeV1": {"kind", "binder", "body"},
     }
-    reject(kind not in schemas, "contract-component-kind-mismatch")
+    reject(
+        not isinstance(kind, str) or kind not in schemas,
+        "contract-component-kind-mismatch",
+    )
     exact_fields(type_ref, schemas[kind], kind)
     if kind == "BuiltinTypeV1":
         reject(type_ref["name"] not in {"Unit", "Never", "Bool", "Int", "String"}, "contract-component-kind-mismatch")
@@ -960,7 +985,10 @@ def validate_type_v2(
         "ExistsClockPackageTypeV2": {"kind", "clock_binder", "summary_binder", "body"},
         "PackedNextTypeV2": {"kind", "owner", "payload"},
     }
-    require(kind in schemas, f"unknown TypeRefV2 variant: {kind!r}")
+    reject(
+        not isinstance(kind, str) or kind not in schemas,
+        "contract-component-kind-mismatch",
+    )
     exact_fields(type_ref, schemas[kind], kind)
     if kind == "LegacyTypeRefV2":
         validate_type_v1(type_ref["value"])
@@ -1181,12 +1209,38 @@ def validate_environment_binding(
     returns: ReturnScope,
     *,
     disposition_binder: dict[str, Any] | None = None,
+    applications: ApplicationScope | None = None,
+    imports: ImportScope | None = None,
+    contract_binders: dict[int, dict[str, Any]] | None = None,
+    local_functions: LocalFunctionScope | None = None,
 ) -> None:
+    binding = validate_contract_object(binding)
     exact_fields(binding, {"slot", "type", "provenance", "capture"}, "EnvironmentBindingV2")
     validate_slot_v1(binding["slot"])
-    validate_type_v2(binding["type"], returns=returns)
+    validate_type_v2(
+        binding["type"], returns=returns, applications=applications,
+        imports=imports, contract_binders=contract_binders,
+        local_functions=local_functions,
+    )
     validate_provenance(binding["provenance"], returns, disposition_binder=disposition_binder)
     validate_capture(binding["capture"], returns, disposition_binder=disposition_binder)
+
+
+def validate_operation_argument_scope(value: Any, arity: int) -> None:
+    """Resolve OperationArgument slots against the current site's actual list."""
+
+    for node in walk(value):
+        if (
+            isinstance(node, dict)
+            and set(node) == {"namespace", "slot"}
+            and node.get("namespace") == "OperationArgument"
+        ):
+            reject(
+                not isinstance(node.get("slot"), int)
+                or isinstance(node.get("slot"), bool)
+                or not 0 <= node["slot"] < arity,
+                "contract-projection-escapes-scope",
+            )
 
 
 def validate_value_summary(
@@ -1571,7 +1625,11 @@ def validate_operation_signature(signature: dict[str, Any], returns: ReturnScope
     for parameter in validate_contract_list(signature["parameters"]):
         validate_type_v2(parameter, returns=returns)
     validate_type_v2(signature["result"], returns=returns)
-    require(signature["mode"] in {"fun", "once", "ctl", "abort"}, "OperationSignatureV2 mode")
+    reject(
+        not isinstance(signature["mode"], str)
+        or signature["mode"] not in {"fun", "once", "ctl", "abort"},
+        "contract-component-kind-mismatch",
+    )
     validate_transition(signature["transition"])
     validate_suspension(signature["suspension"])
     validate_result_transformer_v1(signature["result_transformer"])
@@ -1611,6 +1669,9 @@ def validate_latent_site(
         validate_u32(local_id, "LatentSiteV2 obligation id")
     for summary in latent["actual_arguments"]:
         validate_value_summary(summary, returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, disposition_binder=disposition_binder)
+    validate_operation_argument_scope(
+        latent["actual_arguments"], len(latent["actual_arguments"]),
+    )
     validate_operation_signature(latent["instantiated_signature"], returns)
     require(
         [summary["type"] for summary in latent["actual_arguments"]]
@@ -1666,6 +1727,10 @@ def validate_forward_contract(
     )
     for summary in forward["actual_argument_summaries"]:
         validate_value_summary(summary, returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, disposition_binder=disposition_binder)
+    validate_operation_argument_scope(
+        forward["actual_argument_summaries"],
+        len(forward["actual_argument_summaries"]),
+    )
     validate_operation_signature(forward["instantiated_signature"], returns)
     reject(
         [summary["type"] for summary in forward["actual_argument_summaries"]]
@@ -1811,7 +1876,9 @@ def computation_return_types(
     contract_binders: dict[int, dict[str, Any]],
     local_functions: LocalFunctionScope,
     disposition_binder: dict[str, Any] | None = None,
+    returns: ReturnScope | None = None,
 ) -> list[dict[str, Any]] | None:
+    returns = returns or {}
     kind = computation.get("kind")
     if kind == "CurrentDispositionPathsV2":
         if disposition_binder is None:
@@ -1829,6 +1896,25 @@ def computation_return_types(
             if outcome.get("kind") != "ReturnsV2":
                 continue
             transformer = outcome["result_transformer"]
+            if transformer.get("kind") == "ReturnBoundResultV2":
+                return_slot = transformer.get("return_slot")
+                if return_slot not in returns:
+                    return None
+                result_types.append(copy.deepcopy(returns[return_slot]["type"]))
+                continue
+            if transformer.get("kind") == "ParametricResultV2":
+                provenance = transformer.get("provenance", {})
+                capture = transformer.get("capture", {})
+                if (
+                    provenance.get("kind") == "ReturnProvenanceV2"
+                    and capture.get("kind") == "ReturnCaptureV2"
+                    and provenance.get("return_slot") == capture.get("return_slot")
+                    and provenance.get("return_slot") in returns
+                ):
+                    result_types.append(
+                        copy.deepcopy(returns[provenance["return_slot"]]["type"])
+                    )
+                    continue
             provenance = (
                 transformer.get("provenance")
                 if transformer.get("kind") == "ParametricResultV2"
@@ -1854,19 +1940,23 @@ def computation_return_types(
     if kind == "PathBindV2":
         prefix_types = computation_return_types(
             computation["prefix"], applications, imports,
-            contract_binders, local_functions, disposition_binder,
+            contract_binders, local_functions, disposition_binder, returns,
         )
         if prefix_types is None or not prefix_types:
             return prefix_types
+        continuation_returns = dict(returns)
+        return_binder = computation["return_binder"]
+        continuation_returns[return_binder["slot"]] = return_binder
         return computation_return_types(
             computation["continuation"], applications, imports,
             contract_binders, local_functions, disposition_binder,
+            continuation_returns,
         )
     if kind == "JoinV2":
         member_types = [
             computation_return_types(
                 member, applications, imports, contract_binders, local_functions,
-                disposition_binder,
+                disposition_binder, returns,
             )
             for member in computation["members"]
         ]
@@ -1951,7 +2041,7 @@ def validate_computation(
         )
         result_types = computation_return_types(
             computation["prefix"], applications, imports,
-            contract_binders, local_functions, disposition_binder,
+            contract_binders, local_functions, disposition_binder, returns,
         )
         reject(not result_types, "path-bind-literal-prefix-forbidden")
         for result_type in result_types:
@@ -2043,6 +2133,48 @@ def validate_declaration_binders(binders: dict[str, Any], closure_environment: l
         identity_ref = clock["identity"]
         require(identity_ref["namespace"] == "Identity" and identity_ref["slot"] in identities, "Clock identity is out of scope")
         require(clock["owner"] == identity_by_slot[identity_ref["slot"]]["owner"], "Clock/Identity Owner mismatch")
+
+
+def validate_kinded_type_parameter_scope(
+    value: Any,
+    ambient_type_parameters: set[int],
+) -> None:
+    """Check TypeParameterV2 against Type binders, never same-number Effect binders."""
+
+    if isinstance(value, list):
+        for member in value:
+            validate_kinded_type_parameter_scope(member, ambient_type_parameters)
+        return
+    if not isinstance(value, dict):
+        return
+    if value.get("artifact") == "FunctionContractV2":
+        # An inline nested declaration establishes its own binder context and is
+        # validated recursively by validate_type_v2.
+        return
+    if value.get("kind") == "TypeParameterV2":
+        reject(
+            value.get("slot") not in ambient_type_parameters,
+            "contract-projection-escapes-scope",
+        )
+        return
+    signature_fields = {
+        "type_binders", "parameters", "result", "mode", "transition",
+        "suspension", "result_transformer", "required_phase",
+        "obligation_ids", "secondary_sites",
+    }
+    if signature_fields <= set(value):
+        local_type_parameters: set[int] = set()
+        for binder in validate_contract_list(value["type_binders"]):
+            validate_type_binder(binder)
+            if binder["kind"] == "Type":
+                local_type_parameters.add(binder["slot"])
+        signature_scope = ambient_type_parameters | local_type_parameters
+        for key, member in value.items():
+            if key != "type_binders":
+                validate_kinded_type_parameter_scope(member, signature_scope)
+        return
+    for member in value.values():
+        validate_kinded_type_parameter_scope(member, ambient_type_parameters)
 
 
 def substitute_contract_kind(kind: dict[str, Any], substitution: dict[str, Any]) -> dict[str, Any]:
@@ -2154,6 +2286,9 @@ def validate_application_instantiation(
             summary, returns, applications=applications, imports=imports,
             contract_binders=contract_binders, local_functions=local_functions,
         )
+    validate_operation_argument_scope(
+        application["actual_arguments"], len(application["actual_arguments"]),
+    )
     substitution = application["substitution"]
     exact_fields(substitution, {"type_arguments", "row_arguments", "contract_arguments", "owner_arguments", "identity_arguments", "clock_arguments"}, "ContractSubstitutionV2")
     validate_world(application["entry_world"], returns)
@@ -2229,35 +2364,50 @@ def validate_function_contract(
     local_functions: LocalFunctionScope | None = None,
 ) -> None:
     validate_wire_u32_fields(contract)
+    validate_source_origins(contract)
     imports = imports or ImportScope()
     local_functions = local_functions or {}
     exact_fields(contract, {"artifact", "profile", "schema_version", "declaration_kind", "binders", "applications", "computation", "closure_environment"}, "FunctionContractV2")
     require(contract.get("artifact") == "FunctionContractV2", "not a FunctionContractV2")
     require(contract.get("profile") == PROFILE and contract.get("schema_version") == 2, "wrong FunctionContractV2 profile")
     require("declaration_kind" in contract, "FunctionContractV2 declaration_kind missing")
+    closure_environment = validate_contract_list(contract["closure_environment"])
+    for binding in closure_environment:
+        binding = validate_contract_object(binding)
+        reject(
+            set(binding) != {"slot", "type", "provenance", "capture"},
+            "contract-component-kind-mismatch",
+        )
+        validate_slot_v1(binding["slot"], "ClosureCapture")
     binders = contract["binders"]
-    validate_declaration_binders(binders, contract.get("closure_environment", []))
+    validate_declaration_binders(binders, closure_environment)
     contract_binders = {binder["slot"]: binder for binder in binders.get("contract_binders", [])}
+    ambient_type_parameters = {
+        binder["slot"]
+        for binder in binders["type_binders"]
+        if binder["kind"] == "Type"
+    }
+    validate_kinded_type_parameter_scope(
+        [
+            contract["declaration_kind"], binders["parameter_binders"],
+            binders["contract_binders"], closure_environment,
+            contract["applications"], contract["computation"],
+        ],
+        ambient_type_parameters,
+    )
     declaration_kind = contract["declaration_kind"]
     if declaration_kind is not None:
-        require(declaration_kind.get("kind") == "FunctionContractKindV2", "FunctionContractV2 declaration kind")
+        declaration_kind = validate_contract_object(declaration_kind)
+        reject(
+            declaration_kind.get("kind") != "FunctionContractKindV2",
+            "contract-component-kind-mismatch",
+        )
         reject(
             set(declaration_kind)
             != {"kind", "parameter_type", "result_type", "visible_row"},
             "contract-component-kind-mismatch",
         )
         validate_row_expr(declaration_kind["visible_row"])
-        type_parameter_scope = {
-            binder["slot"] for binder in binders["type_binders"]
-        }
-        reject(
-            any(
-                node["slot"] not in type_parameter_scope
-                for node in walk(declaration_kind)
-                if isinstance(node, dict) and node.get("kind") == "TypeParameterV2"
-            ),
-            "contract-projection-escapes-scope",
-        )
         validate_type_v2(declaration_kind["parameter_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
         validate_type_v2(declaration_kind["result_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
         reject(
@@ -2266,7 +2416,10 @@ def validate_function_contract(
             "contract-component-kind-mismatch",
         )
     for binder in contract_binders.values():
-        require(binder.get("kind") == "FunctionContractBinderV2", "unsupported ContractBinderV2 in fixture")
+        reject(
+            binder.get("kind") != "FunctionContractBinderV2",
+            "contract-component-kind-mismatch",
+        )
         reject(
             set(binder)
             != {"kind", "slot", "parameter_type", "result_type", "visible_row"},
@@ -2277,28 +2430,12 @@ def validate_function_contract(
         validate_type_v2(binder["result_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
     for parameter in binders.get("parameter_binders", []):
         validate_type_v2(parameter["type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
-    for binding in contract.get("closure_environment", []):
-        validate_type_v2(binding["type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
-    ambient_type_parameters = {
-        binder["slot"] for binder in binders["type_binders"]
-    }
-    for node in walk(contract["computation"]):
-        if not isinstance(node, dict) or not {
-            "type_binders", "parameters", "result", "mode",
-        } <= set(node):
-            continue
-        signature_scope = ambient_type_parameters | {
-            binder["slot"] for binder in node["type_binders"]
-        }
-        reject(
-            any(
-                member["slot"] not in signature_scope
-                for member in walk([node["parameters"], node["result"]])
-                if isinstance(member, dict)
-                and member.get("kind") == "TypeParameterV2"
-            ),
-            "contract-projection-escapes-scope",
+    for binding in closure_environment:
+        validate_environment_binding(
+            binding, {}, imports=imports, contract_binders=contract_binders,
+            local_functions=local_functions,
         )
+    validate_operation_argument_scope(closure_environment, 0)
     parameter_scope = {binder["slot"] for binder in binders["parameter_binders"]}
     closure_scope = {
         binding["slot"]["slot"]
@@ -2323,7 +2460,10 @@ def validate_function_contract(
         contract["computation"], applications, context="function", imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
     )
-    for node in walk([contract["applications"], contract["computation"]]):
+    for node in walk([
+        contract["closure_environment"], contract["applications"],
+        contract["computation"],
+    ]):
         if not isinstance(node, dict) or set(node) != {"namespace", "slot"}:
             continue
         if node["namespace"] in slot_scopes:
@@ -2341,6 +2481,7 @@ def validate_handler_contract(
     nearest_outer_prompt_slot: int | None = None,
 ) -> None:
     validate_wire_u32_fields(contract)
+    validate_source_origins(contract)
     imports = imports or ImportScope()
     local_functions = local_functions or {}
     exact_fields(contract, {"handled_entry", "prompt_slot", "residual_row", "attributed_demand", "suspension", "semantic_summary", "required_phase", "handler_environment", "applications", "return_computation", "clause_computations"}, "HandlerContractV2")
@@ -2566,6 +2707,60 @@ def returning_path_projection(path: dict[str, Any]) -> tuple[dict[str, Any], dic
     return copy.deepcopy(transformer["provenance"]), copy.deepcopy(transformer["capture"])
 
 
+def passthrough_return_binders(
+    computation: dict[str, Any],
+    returns: ReturnScope,
+) -> list[dict[str, Any]] | None:
+    """Recognize same-world continuations whose result is an existing binder."""
+
+    kind = computation.get("kind")
+    if kind in {"LiteralPathsV2", "CurrentDispositionPathsV2"}:
+        binders: list[dict[str, Any]] = []
+        for path in computation["paths"]:
+            outcome = path["outcome"]
+            if outcome.get("kind") != "ReturnsV2":
+                continue
+            if outcome.get("transition") != {"kind": "SameWorldV1"}:
+                return None
+            transformer = outcome["result_transformer"]
+            return_slot = None
+            if transformer.get("kind") == "ReturnBoundResultV2":
+                return_slot = transformer.get("return_slot")
+            elif transformer.get("kind") == "ParametricResultV2":
+                provenance = transformer.get("provenance", {})
+                capture = transformer.get("capture", {})
+                if (
+                    provenance.get("kind") == "ReturnProvenanceV2"
+                    and capture.get("kind") == "ReturnCaptureV2"
+                    and provenance.get("return_slot") == capture.get("return_slot")
+                ):
+                    return_slot = provenance.get("return_slot")
+            if return_slot not in returns:
+                return None
+            binders.append(returns[return_slot])
+        return binders
+    if kind == "PathBindV2":
+        continuation_returns = dict(returns)
+        return_binder = computation["return_binder"]
+        continuation_returns[return_binder["slot"]] = return_binder
+        return passthrough_return_binders(
+            computation["continuation"], continuation_returns,
+        )
+    if kind == "JoinV2":
+        member_results = [
+            passthrough_return_binders(member, returns)
+            for member in computation["members"]
+        ]
+        if any(result is None for result in member_results):
+            return None
+        return [
+            binder
+            for result in member_results
+            for binder in result or []
+        ]
+    return None
+
+
 def validate_computation_return_projection(
     computation: dict[str, Any],
     binder: dict[str, Any],
@@ -2601,6 +2796,21 @@ def validate_computation_return_projection(
             )
         return
     if kind == "PathBindV2":
+        projected_binders = passthrough_return_binders(
+            computation["continuation"],
+            {computation["return_binder"]["slot"]: computation["return_binder"]},
+        )
+        if projected_binders:
+            expected = {key: value for key, value in binder.items() if key != "slot"}
+            reject(
+                any(
+                    {key: value for key, value in projected.items() if key != "slot"}
+                    != expected
+                    for projected in projected_binders
+                ),
+                "contract-parameter-inconsistent-instantiation",
+            )
+            return
         materialized_source = None
         if computation["prefix"]["kind"] == "CurrentDispositionPathsV2":
             reject(disposition_binder is None, "term-actual-source-unavailable")
@@ -2908,43 +3118,56 @@ def discharge_call_obligation(
         if binding["slot"]["namespace"] == "ClosureCapture"
     }
 
-    def resolve(node: Any) -> Any:
-        if isinstance(node, list):
-            return [resolve(member) for member in node]
-        if not isinstance(node, dict):
-            return node
-        if set(node) == {"namespace", "slot"}:
-            if node["namespace"] == "Parameter":
-                reject(node["slot"] not in actual_by_slot, "application-arity-mismatch")
-                actual = actual_by_slot[node["slot"]]
-                exact_fields(actual, VALUE_SUMMARY_FIELDS, "ValueSummaryExprV2")
-                return {"kind": "ResolvedCallActual", "summary": copy.deepcopy(actual)}
-            if node["namespace"] == "ClosureCapture":
-                reject(
-                    node["slot"] not in closure_by_slot,
-                    "contract-projection-escapes-scope",
-                )
-                binding = closure_by_slot[node["slot"]]
-                summary = {
-                    "source": {
-                        "kind": "LegacySlotRefV2",
-                        "value": copy.deepcopy(binding["slot"]),
-                    },
-                    "type": copy.deepcopy(binding["type"]),
-                    "nominal_index": {
-                        "kind": "LegacyNominalIndexExprV2",
-                        "value": {"kind": "NoNominalIndexV1"},
-                    },
-                    "provenance": copy.deepcopy(binding["provenance"]),
-                    "capture": copy.deepcopy(binding["capture"]),
-                    "usage": None,
-                    "origin": "closure-environment",
-                }
-                return {"kind": "ResolvedCallActual", "summary": summary}
-        return {key: resolve(member) for key, member in node.items()}
+    def binding_summary(binding: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "source": {
+                "kind": "LegacySlotRefV2",
+                "value": copy.deepcopy(binding["slot"]),
+            },
+            "type": copy.deepcopy(binding["type"]),
+            "nominal_index": {
+                "kind": "LegacyNominalIndexExprV2",
+                "value": {"kind": "NoNominalIndexV1"},
+            },
+            "provenance": copy.deepcopy(binding["provenance"]),
+            "capture": copy.deepcopy(binding["capture"]),
+            "usage": None,
+            "origin": "closure-environment",
+        }
 
-    resolved = resolve(obligation)
-    solve_call_obligation(resolved)
+    actuals: list[dict[str, Any]] = []
+    for formal in obligation_value(obligation).get("slots", []):
+        if isinstance(formal, dict) and formal.get("kind") == "LegacySlotRefV2":
+            formal = formal["value"]
+        reject(
+            not isinstance(formal, dict)
+            or set(formal) != {"namespace", "slot"},
+            "contract-projection-escapes-scope",
+        )
+        namespace = formal["namespace"]
+        number = formal["slot"]
+        if namespace == "Parameter":
+            reject(number not in actual_by_slot, "application-arity-mismatch")
+            actual = actual_by_slot[number]
+        elif namespace == "ClosureCapture":
+            reject(number not in closure_by_slot, "contract-projection-escapes-scope")
+            actual = binding_summary(closure_by_slot[number])
+        elif namespace == "OperationArgument":
+            reject(
+                not isinstance(number, int)
+                or isinstance(number, bool)
+                or not 0 <= number < len(application["actual_arguments"]),
+                "contract-projection-escapes-scope",
+            )
+            actual = application["actual_arguments"][number]
+        else:
+            # Owner/Clock/Row/Identity are declaration resources, not value
+            # summaries. They cannot disappear through an empty actual set.
+            raise Diagnostic("call-obligation-unsatisfied")
+        exact_fields(actual, VALUE_SUMMARY_FIELDS, "ValueSummaryExprV2")
+        actuals.append(copy.deepcopy(actual))
+
+    solve_call_obligation(obligation, actuals)
 
 
 def legacy_capture_is_boundary_safe(capture: dict[str, Any]) -> bool:
@@ -2991,6 +3214,110 @@ def provenance_is_inhabited(provenance: dict[str, Any]) -> bool:
     return kind == "ReturnProvenanceV2"
 
 
+TEMPORAL_BOUNDARIES = {
+    "OwnerStorage", "ContinuationCapture", "TemporalLock", "Suspension", "FFI",
+}
+
+
+def legacy_provenance_valid_at_boundary(
+    provenance: dict[str, Any],
+    boundary: str,
+) -> bool:
+    kind = provenance["kind"]
+    if kind == "BottomProvenanceV1":
+        return False
+    if kind == "CallbackV1":
+        return boundary not in TEMPORAL_BOUNDARIES
+    if kind == "EnvironmentV1":
+        return all(
+            legacy_provenance_valid_at_boundary(binding["provenance"], boundary)
+            and legacy_capture_is_boundary_safe(binding["capture"])
+            for binding in provenance["bindings"]
+        )
+    if kind == "JoinProvenanceV1":
+        return all(
+            legacy_provenance_valid_at_boundary(member, boundary)
+            for member in provenance["members"]
+        )
+    return True
+
+
+def provenance_valid_at_boundary(
+    provenance: dict[str, Any],
+    boundary: str,
+) -> bool:
+    kind = provenance["kind"]
+    if kind == "LegacyProvenanceExprV2":
+        return legacy_provenance_valid_at_boundary(provenance["value"], boundary)
+    if kind == "EnvironmentV2":
+        return all(
+            provenance_valid_at_boundary(binding["provenance"], boundary)
+            and capture_is_boundary_safe(binding["capture"])
+            for binding in provenance["bindings"]
+        )
+    if kind == "JoinProvenanceV2":
+        return all(
+            provenance_valid_at_boundary(member, boundary)
+            for member in provenance["members"]
+        )
+    return kind == "ReturnProvenanceV2"
+
+
+def legacy_capture_is_cross_world_safe(capture: dict[str, Any]) -> bool:
+    kind = capture["kind"]
+    if kind == "NoCaptureV1":
+        return True
+    if kind == "UnionCaptureV1":
+        return all(
+            legacy_capture_is_cross_world_safe(member)
+            for member in capture["members"]
+        )
+    # A flat captured slot has no pointwise provenance/clock witness here.
+    return False
+
+
+def capture_is_cross_world_safe(capture: dict[str, Any]) -> bool:
+    kind = capture["kind"]
+    if kind == "LegacyCaptureExprV2":
+        return legacy_capture_is_cross_world_safe(capture["value"])
+    if kind == "UnionCaptureV2":
+        return all(capture_is_cross_world_safe(member) for member in capture["members"])
+    return False
+
+
+def legacy_provenance_is_stable_across(provenance: dict[str, Any]) -> bool:
+    kind = provenance["kind"]
+    if kind == "StableV1":
+        return True
+    if kind == "EnvironmentV1":
+        return all(
+            legacy_provenance_is_stable_across(binding["provenance"])
+            and legacy_capture_is_cross_world_safe(binding["capture"])
+            for binding in provenance["bindings"]
+        )
+    if kind == "JoinProvenanceV1":
+        return all(
+            legacy_provenance_is_stable_across(member)
+            for member in provenance["members"]
+        )
+    return False
+
+
+def provenance_is_stable_across(provenance: dict[str, Any]) -> bool:
+    kind = provenance["kind"]
+    if kind == "LegacyProvenanceExprV2":
+        return legacy_provenance_is_stable_across(provenance["value"])
+    if kind == "EnvironmentV2":
+        return all(
+            provenance_is_stable_across(binding["provenance"])
+            and capture_is_cross_world_safe(binding["capture"])
+            for binding in provenance["bindings"]
+        )
+    if kind == "JoinProvenanceV2":
+        return all(provenance_is_stable_across(member) for member in provenance["members"])
+    return False
+
+
 def legacy_capture_is_duplicable(capture: dict[str, Any]) -> bool:
     kind = capture["kind"]
     if kind == "NoCaptureV1":
@@ -3018,19 +3345,18 @@ def capture_is_duplicable(capture: dict[str, Any]) -> bool:
     return False
 
 
-def solve_call_obligation(obligation: dict[str, Any]) -> None:
+def solve_call_obligation(
+    obligation: dict[str, Any],
+    actuals: list[dict[str, Any]],
+) -> None:
     value = obligation_value(obligation)
     reject(value["stage"] != "Call", "unknown-obligation-stage")
-    actuals = [
-        node["summary"]
-        for node in walk(value)
-        if isinstance(node, dict) and node.get("kind") == "ResolvedCallActual"
-    ]
     kind = value["kind"]
     if kind in {"BoundarySafeV1", "BoundarySafeV2"}:
+        boundary = value["boundary"]
         reject(
             any(
-                not provenance_is_inhabited(summary["provenance"])
+                not provenance_valid_at_boundary(summary["provenance"], boundary)
                 or not capture_is_boundary_safe(summary["capture"])
                 for summary in actuals
             ),
@@ -3039,9 +3365,8 @@ def solve_call_obligation(obligation: dict[str, Any]) -> None:
     elif kind in {"StableAcrossV1", "StableAcrossV2"}:
         reject(
             any(
-                summary["provenance"]
-                != {"kind": "LegacyProvenanceExprV2", "value": {"kind": "StableV1"}}
-                or not capture_is_boundary_safe(summary["capture"])
+                not provenance_is_stable_across(summary["provenance"])
+                or not capture_is_cross_world_safe(summary["capture"])
                 for summary in actuals
             ),
             "call-obligation-unsatisfied",
@@ -4554,6 +4879,367 @@ def validate_task28_regressions() -> int:
     )
 
 
+def validate_task29_regressions() -> int:
+    """Exercise the four adjacent task #29 groups through complete roots."""
+
+    directory = INTERFACES
+    local_oracle = load_json(directory / "local-function-call.json")
+
+    def local_pair(document: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+        return document["local_declarations"][0]["contract"], document["contract"]
+
+    def call_case(
+        label: str,
+        expected: str,
+        mutate: Callable[[dict[str, Any]], None],
+    ) -> None:
+        document = copy.deepcopy(local_oracle)
+        mutate(document)
+        expect_diagnostic(
+            label, expected,
+            lambda: validate_local_contract_oracle(document),
+        )
+
+    # A legal PathBind term remains a legal recursively typed prefix.
+    nested_document = copy.deepcopy(local_oracle)
+    nested_source, nested_consumer = local_pair(nested_document)
+    nested_locals = {0: nested_source}
+    nested_application = nested_consumer["applications"][0]
+    nested_template = nested_consumer["computation"]["members"][0]["paths"][0]
+    inner_binder = concrete_return_binder(
+        nested_source, nested_application, 20,
+        imports=ImportScope(), local_functions=nested_locals,
+    )
+    inner = {
+        "kind": "PathBindV2",
+        "prefix": {"kind": "InvokeV2", "application_slot": 0},
+        "return_binder": inner_binder,
+        "continuation": pure_return_continuation(nested_template, 20),
+        "terminal_policy": "PreserveTerminalV2",
+    }
+    outer_binder = copy.deepcopy(inner_binder)
+    outer_binder["slot"] = 21
+    nested_consumer["computation"] = {
+        "kind": "PathBindV2",
+        "prefix": inner,
+        "return_binder": outer_binder,
+        "continuation": pure_return_continuation(nested_template, 21),
+        "terminal_policy": "PreserveTerminalV2",
+    }
+    validate_function_contract(nested_consumer, local_functions=nested_locals)
+    nested_paths = evaluate_contract_computation(
+        nested_consumer, imports=ImportScope(), local_functions=nested_locals,
+    )
+    require(
+        [item["path"]["outcome"]["kind"] for item in nested_paths]
+        == ["ReturnsV2"],
+        "task29 nested local PathBind prefix lost its ReturnsV2 path",
+    )
+
+    hof_oracle = load_json(directory / "hof-mixed-later.json")
+    hof_imports = resolve_imports(hof_oracle, directory)
+    nested_hof = copy.deepcopy(hof_oracle["contract"])
+    nested_hof_binder = copy.deepcopy(
+        nested_hof["computation"]["continuation"]["return_binder"]
+    )
+    nested_hof_binder["slot"] = 21
+    nested_hof_template = nested_hof["computation"]["continuation"]["continuation"]["paths"][0]
+    nested_hof["computation"] = {
+        "kind": "PathBindV2",
+        "prefix": nested_hof["computation"],
+        "return_binder": nested_hof_binder,
+        "continuation": pure_return_continuation(nested_hof_template, 21),
+        "terminal_policy": "PreserveTerminalV2",
+    }
+    validate_function_contract(nested_hof, imports=hof_imports)
+    nested_hof_callback_hash = next(
+        entry["artifact_hash"]
+        for entry in hof_oracle["imports"]
+        if entry["function_name"] == "mixed_next_callback"
+    )
+    nested_hof_paths = evaluate_contract_computation(
+        nested_hof, imports=hof_imports,
+        contract_environment={0: hof_imports[nested_hof_callback_hash]},
+    )
+    nested_hof_outcomes = [
+        item["path"]["outcome"]["kind"] for item in nested_hof_paths
+    ]
+    require(
+        len(nested_hof_outcomes) == 7
+        and nested_hof_outcomes.count("ReturnsV2") == 1
+        and nested_hof_outcomes.count("AbortsV2") == 2
+        and nested_hof_outcomes.count("TransfersV2") == 4,
+        "task29 nested generic PathBind prefix lost its seven-path flow",
+    )
+
+    def mutate_boundary_callback(document: dict[str, Any]) -> None:
+        source, caller = local_pair(document)
+        obligation = source["computation"]["paths"][0]["ParametricObligations"][0]["value"]
+        obligation["boundary"] = "Suspension"
+        caller["applications"][0]["actual_arguments"][0]["provenance"] = {
+            "kind": "LegacyProvenanceExprV2",
+            "value": {"kind": "CallbackV1", "site_slot": 0},
+        }
+
+    call_case(
+        "task29 BoundarySafe Suspension callback",
+        "call-obligation-unsatisfied",
+        mutate_boundary_callback,
+    )
+
+    def mutate_owner_formal(document: dict[str, Any]) -> None:
+        source, caller = local_pair(document)
+        for contract in (source, caller):
+            contract["binders"]["owner_binders"] = [
+                {"slot": 0, "source": slot("Parameter", 0)}
+            ]
+        caller["applications"][0]["substitution"]["owner_arguments"] = [
+            {"binder_slot": 0, "value": slot("Owner", 0)}
+        ]
+        source["computation"]["paths"][0]["ParametricObligations"][0]["value"]["slots"] = [
+            slot("Owner", 0)
+        ]
+
+    call_case(
+        "task29 Call-Q Owner formal cannot discharge vacuously",
+        "call-obligation-unsatisfied",
+        mutate_owner_formal,
+    )
+
+    def operation_argument_capture() -> dict[str, Any]:
+        return {
+            "kind": "LegacyCaptureExprV2",
+            "value": {
+                "kind": "CaptureSlotsV1",
+                "slots": [slot("OperationArgument", 999)],
+            },
+        }
+
+    call_case(
+        "task29 application OperationArgument scope",
+        "contract-projection-escapes-scope",
+        lambda document: document["contract"]["applications"][0]["actual_arguments"][0].__setitem__(
+            "capture", operation_argument_capture(),
+        ),
+    )
+
+    choose = load_json(directory / "choose-once-function-contract.json")
+
+    def malformed_latent_operation_argument() -> None:
+        contract = copy.deepcopy(choose)
+        contract["computation"]["paths"][0]["LatentSites"][0]["actual_arguments"][0]["capture"] = operation_argument_capture()
+        validate_function_contract(contract)
+
+    expect_diagnostic(
+        "task29 latent OperationArgument scope",
+        "contract-projection-escapes-scope",
+        malformed_latent_operation_argument,
+    )
+
+    def mutate_duplicable_operation_argument(document: dict[str, Any]) -> None:
+        source, caller = local_pair(document)
+        source["computation"]["paths"][0]["ParametricObligations"][0]["value"] = {
+            "kind": "DuplicableEnvV1",
+            "id": 1,
+            "stage": "Call",
+            "slots": [slot("Parameter", 0)],
+            "site_slot": 0,
+            "origin": "task29:duplicable-operation-argument",
+        }
+        caller["applications"][0]["actual_arguments"][0]["capture"] = operation_argument_capture()
+
+    call_case(
+        "task29 DuplicableEnv malformed OperationArgument",
+        "contract-projection-escapes-scope",
+        mutate_duplicable_operation_argument,
+    )
+
+    def add_clock_binders(contract: dict[str, Any]) -> None:
+        contract["binders"]["owner_binders"] = [
+            {"slot": 0, "source": slot("Parameter", 0)}
+        ]
+        contract["binders"]["identity_binders"] = [
+            {
+                "binder": "FreshCap",
+                "family": {
+                    "arguments": [],
+                    "kind": "NominalTypeV1",
+                    "module": ["cire", "temporal"],
+                    "name": "FrameClock",
+                },
+                "identity_slot": 0,
+                "owner": slot("Owner", 0),
+            }
+        ]
+        contract["binders"]["clock_binders"] = [
+            {
+                "identity": slot("Identity", 0),
+                "owner": slot("Owner", 0),
+                "slot": 0,
+            }
+        ]
+
+    def install_stable_obligation(document: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+        source, caller = local_pair(document)
+        add_clock_binders(source)
+        add_clock_binders(caller)
+        source["computation"]["paths"][0]["ParametricObligations"][0]["value"] = {
+            "kind": "StableAcrossV1",
+            "id": 1,
+            "stage": "Call",
+            "slots": [slot("Parameter", 0)],
+            "clock_slot": slot("Clock", 0),
+            "worlds": [],
+            "origin": "task29:stable-across",
+        }
+        substitution = caller["applications"][0]["substitution"]
+        substitution["owner_arguments"] = [
+            {"binder_slot": 0, "value": slot("Owner", 0)}
+        ]
+        substitution["identity_arguments"] = [
+            {"binder_slot": 0, "value": slot("Identity", 0)}
+        ]
+        substitution["clock_arguments"] = [
+            {"binder_slot": 0, "value": slot("Clock", 0)}
+        ]
+        return source, caller
+
+    def mutate_stable_owner(document: dict[str, Any]) -> None:
+        _, caller = install_stable_obligation(document)
+        actual = caller["applications"][0]["actual_arguments"][0]
+        actual["provenance"] = {
+            "kind": "LegacyProvenanceExprV2",
+            "value": {"kind": "StableV1"},
+        }
+        actual["capture"] = {
+            "kind": "LegacyCaptureExprV2",
+            "value": {
+                "kind": "CaptureSlotsV1",
+                "slots": [slot("Owner", 0)],
+            },
+        }
+
+    call_case(
+        "task29 StableAcross Owner capture lacks witness",
+        "call-obligation-unsatisfied",
+        mutate_stable_owner,
+    )
+
+    stable_environment = copy.deepcopy(local_oracle)
+    _, stable_caller = install_stable_obligation(stable_environment)
+    stable_actual = stable_caller["applications"][0]["actual_arguments"][0]
+    stable_actual["provenance"] = {
+        "kind": "EnvironmentV2",
+        "bindings": [
+            {
+                "slot": slot("Parameter", 0),
+                "type": copy.deepcopy(stable_actual["type"]),
+                "provenance": {
+                    "kind": "LegacyProvenanceExprV2",
+                    "value": {"kind": "StableV1"},
+                },
+                "capture": {
+                    "kind": "LegacyCaptureExprV2",
+                    "value": {"kind": "NoCaptureV1"},
+                },
+            }
+        ],
+    }
+    validate_local_contract_oracle(stable_environment)
+
+    def declaration_cross_kind() -> None:
+        contract = copy.deepcopy(choose)
+        contract["binders"]["type_binders"][0]["kind"] = "Effect"
+        validate_function_contract(contract)
+
+    expect_diagnostic(
+        "task29 declaration TypeParameter resolved by Effect binder",
+        "contract-projection-escapes-scope",
+        declaration_cross_kind,
+    )
+
+    def operation_cross_kind() -> None:
+        contract = copy.deepcopy(choose)
+        latent = contract["computation"]["paths"][0]["LatentSites"][0]
+        type_parameter = {"kind": "TypeParameterV2", "slot": 999}
+        latent["instantiated_signature"]["type_binders"] = [
+            {"slot": 999, "kind": "Effect"}
+        ]
+        latent["actual_arguments"][0]["type"] = copy.deepcopy(type_parameter)
+        latent["instantiated_signature"]["parameters"][0] = type_parameter
+        validate_function_contract(contract)
+
+    expect_diagnostic(
+        "task29 operation TypeParameter resolved by Effect binder",
+        "contract-projection-escapes-scope",
+        operation_cross_kind,
+    )
+
+    def malformed_type_binder_kind() -> None:
+        contract = copy.deepcopy(choose)
+        signature = contract["computation"]["paths"][0]["LatentSites"][0]["instantiated_signature"]
+        signature["type_binders"] = [
+            {
+                "slot": 0,
+                "kind": {"kind": "ReturnSlotRefV2", "return_slot": 0},
+            }
+        ]
+        validate_function_contract(contract)
+
+    expect_diagnostic(
+        "task29 object-valued TypeBinder kind",
+        "contract-component-kind-mismatch",
+        malformed_type_binder_kind,
+    )
+
+    def malformed_legacy_origin() -> None:
+        contract = load_json(directory / "mixed-next-callback-function-contract.json")
+        obligation = contract["computation"]["prefix"]["paths"][0]["ParametricObligations"][0]["value"]
+        obligation["origin"] = {"kind": "ReturnSlotRefV2", "return_slot": 0}
+        validate_function_contract(contract)
+
+    expect_diagnostic(
+        "task29 object-valued Legacy Q origin",
+        "contract-component-kind-mismatch",
+        malformed_legacy_origin,
+    )
+
+    def malformed_closure_capture() -> None:
+        contract = load_json(directory / "mixed-next-callback-function-contract.json")
+        contract["closure_environment"][0]["capture"] = {"kind": "UnknownCaptureV9"}
+        validate_function_contract(contract)
+
+    expect_diagnostic(
+        "task29 malformed root closure capture",
+        "contract-component-kind-mismatch",
+        malformed_closure_capture,
+    )
+
+    def unknown_declaration_kind() -> None:
+        contract = copy.deepcopy(choose)
+        contract["declaration_kind"]["kind"] = "UnknownContractKindV2"
+        validate_function_contract(contract)
+
+    expect_diagnostic(
+        "task29 unknown root declaration kind",
+        "contract-component-kind-mismatch",
+        unknown_declaration_kind,
+    )
+
+    def unknown_signature_mode() -> None:
+        contract = copy.deepcopy(choose)
+        contract["computation"]["paths"][0]["LatentSites"][0]["instantiated_signature"]["mode"] = "unknown"
+        validate_function_contract(contract)
+
+    expect_diagnostic(
+        "task29 unknown operation signature mode",
+        "contract-component-kind-mismatch",
+        unknown_signature_mode,
+    )
+
+    return 16
+
+
 def validate_mutations() -> tuple[int, int]:
     oracle = load_json(MUTATIONS)
     require(oracle.get("artifact") == "CireMutationOracleV2", "mutation oracle header")
@@ -4753,12 +5439,14 @@ def main() -> int:
     mutation_cases, mutation_operations = validate_mutations()
     runtime_count = validate_runtime()
     task28_probe_count = validate_task28_regressions()
+    task29_probe_count = validate_task29_regressions()
     validate_normative_producer_alignment()
     print(
         f"PASS: {len(interface_paths)} interface artifacts, "
         f"{mutation_cases} decoder mutation cases/{mutation_operations} RFC 6902 operations, "
         f"{runtime_count} runtime traces, {diagnostic_count} diagnostic ids, "
-        f"{task28_probe_count} task-28 full-root probes"
+        f"{task28_probe_count} task-28 full-root probes, "
+        f"{task29_probe_count} task-29 full-root probes"
     )
     return 0
 
