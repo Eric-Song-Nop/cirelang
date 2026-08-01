@@ -208,9 +208,9 @@ Type、nested evaluator与 CallArgument BoundarySafe三个正控。
 
 另有 18 个 task #33 full-root probe固定 authority、generic row、cleanup truth、
 lexical Return及 recursive exact-wire边界：`LegacyUsageExprV2`只允许引用
-Resume/disposition authority、grade必须与 binder type完全相等，且 Zero occurrence
+Resume/disposition authority，固定 Once/Once正控、Many overuse拒绝，且 Zero occurrence
 必须省略；`RowLacksV1/V2`的 `TailV1` actual只能由 caller lexical row binder上的
-同一 Lacks evidence证明。`ReplayableCleanupV1/V2`按 normative truth rule要求
+同一 Lacks evidence证明。`ReplayableCleanupV1`按 normative truth rule要求
 obligation与同一 path内唯一 site的 cleanup exact相等、cleanup为唯一 neutral wire、
 suffix environment为空（因此 Π/χ均为空）；positive control与 linkage mismatch、
 nonneutral、missing-site、nonempty-environment negatives分别走完整 imported root。
@@ -218,6 +218,18 @@ Call-Q扫描按 nested `PathBindV2`线程 Return scope，使 `ReturnSlotRefV2`�
 Owner投影可证明而 unscoped ref稳定拒绝。最后，recursive exact-object scalar与
 PackedNext clock误指 parent Owner都稳定返回 `contract-component-kind-mismatch`，
 并保留完整 clock package正控。
+
+另有 21 个 task #34 full-root probe关闭 finite-map与递归投影的相邻边界：usage
+occurrence按 `Zero < Once < Many`受 Resume capacity上界约束，Many authority合法
+under-use Once；每个 path的 usage key唯一，且 `DelegatesV2`的结构性 Forwarded
+消耗不能删除。Suffix V2从 computation中 provenance/capture/usage自由引用计算唯一
+`LiveSupport`，要求 `live_bindings`精确相等，所以隐藏 Owner Π/χ的空数组会在 source
+root即稳定拒绝。Call-Q把 lexical `ReturnSlotRefV2`物化为完整 value summary，既保留
+Outlives Owner投影也支持 BoundarySafe等所有 value-slot predicate。PackedNext的
+identity/clock/body关联与 scalar child object均稳定返回 profile diagnostic。最后七个
+root直接使用 `ReplayableCleanupV2`，对称覆盖 neutral source/import、cleanup linkage、
+nonneutral、missing-site以及真实非空 projected environment的 source/import边界；task
+#33的 replay roots保留为 V1历史覆盖。
 
 `diagnostics-v2.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；
 新增或重命名 id需要新 registry version，不能让 parser recovery改变同一

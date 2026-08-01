@@ -1165,13 +1165,15 @@ def validate_usage(
     *,
     disposition_binder: dict[str, Any] | None = None,
 ) -> None:
+    usage = validate_contract_object(usage)
     kind = usage.get("kind")
     if kind == "LegacyUsageExprV2":
         exact_fields(usage, {"kind", "value"}, kind)
-        exact_fields(usage["value"], {"slot", "kind"}, "UsageV1")
-        validate_slot_v1(usage["value"]["slot"])
-        require(usage["value"]["kind"] in {"Zero", "Once", "Many"}, "UsageV1 kind")
-        usage_slot = usage["value"]["slot"]
+        value = validate_contract_object(usage["value"])
+        exact_fields(value, {"slot", "kind"}, "UsageV1")
+        validate_slot_v1(value["slot"])
+        reject(value["kind"] not in {"Once", "Many"}, "contract-component-kind-mismatch")
+        usage_slot = value["slot"]
         if usage_slot["namespace"] == "SuffixLive":
             reject(
                 disposition_binder is None or usage_slot["slot"] != disposition_binder["slot"],
@@ -1182,6 +1184,80 @@ def validate_usage(
         reject(binder["type"].get("kind") != "ResumeTypeRefV2", "contract-component-kind-mismatch")
     else:
         raise Diagnostic("contract-component-kind-mismatch")
+
+
+def usage_map_key(usage: dict[str, Any]) -> tuple[str, int]:
+    """Return the authority key of one already-validated nonzero usage entry."""
+
+    if usage["kind"] == "LegacyUsageExprV2":
+        reference = usage["value"]["slot"]
+        return reference["namespace"], reference["slot"]
+    return "Return", usage["return_slot"]
+
+
+def suffix_projection_key(reference: dict[str, Any]) -> tuple[str, int]:
+    """Normalize a V1/V2 live reference to its namespace-qualified key."""
+
+    if reference.get("kind") == "LegacySlotRefV2":
+        reference = reference.get("value", {})
+    elif reference.get("kind") == "ReturnSlotRefV2":
+        return "Return", reference["return_slot"]
+    reject(
+        set(reference) != {"namespace", "slot"},
+        "contract-component-kind-mismatch",
+    )
+    return reference["namespace"], reference["slot"]
+
+
+def suffix_live_projection_keys(suffix: dict[str, Any]) -> set[tuple[str, int]]:
+    """Derive the complete Pi/chi/usage support of a suffix computation."""
+
+    result: set[tuple[str, int]] = set()
+
+    def collect_expression(value: Any) -> None:
+        if isinstance(value, list):
+            for member in value:
+                collect_expression(member)
+            return
+        if not isinstance(value, dict):
+            return
+        if value.get("kind") in {
+            "ReturnSlotRefV2", "ReturnProvenanceV2", "ReturnCaptureV2",
+            "ReturnUsageV2", "ReturnNominalIndexV2", "ReturnWorldV2",
+        }:
+            result.add(("Return", value["return_slot"]))
+            return
+        if set(value) == {"namespace", "slot"}:
+            result.add((value["namespace"], value["slot"]))
+            return
+        if {
+            "answer_type", "applications", "computation", "cleanup",
+            "live_bindings",
+        } <= set(value):
+            return
+        for member in value.values():
+            collect_expression(member)
+
+    def scan_computation(value: Any) -> None:
+        if isinstance(value, list):
+            for member in value:
+                scan_computation(member)
+            return
+        if not isinstance(value, dict):
+            return
+        if {
+            "answer_type", "applications", "computation", "cleanup",
+            "live_bindings",
+        } <= set(value):
+            return
+        for key, member in value.items():
+            if key in {"provenance", "capture", "usage"}:
+                collect_expression(member)
+            else:
+                scan_computation(member)
+
+    scan_computation(suffix["computation"])
+    return result
 
 
 def validate_result_transformer(
@@ -1366,9 +1442,13 @@ def validate_suffix(
     )
     validate_type_v2(suffix["answer_type"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
     validate_cleanup(suffix["cleanup"])
+    declared_live_keys: set[tuple[str, int]] = set()
     for binding in suffix["live_bindings"]:
         exact_fields(binding, {"slot", "type", "provenance", "capture", "usage"}, "LiveAcrossSiteV2")
         validate_slot_v2(binding["slot"], returns)
+        live_key = suffix_projection_key(binding["slot"])
+        reject(live_key in declared_live_keys, "contract-component-kind-mismatch")
+        declared_live_keys.add(live_key)
         binding_slot = binding["slot"]
         if binding_slot.get("kind") == "LegacySlotRefV2" and binding_slot["value"]["namespace"] == "SuffixLive":
             reject(
@@ -1386,6 +1466,10 @@ def validate_suffix(
         contract_binders=contract_binders, local_functions=local_functions,
         disposition_binder=disposition_binder,
         row_binders=row_binders,
+    )
+    reject(
+        declared_live_keys != suffix_live_projection_keys(suffix),
+        "contract-component-kind-mismatch",
     )
 
 
@@ -1817,8 +1901,12 @@ def validate_path(
     validate_suspension(path["suspension"])
     validate_summary_normal_form(path["semantic_summary"])
     validate_phase_requirement(path["required_phase"])
+    usage_keys: set[tuple[str, int]] = set()
     for usage in path["usage"]:
         validate_usage(usage, returns, disposition_binder=disposition_binder)
+        usage_key = usage_map_key(usage)
+        reject(usage_key in usage_keys, "contract-component-kind-mismatch")
+        usage_keys.add(usage_key)
     for obligation in path["ParametricObligations"]:
         validate_obligation(
             obligation, returns, disposition_binder=disposition_binder,
@@ -1904,6 +1992,17 @@ def validate_path(
             handled_entry=handled_entry, handler_prompt_slot=handler_prompt_slot,
             nearest_outer_prompt_slot=nearest_outer_prompt_slot,
             row_binders=row_binders,
+        )
+        inner_disposition = outcome["disposition_evidence"]["inner_disposition"]
+        reject(
+            suffix_projection_key(inner_disposition) not in usage_keys
+            or not any(
+                usage.get("kind") == "LegacyUsageExprV2"
+                and usage["value"]["slot"] == inner_disposition
+                and usage["value"]["kind"] in {"Once", "Many"}
+                for usage in path["usage"]
+            ),
+            "contract-component-kind-mismatch",
         )
     else:
         raise Diagnostic("unknown-path-outcome-v2")
@@ -2258,6 +2357,9 @@ def authority_usage_grade(type_ref: Any) -> str | None:
     return None
 
 
+USAGE_GRADE_ORDER = {"Zero": 0, "Once": 1, "Many": 2}
+
+
 def validate_authority_bearing_usages(
     value: Any,
     *,
@@ -2312,10 +2414,13 @@ def validate_authority_bearing_usages(
         else:
             resolved_type = slot_types.get((namespace, number))
         occurrence_grade = value["value"]["kind"]
+        capacity_grade = authority_usage_grade(resolved_type)
         reject(
             not is_authority_bearing_type(resolved_type)
             or occurrence_grade == "Zero"
-            or occurrence_grade != authority_usage_grade(resolved_type),
+            or occurrence_grade not in USAGE_GRADE_ORDER
+            or capacity_grade not in USAGE_GRADE_ORDER
+            or USAGE_GRADE_ORDER[occurrence_grade] > USAGE_GRADE_ORDER[capacity_grade],
             "contract-component-kind-mismatch",
         )
         return
@@ -3383,6 +3488,19 @@ def discharge_call_obligation(
         return returns[number]
 
     def resolve_summary(formal: Any) -> dict[str, Any]:
+        binder = return_binder(formal)
+        if binder is not None:
+            actual = {
+                "source": copy.deepcopy(formal),
+                "type": copy.deepcopy(binder["type"]),
+                "nominal_index": copy.deepcopy(binder["nominal_index"]),
+                "provenance": copy.deepcopy(binder["provenance"]),
+                "capture": copy.deepcopy(binder["capture"]),
+                "usage": copy.deepcopy(binder["usage"]),
+                "origin": "call-q:return-binder",
+            }
+            exact_fields(actual, VALUE_SUMMARY_FIELDS, "ValueSummaryExprV2")
+            return actual
         formal = normalized_slot(formal)
         namespace = formal["namespace"]
         number = formal["slot"]
@@ -3803,7 +3921,11 @@ def solve_call_obligation(
         reject(
             value["cleanup"] != NEUTRAL_REPLAYABLE_CLEANUP
             or suffix.get("cleanup") != value["cleanup"]
-            or suffix.get("live_bindings") != [],
+            or suffix.get("live_bindings") != []
+            or (
+                isinstance(suffix, dict)
+                and suffix_live_projection_keys(suffix) != set()
+            ),
             "call-obligation-unsatisfied",
         )
     elif kind in {
@@ -4262,11 +4384,12 @@ def validate_clock_package(
         or (storage_owner_scope is not None and storage_owner["slot"] not in storage_owner_scope),
         "packed-next-storage-owner-mismatch",
     )
-    relation = package["owner_relation"]
-    exact_fields(package["child_owner_binder"], {"owner_slot"}, "QuantifiedOwnerBinderV1")
-    validate_u32(package["child_owner_binder"]["owner_slot"], "PackedNext child Owner binder")
+    relation = validate_contract_object(package["owner_relation"])
+    child_owner_binder = validate_contract_object(package["child_owner_binder"])
+    exact_fields(child_owner_binder, {"owner_slot"}, "QuantifiedOwnerBinderV1")
+    validate_u32(child_owner_binder["owner_slot"], "PackedNext child Owner binder")
     exact_fields(relation, {"child", "parent", "relation", "sealed_origin"}, "ChildOwnerWitnessV2")
-    child = slot("Owner", package["child_owner_binder"]["owner_slot"])
+    child = slot("Owner", child_owner_binder["owner_slot"])
     reject(
         relation
         != {
@@ -4277,23 +4400,34 @@ def validate_clock_package(
         },
         "contract-component-kind-mismatch",
     )
-    clock = package["clock_binder"]
+    clock = validate_contract_object(package["clock_binder"])
     exact_fields(clock, {"identity_slot", "clock_refinement", "family_witness", "owner"}, "QuantifiedClockBinderV2")
-    exact_fields(clock["clock_refinement"], {"clock_slot", "identity"}, "QuantifiedClockRefinementV1")
+    clock_refinement = validate_contract_object(clock["clock_refinement"])
+    exact_fields(clock_refinement, {"clock_slot", "identity"}, "QuantifiedClockRefinementV1")
     validate_u32(clock["identity_slot"], "PackedNext identity binder")
-    validate_u32(clock["clock_refinement"]["clock_slot"], "PackedNext clock binder")
+    validate_u32(clock_refinement["clock_slot"], "PackedNext clock binder")
     reject(clock["family_witness"] != {"kind": "CanonicalFrameClockV2", "module": ["cire", "temporal"], "name": "FrameClock", "sealed_origin": "cire.temporal:FrameClock"}, "clock-package-family-not-clock-indexing")
     reject(clock["owner"] != child, "contract-component-kind-mismatch")
     identity = slot("Identity", clock["identity_slot"])
-    clock_ref = slot("Clock", clock["clock_refinement"]["clock_slot"])
-    require(clock["clock_refinement"]["identity"] == identity, "PackedNext identity/clock pairing")
-    summary = package["summary_binder"]["kind"]
-    exact_fields(package["summary_binder"], {"contract_slot", "kind"}, "QuantifiedContractBinderV2")
-    validate_u32(package["summary_binder"]["contract_slot"], "PackedNext summary binder")
+    clock_ref = slot("Clock", clock_refinement["clock_slot"])
+    reject(clock_refinement["identity"] != identity, "contract-component-kind-mismatch")
+    summary_binder = validate_contract_object(package["summary_binder"])
+    exact_fields(summary_binder, {"contract_slot", "kind"}, "QuantifiedContractBinderV2")
+    validate_u32(summary_binder["contract_slot"], "PackedNext summary binder")
+    summary = validate_contract_object(summary_binder["kind"])
     exact_fields(summary, {"kind", "clock", "payload_type"}, "ClockPackageSummaryKindV2")
-    require(summary["kind"] == "ClockPackageSummaryKindV2" and summary["clock"] == clock_ref, "PackedNext summary binder")
-    body = package["body"]
-    require(body["kind"] == "NextTypeV2" and body["clock"] == clock_ref and body["payload"] == summary["payload_type"], "PackedNext body/summary mismatch")
+    reject(
+        summary["kind"] != "ClockPackageSummaryKindV2"
+        or summary["clock"] != clock_ref,
+        "contract-component-kind-mismatch",
+    )
+    body = validate_contract_object(package["body"])
+    reject(
+        body.get("kind") != "NextTypeV2"
+        or body.get("clock") != clock_ref
+        or body.get("payload") != summary["payload_type"],
+        "contract-component-kind-mismatch",
+    )
     validate_type_v2(body)
     protocol = package["control_protocol"]
     exact_fields(protocol, {"states", "acquire", "dispose", "release"}, "PackedNextControlProtocolV2")
@@ -6290,6 +6424,17 @@ def validate_task33_regressions() -> int:
                     },
                 },
             ]
+            transformer = site["suffix"]["computation"]["paths"][0][
+                "outcome"
+            ]["result_transformer"]["value"]
+            transformer["provenance"] = {
+                "kind": "ArgumentV1",
+                "argument": slot("ClosureCapture", 0),
+            }
+            transformer["capture"] = {
+                "kind": "CaptureSlotsV1",
+                "slots": [slot("ClosureCapture", 0)],
+            }
 
         old_hash = handler["imports"][0]["artifact_hash"]
         new_hash = canonical_hash(source)
@@ -6465,6 +6610,364 @@ def validate_task33_regressions() -> int:
         child_clock_owner_mismatch,
     )
     return 18
+
+
+def validate_task34_regressions() -> int:
+    """Exercise task #34 finite-map, suffix, Return, and PackedNext roots."""
+
+    directory = INTERFACES
+
+    def captured_resume_usage(declared: str, occurrence: str) -> None:
+        document = load_json(
+            directory / "mixed-next-callback-function-contract.json"
+        )
+        handler = load_json(directory / "handler-forward-contract.json")
+        resume_type = copy.deepcopy(
+            handler["handler_contract"]["clause_computations"][0][
+                "disposition_binder"
+            ]["type"]
+        )
+        resume_type["value"]["usage"] = declared
+        document["closure_environment"].append(
+            {
+                "slot": slot("ClosureCapture", 1),
+                "type": resume_type,
+                "provenance": copy.deepcopy(
+                    resume_type["value"]["live_provenance"]
+                ),
+                "capture": copy.deepcopy(
+                    resume_type["value"]["live_capture"]
+                ),
+            }
+        )
+        document["computation"]["continuation"]["paths"][0]["usage"].append(
+            {
+                "kind": "LegacyUsageExprV2",
+                "value": {
+                    "slot": slot("ClosureCapture", 1),
+                    "kind": occurrence,
+                },
+            }
+        )
+        validate_function_contract(document)
+
+    captured_resume_usage("Many", "Many")
+    captured_resume_usage("Many", "Once")
+
+    def forwarded_usage(mode: str) -> None:
+        document = load_json(directory / "handler-forward-contract.json")
+        usages = document["handler_contract"]["clause_computations"][0][
+            "computation"
+        ]["continuation"]["paths"][0]["usage"]
+        if mode == "omitted":
+            del usages[0]
+        else:
+            usages.insert(1, copy.deepcopy(usages[0]))
+        validate_handler_oracle(document, directory)
+
+    expect_diagnostic(
+        "task34 Forwarded disposition usage is complete",
+        "contract-component-kind-mismatch",
+        lambda: forwarded_usage("omitted"),
+    )
+    expect_diagnostic(
+        "task34 path usage is a unique finite map",
+        "contract-component-kind-mismatch",
+        lambda: forwarded_usage("duplicated"),
+    )
+
+    def replayable_documents(
+        *,
+        variant: str,
+        mode: str,
+    ) -> tuple[dict[str, Any], dict[str, Any], str]:
+        handler = load_json(directory / "handler-forward-contract.json")
+        source = load_json(directory / "choose-once-function-contract.json")
+        source_path = source["computation"]["paths"][0]
+        site = source_path["LatentSites"][0]
+        obligation_cleanup = copy.deepcopy(site["suffix"]["cleanup"])
+        if mode in {"mismatched-cleanup", "nonneutral-cleanup"}:
+            obligation_cleanup["suspension"]["grade"] = "MaySuspend"
+        if mode == "nonneutral-cleanup":
+            site["suffix"]["cleanup"] = copy.deepcopy(obligation_cleanup)
+        obligation = {
+            "kind": f"ReplayableCleanup{variant}",
+            "id": 0,
+            "stage": "Call",
+            "site_slot": 999 if mode == "missing-site" else site["site_slot"],
+            "cleanup": obligation_cleanup,
+            "origin": "task34:replayable-cleanup",
+        }
+        source_path["ParametricObligations"][0] = (
+            {"kind": "LegacyObligationV2", "value": obligation}
+            if variant == "V1"
+            else obligation
+        )
+
+        transformer = site["suffix"]["computation"]["paths"][0]["outcome"][
+            "result_transformer"
+        ]["value"]
+        if mode == "hidden-environment":
+            source["binders"]["owner_binders"] = [
+                {"slot": 0, "source": slot("Parameter", 0)},
+            ]
+            transformer["provenance"] = {
+                "kind": "OwnerV1",
+                "owner": slot("Owner", 0),
+            }
+            transformer["capture"] = {
+                "kind": "CaptureSlotsV1",
+                "slots": [slot("Owner", 0)],
+            }
+            handler["handler_contract"]["applications"][0]["substitution"][
+                "owner_arguments"
+            ] = [{"binder_slot": 0, "value": slot("Owner", 0)}]
+        elif mode == "nonempty-environment":
+            source["binders"]["owner_binders"] = [
+                {"slot": 0, "source": slot("Parameter", 0)},
+            ]
+            handler["handler_contract"]["applications"][0]["substitution"][
+                "owner_arguments"
+            ] = [{"binder_slot": 0, "value": slot("Owner", 0)}]
+            resume_type = copy.deepcopy(
+                handler["handler_contract"]["clause_computations"][0][
+                    "disposition_binder"
+                ]["type"]
+            )
+            stable = {
+                "kind": "LegacyProvenanceExprV2",
+                "value": {"kind": "StableV1"},
+            }
+            empty_capture = {
+                "kind": "LegacyCaptureExprV2",
+                "value": {"kind": "NoCaptureV1"},
+            }
+            source["closure_environment"] = [
+                {
+                    "slot": slot("ClosureCapture", 0),
+                    "type": copy.deepcopy(resume_type),
+                    "provenance": copy.deepcopy(stable),
+                    "capture": copy.deepcopy(empty_capture),
+                },
+            ]
+            site["suffix"]["live_bindings"] = [
+                {
+                    "slot": {
+                        "kind": "LegacySlotRefV2",
+                        "value": slot("ClosureCapture", 0),
+                    },
+                    "type": copy.deepcopy(resume_type),
+                    "provenance": stable,
+                    "capture": empty_capture,
+                    "usage": {
+                        "kind": "LegacyUsageExprV2",
+                        "value": {
+                            "slot": slot("ClosureCapture", 0),
+                            "kind": "Once",
+                        },
+                    },
+                },
+            ]
+            transformer["provenance"] = {
+                "kind": "ArgumentV1",
+                "argument": slot("ClosureCapture", 0),
+            }
+            transformer["capture"] = {
+                "kind": "CaptureSlotsV1",
+                "slots": [slot("ClosureCapture", 0)],
+            }
+
+        old_hash = handler["imports"][0]["artifact_hash"]
+        new_hash = canonical_hash(source)
+
+        def replace_import_hash(value: Any) -> None:
+            if isinstance(value, list):
+                for member in value:
+                    replace_import_hash(member)
+            elif isinstance(value, dict):
+                if value.get("artifact_hash") == old_hash:
+                    value["artifact_hash"] = new_hash
+                for member in value.values():
+                    replace_import_hash(member)
+
+        replace_import_hash(handler)
+        return handler, source, new_hash
+
+    def validate_replayable_source(*, variant: str, mode: str) -> None:
+        _, source, _ = replayable_documents(variant=variant, mode=mode)
+        validate_function_contract(source)
+
+    def validate_replayable_handler(*, variant: str, mode: str) -> None:
+        handler, source, source_hash = replayable_documents(
+            variant=variant, mode=mode,
+        )
+        validate_function_contract(source)
+        imports = ImportScope()
+        imports[source_hash] = source
+        import_entry = handler["imports"][0]
+        imports.exports[source_hash] = (
+            tuple(import_entry["module"]), import_entry["function_name"],
+        )
+        validate_handler_contract(
+            handler["handler_contract"], imports=imports,
+            nearest_outer_prompt_slot=1,
+        )
+
+    validate_replayable_handler(variant="V1", mode="neutral")
+    expect_diagnostic(
+        "task34 suffix projection cannot omit live Owner provenance/capture",
+        "contract-component-kind-mismatch",
+        lambda: validate_replayable_source(
+            variant="V1", mode="hidden-environment",
+        ),
+    )
+    expect_diagnostic(
+        "task34 Replayable cannot treat omitted live Pi/chi as empty",
+        "contract-component-kind-mismatch",
+        lambda: validate_replayable_handler(
+            variant="V1", mode="hidden-environment",
+        ),
+    )
+
+    def nested_return_call_obligation(obligation: dict[str, Any]) -> None:
+        document = load_json(directory / "local-function-call.json")
+        base_declaration = copy.deepcopy(document["local_declarations"][0])
+        base_declaration["declaration_slot"] = 1
+        base = base_declaration["contract"]
+        base["binders"]["owner_binders"] = [
+            {"slot": 0, "source": slot("Parameter", 0)},
+        ]
+        base["computation"]["paths"][0]["outcome"]["result_transformer"][
+            "value"
+        ]["provenance"] = {"kind": "OwnerV1", "owner": slot("Owner", 0)}
+
+        middle = copy.deepcopy(document["contract"])
+        middle["binders"]["owner_binders"] = [
+            {"slot": 0, "source": slot("Parameter", 0)},
+        ]
+        application = middle["applications"][0]
+        application["contract"]["declaration_slot"] = 1
+        application["callee_summary"]["type"]["contract"][
+            "declaration_slot"
+        ] = 1
+        application["substitution"]["owner_arguments"] = [
+            {"binder_slot": 0, "value": slot("Owner", 0)},
+        ]
+        return_binder = concrete_return_binder(
+            base, application, 10, imports=ImportScope(),
+            local_functions={1: base},
+        )
+        template = copy.deepcopy(
+            document["contract"]["computation"]["members"][0]["paths"][0]
+        )
+        continuation = pure_return_continuation(template, 10)
+        continuation["paths"][0]["ParametricObligations"] = [obligation]
+        middle["computation"] = {
+            "kind": "PathBindV2",
+            "prefix": {"kind": "InvokeV2", "application_slot": 0},
+            "return_binder": return_binder,
+            "continuation": continuation,
+            "terminal_policy": "PreserveTerminalV2",
+        }
+
+        outer = copy.deepcopy(document["contract"])
+        outer["binders"]["owner_binders"] = [
+            {"slot": 0, "source": slot("Parameter", 0)},
+        ]
+        outer_application = outer["applications"][0]
+        outer_application["contract"]["declaration_slot"] = 0
+        outer_application["callee_summary"]["type"]["contract"][
+            "declaration_slot"
+        ] = 0
+        outer_application["substitution"]["owner_arguments"] = [
+            {"binder_slot": 0, "value": slot("Owner", 0)},
+        ]
+        local_functions = {0: middle, 1: base}
+        validate_function_contract(base, local_functions=local_functions)
+        validate_function_contract(middle, local_functions=local_functions)
+        validate_function_contract(outer, local_functions=local_functions)
+
+    return_slot = {"kind": "ReturnSlotRefV2", "return_slot": 10}
+    nested_return_call_obligation(
+        {
+            "kind": "OutlivesV2",
+            "id": 2,
+            "stage": "Call",
+            "shorter": copy.deepcopy(return_slot),
+            "longer": copy.deepcopy(return_slot),
+            "origin": "task34:return-outlives-control",
+        }
+    )
+    nested_return_call_obligation(
+        {
+            "kind": "BoundarySafeV2",
+            "id": 2,
+            "stage": "Call",
+            "slots": [copy.deepcopy(return_slot)],
+            "boundary": "CallArgument",
+            "origin": "task34:return-boundary-safe",
+        }
+    )
+
+    def packed_next_mutation(mode: str) -> None:
+        document = load_json(directory / "clock-package-paths.json")
+        package = document["package"]
+        if mode == "identity":
+            package["clock_binder"]["clock_refinement"]["identity"] = slot(
+                "Identity", 999,
+            )
+        elif mode == "summary-clock":
+            package["summary_binder"]["kind"]["clock"] = slot("Clock", 999)
+        elif mode == "body-clock":
+            package["body"]["clock"] = slot("Clock", 999)
+        elif mode == "scalar-summary":
+            package["summary_binder"] = 0
+        else:
+            package["body"] = 0
+        validate_clock_oracle(document)
+
+    for mode in (
+        "identity", "summary-clock", "body-clock", "scalar-summary",
+        "scalar-body",
+    ):
+        expect_diagnostic(
+            f"task34 PackedNext {mode} uses stable recursive diagnostics",
+            "contract-component-kind-mismatch",
+            lambda mode=mode: packed_next_mutation(mode),
+        )
+
+    validate_replayable_source(variant="V2", mode="neutral")
+    validate_replayable_handler(variant="V2", mode="neutral")
+    expect_diagnostic(
+        "task34 direct V2 Replayable cleanup linkage",
+        "call-obligation-unsatisfied",
+        lambda: validate_replayable_handler(
+            variant="V2", mode="mismatched-cleanup",
+        ),
+    )
+    expect_diagnostic(
+        "task34 direct V2 Replayable neutral truth",
+        "call-obligation-unsatisfied",
+        lambda: validate_replayable_handler(
+            variant="V2", mode="nonneutral-cleanup",
+        ),
+    )
+    expect_diagnostic(
+        "task34 direct V2 Replayable unique local site",
+        "call-obligation-unsatisfied",
+        lambda: validate_replayable_handler(
+            variant="V2", mode="missing-site",
+        ),
+    )
+    validate_replayable_source(variant="V2", mode="nonempty-environment")
+    expect_diagnostic(
+        "task34 direct V2 Replayable requires empty projected Pi/chi",
+        "call-obligation-unsatisfied",
+        lambda: validate_replayable_handler(
+            variant="V2", mode="nonempty-environment",
+        ),
+    )
+    return 21
 
 
 def validate_mutations() -> tuple[int, int]:
@@ -6670,6 +7173,7 @@ def main() -> int:
     task30_probe_count = validate_task30_regressions()
     task31_probe_count = validate_task31_regressions()
     task33_probe_count = validate_task33_regressions()
+    task34_probe_count = validate_task34_regressions()
     validate_normative_producer_alignment()
     print(
         f"PASS: {len(interface_paths)} interface artifacts, "
@@ -6679,7 +7183,8 @@ def main() -> int:
         f"{task29_probe_count} task-29 full-root probes, "
         f"{task30_probe_count} task-30 full-root probes, "
         f"{task31_probe_count} task-31 full-root probes, "
-        f"{task33_probe_count} task-33 full-root probes"
+        f"{task33_probe_count} task-33 full-root probes, "
+        f"{task34_probe_count} task-34 full-root probes"
     )
     return 0
 

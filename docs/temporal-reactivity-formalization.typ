@@ -1938,7 +1938,10 @@ normalization。occurs-check、forward ref、cross-kind projection或 scope esca
 Call-stage discharge不是删除操作：importer先把 Q 中每个 formal slot解析成完整
 actual `ValueSummaryExprV2`，递归 exact-decode并检查其 scope，再实际判定
 `BoundarySafe`/`StableAcross`/`DuplicableEnv` 等 predicate；只有判定成功才可消掉
-该 obligation。`BottomCaptureV1` 不能满足 `BoundarySafe`，伪造 capture kind或
+该 obligation。lexical `ReturnSlotRefV2` 同样是 value formal：checker从对应
+`ReturnBinderV2`物化 source/type/nominal-index/provenance/capture/usage全字段 summary，
+而不是只在 Outlives的 Owner projection中特判；因此所有 value-slot predicate共享
+同一解析规则。`BottomCaptureV1` 不能满足 `BoundarySafe`，伪造 capture kind或
 unbound `SuffixLive` 必须在 discharge前产生稳定 diagnostic。
 `ImportedFunctionRefV2` 的目标必须是 root
 `FunctionContractV2`，其 `declaration_kind` 非 null 且与 use-site binder的
@@ -1977,7 +1980,15 @@ type逐项验证。
 因此普通 `Array[A]`、callback data或仅有 provenance的 parameter不能通过
 在 `usage` 中写 `Many` 伪装成 latent authority usage；`kind` 必须等于
 一次 closure调用对该 authority的实际 $0/1/omega$ 消耗，且 `Zero` entry
-的 canonical form是从 finite map省略。
+的 canonical form是从 finite map省略。Resume/disposition type中的 usage是
+capacity $q$，不是要求实际消耗相等的第二份 occurrence；checker使用
+$"Zero" < "Once" < "Many"$并证明 $q_"actual" <= q_"capacity"$，所以
+`Many` authority使用一次合法，而 `Once` authority不能使用多次。
+每个 `PathContractV2.usage` 是 namespace-qualified authority到非零 grade的
+唯一 finite map；wire中的重复 key不能在 decode时偷偷 fold。顺序组合才按
+$0/1/omega$ semiring fold。`DelegatesV2` 的 `Forwarded` transition结构性消耗
+inner disposition一次，因此原始 path必须包含该 key；组合后的 path可因其它
+消耗把总 grade fold成 `Many`，但不能把该结构性 occurrence删除。
 每个 secondary site有自己的 receiver和 route，
 不能继承 primary route。`SecondarySiteSetV1.kind` 在 V1 只能是 `Closed`；
 没有 open row-slot variant。未知 schema version、variant tag、route selector、
@@ -1991,9 +2002,13 @@ site/route/entry/operation/role 的 attributed demand或对应 schema version的
 `LatentSiteV1`/`LatentSiteV2`
 一一对应；`OwnerBoundV1` 必须与同一 park/Owner slot 的 `ParkContractV1`
 或 `ParkContractV2` 对应。wire不序列化 runtime prompt地址。
-`SuffixContractV1` 是 $D_k,Pi_k,chi_k,u_k$ 的确定性 wire projection：
+`SuffixContractV1/V2` 是 $D_k,Pi_k,chi_k,u_k$ 的确定性 wire projection：
 residual row/demand、flow/world、suspension、summary/result、phase、cleanup
-与全部 live binding缺一不可。`cleanup` 的 demand/suspension同样必须通过
+与全部 live binding缺一不可。对 V2，checker从本 suffix computation中全部
+provenance、capture与 usage expression的自由 namespace-qualified slot确定性计算
+`LiveSupport(D)`；nested suffix由自己的 lexical projection单独验证。
+`live_bindings` 的 key必须唯一且恰好等于 `LiveSupport(D)`，不能相信序列化的
+空数组，也不能允许遗漏或多报。`cleanup` 的 demand/suspension同样必须通过
 `AttributedOK`。
 `LatentSiteV1`/`LatentSiteV2` 的 instantiated signature、actual arguments与
 selector必须相容；
@@ -5897,9 +5912,10 @@ $
         "semantic_summary": "PureV1" }
 $
 
-并定义 $"EmptySuffixEnv"(kappa)$ 当且仅当
-`κ.D.live_bindings == []`；由 suffix environment投影得到的
-$Pi_k$ 与 $chi_k$ 因而都恰为 $emptyset$。基线 truth rule 是：
+并定义 $"EmptySuffixEnv"(kappa)$ 当且仅当 suffix validation已经证明
+`keys(κ.D.live_bindings) == LiveSupport(κ.D.computation)`，且两者都为空；
+checker不能只信任 wire中的 `live_bindings == []`。由这个完整的 suffix
+environment投影得到的 $Pi_k$ 与 $chi_k$ 因而都恰为 $emptyset$。基线 truth rule 是：
 
 #irule(
   [ReplayableCleanup-Neutral],
