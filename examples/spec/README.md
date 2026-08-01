@@ -168,6 +168,13 @@ Patch，再把 `decoder_target` 指向的实际节点交给声明的 decoder，
 并校验精确 diagnostic id。负测还把合法 `DelegatesV2` 拷到 Function及handler
 return context、注入未知 outcome、未绑定 return slot与 nominal callee sentinel，
 证明 decoder会穷尽 tag并线程 lexical context，而非只检查 fixture形状。
+另有 17 个 task #28 full-root probe固定相邻组合：concrete source的全部 Returns
+projection、terminal Join与 nested PathBind；secondary id/ref共同 qualification；
+完整 actual/closure scope与 Call-Q predicate discharge；无需 slot materialization的
+`source:null`；Legacy cleanup、operation type binder及 declaration kind exactness；
+以及 outer ContractParameter向 imported generic的合法 pass-through求值。它们都从
+repository fixture构造完整 root并走同一 validator/evaluator，不是 isolated helper
+assertion。
 
 `diagnostics-v2.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；
 新增或重命名 id需要新 registry version，不能让 parser recovery改变同一

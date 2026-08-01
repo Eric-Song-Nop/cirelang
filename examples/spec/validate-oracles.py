@@ -5,7 +5,8 @@ This is the executable reference decoder for the frozen V2 wire profile, not a
 compiler implementation. Its computation/outcome import is exhaustive and
 threads application, return-binder, and Handler-clause disposition scope. It
 also evaluates each mutation through the named decoder and checks the exact
-diagnostic that decoder emits.
+diagnostic that decoder emits. Task #28 regressions additionally exercise six
+formal-conformance clusters through complete root contracts.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ import re
 import sys
 import unicodedata
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 
 ROOT = Path(__file__).resolve().parent
@@ -474,6 +475,25 @@ def validate_suspension(suspension: Any) -> None:
             raise Diagnostic("contract-component-kind-mismatch")
 
 
+def validate_demand(demand: Any) -> None:
+    demand = validate_contract_object(demand)
+    exact_fields(
+        demand,
+        {"site_slot", "route", "entry", "operation", "site_role"},
+        "DemandV1",
+    )
+    validate_u32(demand["site_slot"], "DemandV1 site_slot")
+    validate_route_selector(demand["route"])
+    validate_effect_entry_selector(demand["entry"])
+    validate_operation_selector(demand["operation"])
+    role = demand["site_role"]
+    if role != "Primary":
+        role = validate_contract_object(role)
+        exact_fields(role, {"kind", "secondary_slot"}, "Secondary")
+        reject(role["kind"] != "Secondary", "contract-component-kind-mismatch")
+        validate_u32(role["secondary_slot"], "DemandV1 secondary_slot")
+
+
 def validate_row_expr(row: dict[str, Any]) -> None:
     kind = row.get("kind")
     if kind == "EmptyV1":
@@ -848,6 +868,8 @@ def validate_contract_kind(kind: dict[str, Any], returns: ReturnScope) -> None:
             validate_type_v2(kind[key], returns=returns)
     if "clock" in kind:
         validate_slot_v1(kind["clock"], "Clock")
+    if tag == "FunctionContractKindV2":
+        validate_row_expr(kind["visible_row"])
 
 
 def validate_contract_parameter(parameter: dict[str, Any], returns: ReturnScope) -> None:
@@ -1224,6 +1246,19 @@ def validate_return_binder(
 
 def validate_cleanup(cleanup: dict[str, Any]) -> None:
     exact_fields(cleanup, {"residual_row", "attributed_demand", "transition", "suspension", "semantic_summary"}, "CleanupContractV1")
+    reject(
+        any(
+            isinstance(node, dict)
+            and str(node.get("kind", "")).endswith("V2")
+            for node in walk(cleanup)
+        ),
+        "unsupported-contract-schema-version",
+    )
+    validate_row_expr(cleanup["residual_row"])
+    for demand in validate_contract_list(cleanup["attributed_demand"]):
+        validate_demand(demand)
+    validate_transition(cleanup["transition"])
+    validate_suspension(cleanup["suspension"])
     validate_summary_normal_form(cleanup["semantic_summary"])
 
 
@@ -1677,6 +1712,10 @@ def validate_path(
     nearest_outer_prompt_slot: int | None = None,
 ) -> None:
     exact_fields(path, {"outcome", "residual_row", "attributed_demand", "suspension", "semantic_summary", "usage", "required_phase", "ParametricObligations", "LatentSites"}, "PathContractV2")
+    validate_row_expr(path["residual_row"])
+    for demand in validate_contract_list(path["attributed_demand"]):
+        validate_demand(demand)
+    validate_suspension(path["suspension"])
     validate_summary_normal_form(path["semantic_summary"])
     validate_phase_requirement(path["required_phase"])
     for usage in path["usage"]:
@@ -1782,7 +1821,7 @@ def computation_return_types(
             for path in computation["paths"]
             if path["outcome"].get("kind") == "ReturnsV2"
         ]
-        return result_types or None
+        return result_types
     if kind == "LiteralPathsV2":
         result_types: list[dict[str, Any]] = []
         for path in computation["paths"]:
@@ -1805,7 +1844,7 @@ def computation_return_types(
             if len(matching_sites) != 1:
                 return None
             result_types.append(copy.deepcopy(matching_sites[0]["instantiated_signature"]["result"]))
-        return result_types or None
+        return result_types
     if kind == "InvokeV2":
         application = applications[computation["application_slot"]]
         target_kind, _ = resolve_contract_target(
@@ -1813,6 +1852,12 @@ def computation_return_types(
         )
         return [substitute_contract_kind(target_kind, application["substitution"])["result_type"]]
     if kind == "PathBindV2":
+        prefix_types = computation_return_types(
+            computation["prefix"], applications, imports,
+            contract_binders, local_functions, disposition_binder,
+        )
+        if prefix_types is None or not prefix_types:
+            return prefix_types
         return computation_return_types(
             computation["continuation"], applications, imports,
             contract_binders, local_functions, disposition_binder,
@@ -1908,7 +1953,7 @@ def validate_computation(
             computation["prefix"], applications, imports,
             contract_binders, local_functions, disposition_binder,
         )
-        reject(result_types is None, "path-bind-literal-prefix-forbidden")
+        reject(not result_types, "path-bind-literal-prefix-forbidden")
         for result_type in result_types:
             reject(binder["type"] != result_type, "path-bind-return-binder-mismatch")
         validate_computation_return_projection(
@@ -2196,6 +2241,23 @@ def validate_function_contract(
     declaration_kind = contract["declaration_kind"]
     if declaration_kind is not None:
         require(declaration_kind.get("kind") == "FunctionContractKindV2", "FunctionContractV2 declaration kind")
+        reject(
+            set(declaration_kind)
+            != {"kind", "parameter_type", "result_type", "visible_row"},
+            "contract-component-kind-mismatch",
+        )
+        validate_row_expr(declaration_kind["visible_row"])
+        type_parameter_scope = {
+            binder["slot"] for binder in binders["type_binders"]
+        }
+        reject(
+            any(
+                node["slot"] not in type_parameter_scope
+                for node in walk(declaration_kind)
+                if isinstance(node, dict) and node.get("kind") == "TypeParameterV2"
+            ),
+            "contract-projection-escapes-scope",
+        )
         validate_type_v2(declaration_kind["parameter_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
         validate_type_v2(declaration_kind["result_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
         reject(
@@ -2205,12 +2267,54 @@ def validate_function_contract(
         )
     for binder in contract_binders.values():
         require(binder.get("kind") == "FunctionContractBinderV2", "unsupported ContractBinderV2 in fixture")
+        reject(
+            set(binder)
+            != {"kind", "slot", "parameter_type", "result_type", "visible_row"},
+            "contract-component-kind-mismatch",
+        )
+        validate_row_expr(binder["visible_row"])
         validate_type_v2(binder["parameter_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
         validate_type_v2(binder["result_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
     for parameter in binders.get("parameter_binders", []):
         validate_type_v2(parameter["type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
     for binding in contract.get("closure_environment", []):
         validate_type_v2(binding["type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+    ambient_type_parameters = {
+        binder["slot"] for binder in binders["type_binders"]
+    }
+    for node in walk(contract["computation"]):
+        if not isinstance(node, dict) or not {
+            "type_binders", "parameters", "result", "mode",
+        } <= set(node):
+            continue
+        signature_scope = ambient_type_parameters | {
+            binder["slot"] for binder in node["type_binders"]
+        }
+        reject(
+            any(
+                member["slot"] not in signature_scope
+                for member in walk([node["parameters"], node["result"]])
+                if isinstance(member, dict)
+                and member.get("kind") == "TypeParameterV2"
+            ),
+            "contract-projection-escapes-scope",
+        )
+    parameter_scope = {binder["slot"] for binder in binders["parameter_binders"]}
+    closure_scope = {
+        binding["slot"]["slot"]
+        for binding in contract["closure_environment"]
+        if binding["slot"]["namespace"] == "ClosureCapture"
+    }
+    slot_scopes = {
+        "Parameter": parameter_scope,
+        "ClosureCapture": closure_scope,
+        "Owner": {binder["slot"] for binder in binders["owner_binders"]},
+        "Identity": {
+            binder["identity_slot"] for binder in binders["identity_binders"]
+        },
+        "Clock": {binder["slot"] for binder in binders["clock_binders"]},
+        "Row": {binder["slot"] for binder in binders["row_binders"]},
+    }
     applications = validate_application_ledger(
         contract["applications"], returns={}, imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
@@ -2219,6 +2323,14 @@ def validate_function_contract(
         contract["computation"], applications, context="function", imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
     )
+    for node in walk([contract["applications"], contract["computation"]]):
+        if not isinstance(node, dict) or set(node) != {"namespace", "slot"}:
+            continue
+        if node["namespace"] in slot_scopes:
+            reject(
+                node["slot"] not in slot_scopes[node["namespace"]],
+                "contract-projection-escapes-scope",
+            )
 
 
 def validate_handler_contract(
@@ -2301,15 +2413,71 @@ def validate_projection_evidence(oracle: dict[str, Any], source: dict[str, Any])
     require(len({app for app, _ in seen}) == len(oracle["projection_evidence"]), "projection applications collapsed")
 
 
-def source_return_path(source: dict[str, Any]) -> dict[str, Any]:
-    computation = source["computation"]
-    if computation["kind"] == "PathBindV2":
-        computation = computation["continuation"]
-    return next(path for path in computation["paths"] if path["outcome"]["kind"] == "ReturnsV2")
+def symbolic_return_paths(computation: dict[str, Any]) -> list[dict[str, Any]]:
+    """Project reachable Returns without resolving abstract Invoke targets."""
+
+    kind = computation["kind"]
+    if kind in {"LiteralPathsV2", "CurrentDispositionPathsV2"}:
+        return [
+            copy.deepcopy(path)
+            for path in computation["paths"]
+            if path["outcome"]["kind"] == "ReturnsV2"
+        ]
+    if kind == "JoinV2":
+        return [
+            path
+            for member in computation["members"]
+            for path in symbolic_return_paths(member)
+        ]
+    if kind == "PathBindV2":
+        binder = computation["return_binder"]
+        world = binder["world"]
+        prefix_transition = (
+            world["transition"]
+            if world.get("kind") == "ApplyWorldTransitionV2"
+            else {"kind": "SameWorldV1"}
+        )
+        result = []
+        for path in symbolic_return_paths(computation["continuation"]):
+            path = substitute_return_binder(path, binder)
+            path["outcome"]["transition"] = compose_transition(
+                prefix_transition, path["outcome"]["transition"],
+            )
+            result.append(path)
+        return result
+    if kind == "InvokeV2":
+        return []
+    raise Diagnostic("unknown-contract-computation-variant")
 
 
-def instantiate_source_result(source: dict[str, Any], application: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
-    path = source_return_path(source)
+def source_return_paths(
+    source: dict[str, Any],
+    *,
+    imports: ImportScope,
+    local_functions: LocalFunctionScope,
+    contract_environment: dict[int, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    contract_slots = {
+        binder["slot"] for binder in source["binders"]["contract_binders"]
+    }
+    if not contract_slots <= set(contract_environment):
+        return symbolic_return_paths(source["computation"])
+    evaluated = evaluate_contract_computation(
+        source, imports=imports, local_functions=local_functions,
+        contract_environment=contract_environment,
+    )
+    return [
+        item["path"]
+        for item in evaluated
+        if item["path"]["outcome"]["kind"] == "ReturnsV2"
+    ]
+
+
+def instantiate_source_result(
+    source: dict[str, Any],
+    application: dict[str, Any],
+    path: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
     outcome = path["outcome"]
     transformer = outcome["result_transformer"]
     if transformer["kind"] == "LegacyResultTransformerV2":
@@ -2319,15 +2487,8 @@ def instantiate_source_result(source: dict[str, Any], application: dict[str, Any
     else:
         provenance = copy.deepcopy(transformer["provenance"])
         capture = copy.deepcopy(transformer["capture"])
-        actual_source = application["actual_arguments"][0]["source"]
-        reject(
-            actual_source is None or actual_source.get("kind") != "LegacySlotRefV2",
-            "term-actual-source-unavailable",
-        )
-        for expression in (provenance, capture):
-            for node in walk(expression):
-                if isinstance(node, dict) and "argument" in node and node["argument"] == slot("Parameter", 0):
-                    node["argument"] = copy.deepcopy(actual_source["value"])
+    provenance = substitute_term_actuals(provenance, source, application)
+    capture = substitute_term_actuals(capture, source, application)
     result_type = copy.deepcopy(source["declaration_kind"]["result_type"])
     if result_type.get("kind") == "TypeParameterV2":
         argument = next(item for item in application["substitution"]["type_arguments"] if item["binder_slot"] == result_type["slot"])
@@ -2335,15 +2496,50 @@ def instantiate_source_result(source: dict[str, Any], application: dict[str, Any
     return result_type, outcome["transition"], provenance, capture
 
 
-def validate_application_return_binder(source: dict[str, Any], application: dict[str, Any], binder: dict[str, Any]) -> None:
-    result_type, transition, provenance, capture = instantiate_source_result(source, application)
-    reject(binder["type"] != result_type or binder["provenance"] != provenance or binder["capture"] != capture, "contract-parameter-inconsistent-instantiation")
-    expected_world = {
-        "kind": "ApplyWorldTransitionV2",
-        "input": {"application_slot": application["application_slot"], "kind": "ApplicationEntryWorldV2"},
-        "transition": transition,
-    }
-    reject(binder["world"] != expected_world, "contract-parameter-inconsistent-instantiation")
+def validate_application_return_binder(
+    source: dict[str, Any],
+    application: dict[str, Any],
+    binder: dict[str, Any],
+    *,
+    imports: ImportScope | None = None,
+    local_functions: LocalFunctionScope | None = None,
+) -> None:
+    imports = imports or ImportScope()
+    local_functions = local_functions or {}
+    contract_environment: dict[int, dict[str, Any]] = {}
+    for entry in application["substitution"]["contract_arguments"]:
+        actual = entry["contract"]
+        if actual["kind"] == "ImportedFunctionRefV2":
+            contract_environment[entry["binder_slot"]] = imports[actual["artifact_hash"]]
+        elif actual["kind"] == "LocalFunctionRefV2":
+            contract_environment[entry["binder_slot"]] = local_functions[actual["declaration_slot"]]
+    paths = source_return_paths(
+        source, imports=imports, local_functions=local_functions,
+        contract_environment=contract_environment,
+    )
+    require(paths, "concrete application source has no ReturnsV2 path")
+    for path in paths:
+        result_type, transition, provenance, capture = instantiate_source_result(
+            source, application, path,
+        )
+        reject(
+            binder["type"] != result_type
+            or binder["provenance"] != provenance
+            or binder["capture"] != capture,
+            "contract-parameter-inconsistent-instantiation",
+        )
+        expected_world = {
+            "kind": "ApplyWorldTransitionV2",
+            "input": {
+                "application_slot": application["application_slot"],
+                "kind": "ApplicationEntryWorldV2",
+            },
+            "transition": transition,
+        }
+        reject(
+            binder["world"] != expected_world,
+            "contract-parameter-inconsistent-instantiation",
+        )
 
 
 def validate_application_return_lineage(application: dict[str, Any], binder: dict[str, Any]) -> None:
@@ -2390,7 +2586,10 @@ def validate_computation_return_projection(
             application["contract"], imports, contract_binders, local_functions,
         )
         if target is not None:
-            validate_application_return_binder(target, application, binder)
+            validate_application_return_binder(
+                target, application, binder,
+                imports=imports, local_functions=local_functions,
+            )
         return
     if kind == "JoinV2":
         for member in computation["members"]:
@@ -2510,7 +2709,7 @@ def validate_q_oracle(oracle: dict[str, Any], imported: dict[str, dict[str, Any]
     require(apps[0]["entry_world"] != apps[1]["entry_world"], "Q oracle application worlds alias")
     binders = [oracle["contract"]["computation"]["return_binder"], oracle["contract"]["computation"]["continuation"]["return_binder"]]
     for app, binder in zip(apps, binders):
-        validate_application_return_binder(source, app, binder)
+        validate_application_return_binder(source, app, binder, imports=imported)
     for app in apps:
         require(app["contract"]["artifact_hash"] in imported, "Q oracle application import not resolved")
     evaluated = evaluate_contract_computation(oracle["contract"], imports=imported)
@@ -2597,6 +2796,7 @@ def compose_path_contracts(left: dict[str, Any], right: dict[str, Any]) -> dict[
 LOCAL_ID_FIELDS = {
     "site_slot", "park_site_slot", "continuation_site_slot",
     "forward_site_slot", "claim_cell_slot", "port_slot", "prompt_slot",
+    "secondary_slot",
 }
 
 
@@ -2702,17 +2902,45 @@ def discharge_call_obligation(
 
     parameter_slots = [binder["slot"] for binder in source_contract["binders"]["parameter_binders"]]
     actual_by_slot = dict(zip(parameter_slots, application["actual_arguments"]))
+    closure_by_slot = {
+        binding["slot"]["slot"]: binding
+        for binding in source_contract["closure_environment"]
+        if binding["slot"]["namespace"] == "ClosureCapture"
+    }
 
     def resolve(node: Any) -> Any:
         if isinstance(node, list):
             return [resolve(member) for member in node]
         if not isinstance(node, dict):
             return node
-        if set(node) == {"namespace", "slot"} and node["namespace"] == "Parameter":
-            reject(node["slot"] not in actual_by_slot, "application-arity-mismatch")
-            actual = actual_by_slot[node["slot"]]
-            exact_fields(actual, VALUE_SUMMARY_FIELDS, "ValueSummaryExprV2")
-            return {"kind": "ResolvedCallActual", "summary": copy.deepcopy(actual)}
+        if set(node) == {"namespace", "slot"}:
+            if node["namespace"] == "Parameter":
+                reject(node["slot"] not in actual_by_slot, "application-arity-mismatch")
+                actual = actual_by_slot[node["slot"]]
+                exact_fields(actual, VALUE_SUMMARY_FIELDS, "ValueSummaryExprV2")
+                return {"kind": "ResolvedCallActual", "summary": copy.deepcopy(actual)}
+            if node["namespace"] == "ClosureCapture":
+                reject(
+                    node["slot"] not in closure_by_slot,
+                    "contract-projection-escapes-scope",
+                )
+                binding = closure_by_slot[node["slot"]]
+                summary = {
+                    "source": {
+                        "kind": "LegacySlotRefV2",
+                        "value": copy.deepcopy(binding["slot"]),
+                    },
+                    "type": copy.deepcopy(binding["type"]),
+                    "nominal_index": {
+                        "kind": "LegacyNominalIndexExprV2",
+                        "value": {"kind": "NoNominalIndexV1"},
+                    },
+                    "provenance": copy.deepcopy(binding["provenance"]),
+                    "capture": copy.deepcopy(binding["capture"]),
+                    "usage": None,
+                    "origin": "closure-environment",
+                }
+                return {"kind": "ResolvedCallActual", "summary": summary}
         return {key: resolve(member) for key, member in node.items()}
 
     resolved = resolve(obligation)
@@ -2754,7 +2982,40 @@ def provenance_is_inhabited(provenance: dict[str, Any]) -> bool:
         return True
     if kind == "JoinProvenanceV2":
         return all(provenance_is_inhabited(member) for member in provenance["members"])
-    return kind in {"ReturnProvenanceV2", "EnvironmentV2"}
+    if kind == "EnvironmentV2":
+        return all(
+            provenance_is_inhabited(binding["provenance"])
+            and capture_is_boundary_safe(binding["capture"])
+            for binding in provenance["bindings"]
+        )
+    return kind == "ReturnProvenanceV2"
+
+
+def legacy_capture_is_duplicable(capture: dict[str, Any]) -> bool:
+    kind = capture["kind"]
+    if kind == "NoCaptureV1":
+        return True
+    if kind in {"BottomCaptureV1", "OperationResultCaptureV1"}:
+        return False
+    if kind == "CaptureSlotsV1":
+        return all(
+            reference["namespace"] not in {"Owner", "SuffixLive"}
+            for reference in capture["slots"]
+        )
+    if kind in {"ArgumentCaptureV1", "ArrayElementCaptureV1"}:
+        return capture["argument"]["namespace"] not in {"Owner", "SuffixLive"}
+    if kind == "UnionCaptureV1":
+        return all(legacy_capture_is_duplicable(member) for member in capture["members"])
+    return False
+
+
+def capture_is_duplicable(capture: dict[str, Any]) -> bool:
+    kind = capture["kind"]
+    if kind == "LegacyCaptureExprV2":
+        return legacy_capture_is_duplicable(capture["value"])
+    if kind == "UnionCaptureV2":
+        return all(capture_is_duplicable(member) for member in capture["members"])
+    return False
 
 
 def solve_call_obligation(obligation: dict[str, Any]) -> None:
@@ -2780,6 +3041,7 @@ def solve_call_obligation(obligation: dict[str, Any]) -> None:
             any(
                 summary["provenance"]
                 != {"kind": "LegacyProvenanceExprV2", "value": {"kind": "StableV1"}}
+                or not capture_is_boundary_safe(summary["capture"])
                 for summary in actuals
             ),
             "call-obligation-unsatisfied",
@@ -2787,13 +3049,18 @@ def solve_call_obligation(obligation: dict[str, Any]) -> None:
     elif kind in {"DuplicableEnvV1", "DuplicableEnvV2"}:
         reject(
             any(
-                summary["usage"] is not None
-                and summary["usage"].get("kind") == "LegacyUsageExprV2"
-                and summary["usage"]["value"]["kind"] == "Once"
+                not capture_is_duplicable(summary["capture"])
+                or (
+                    summary["usage"] is not None
+                    and summary["usage"].get("kind") == "LegacyUsageExprV2"
+                    and summary["usage"]["value"]["kind"] == "Once"
+                )
                 for summary in actuals
             ),
             "call-obligation-unsatisfied",
         )
+    else:
+        raise Diagnostic("call-obligation-unsatisfied")
 
 
 def validate_concrete_application_call_obligations(
@@ -2972,6 +3239,13 @@ def evaluate_contract_computation(
                         nested_environment[entry["binder_slot"]] = imports[actual["artifact_hash"]]
                     elif actual["kind"] == "LocalFunctionRefV2":
                         nested_environment[entry["binder_slot"]] = local_functions[actual["declaration_slot"]]
+                    elif actual["kind"] == "ContractParameterRefV2":
+                        outer_slot = actual["parameter"]["slot"]
+                        require(
+                            outer_slot in contract_environment,
+                            "evaluator has no pass-through contract-parameter actual",
+                        )
+                        nested_environment[entry["binder_slot"]] = contract_environment[outer_slot]
                     else:
                         raise AssertionError("evaluator requires a resolved contract substitution")
             elif reference["kind"] == "LocalFunctionRefV2":
@@ -3065,7 +3339,7 @@ def validate_hof_oracle(oracle: dict[str, Any], imported: ImportScope) -> None:
     require(apps[0]["contract"] == apps[1]["contract"], "HOF callback ContractRef changed between invocations")
     binders = [contract["computation"]["return_binder"], contract["computation"]["continuation"]["return_binder"]]
     for app, binder in zip(apps, binders):
-        validate_application_return_binder(source, app, binder)
+        validate_application_return_binder(source, app, binder, imports=imported)
     consumer_app = oracle["consumer_contract"]["applications"][0]
     require(consumer_app["contract"]["artifact_hash"] == apply_later_hash, "HOF consumer did not import apply_later root contract")
     require(len(consumer_app["actual_arguments"]) == 3, "HOF consumer omitted a runtime actual")
@@ -3399,7 +3673,10 @@ def validate_handler_oracle(oracle: dict[str, Any], directory: Path) -> None:
         "handler oracle return application not consumed",
     )
     source = imported[applications[0]["contract"]["artifact_hash"]]
-    validate_application_return_binder(source, applications[0], return_computation["return_binder"])
+    validate_application_return_binder(
+        source, applications[0], return_computation["return_binder"],
+        imports=imported,
+    )
     clause = oracle["handler_contract"]["clause_computations"][0]
     evaluated_clause = evaluate_contract_computation(
         {
@@ -3623,6 +3900,660 @@ def decode_named(decoder: str, target: dict[str, Any], document: dict[str, Any],
         raise AssertionError(f"unknown mutation decoder: {decoder}")
 
 
+def expect_diagnostic(
+    label: str,
+    expected: str,
+    action: Callable[[], None],
+) -> None:
+    try:
+        action()
+    except Diagnostic as error:
+        require(
+            error.diagnostic_id == expected,
+            f"{label}: expected {expected}, got {error.diagnostic_id}",
+        )
+    else:
+        raise AssertionError(f"{label}: malformed full root was accepted")
+
+
+def replace_imported_contract_reference(
+    value: Any,
+    artifact_hash: str,
+    replacement: dict[str, Any],
+) -> None:
+    for node in walk(value):
+        if (
+            isinstance(node, dict)
+            and node.get("kind") == "ImportedFunctionRefV2"
+            and node.get("artifact_hash") == artifact_hash
+        ):
+            node.clear()
+            node.update(copy.deepcopy(replacement))
+
+
+def single_import_scope(
+    artifact_hash: str,
+    contract: dict[str, Any],
+    module: tuple[str, ...],
+    name: str,
+) -> ImportScope:
+    imports = ImportScope()
+    imports[artifact_hash] = contract
+    imports.exports[artifact_hash] = (module, name)
+    return imports
+
+
+def pure_return_continuation(
+    path_template: dict[str, Any],
+    return_slot: int,
+) -> dict[str, Any]:
+    path = copy.deepcopy(path_template)
+    path.update(
+        {
+            "LatentSites": [],
+            "ParametricObligations": [],
+            "attributed_demand": [],
+            "outcome": {
+                "kind": "ReturnsV2",
+                "transition": {"kind": "SameWorldV1"},
+                "result_transformer": {
+                    "kind": "ReturnBoundResultV2",
+                    "return_slot": return_slot,
+                },
+            },
+            "required_phase": {
+                "allowed_phases": ["Pure", "Compute", "Action", "Commit"],
+                "required_authorities": [],
+                "current_owner": None,
+            },
+            "residual_row": {"kind": "EmptyV1"},
+            "semantic_summary": {"kind": "PureV1"},
+            "suspension": {"atoms": [], "grade": "NoSuspend"},
+            "usage": [],
+        }
+    )
+    return {"kind": "LiteralPathsV2", "paths": [path]}
+
+
+def concrete_return_binder(
+    source: dict[str, Any],
+    application: dict[str, Any],
+    return_slot: int,
+    *,
+    imports: ImportScope,
+    local_functions: LocalFunctionScope,
+) -> dict[str, Any]:
+    contract_environment: dict[int, dict[str, Any]] = {}
+    for entry in application["substitution"]["contract_arguments"]:
+        reference = entry["contract"]
+        if reference["kind"] == "ImportedFunctionRefV2":
+            contract_environment[entry["binder_slot"]] = imports[reference["artifact_hash"]]
+        elif reference["kind"] == "LocalFunctionRefV2":
+            contract_environment[entry["binder_slot"]] = local_functions[reference["declaration_slot"]]
+    paths = source_return_paths(
+        source, imports=imports, local_functions=local_functions,
+        contract_environment=contract_environment,
+    )
+    require(
+        len(paths) == 1,
+        "full-root return-binder probe requires one reachable ReturnsV2 path",
+    )
+    result_type, transition, provenance, capture = instantiate_source_result(
+        source, application, paths[0],
+    )
+    return {
+        "slot": return_slot,
+        "type": result_type,
+        "world": {
+            "kind": "ApplyWorldTransitionV2",
+            "input": {
+                "kind": "ApplicationEntryWorldV2",
+                "application_slot": application["application_slot"],
+            },
+            "transition": transition,
+        },
+        "nominal_index": {
+            "kind": "LegacyNominalIndexExprV2",
+            "value": {"kind": "NoNominalIndexV1"},
+        },
+        "provenance": provenance,
+        "capture": capture,
+        "usage": None,
+    }
+
+
+def validate_task28_path_and_qualification_regressions() -> int:
+    """Exercise task #28 groups 1-2 through complete root contracts."""
+
+    directory = INTERFACES
+    choose = load_json(directory / "choose-once-function-contract.json")
+    q_oracle = load_json(directory / "q-lambda-call-install.json")
+    old_hash = q_oracle["imports"][0]["artifact_hash"]
+
+    multi_return = copy.deepcopy(choose)
+    second_return = copy.deepcopy(multi_return["computation"]["paths"][0])
+    second_return["outcome"]["result_transformer"] = {
+        "kind": "ParametricResultV2",
+        "provenance": {
+            "kind": "LegacyProvenanceExprV2",
+            "value": {"kind": "StableV1"},
+        },
+        "capture": {
+            "kind": "LegacyCaptureExprV2",
+            "value": {"kind": "NoCaptureV1"},
+        },
+    }
+    multi_return["computation"]["paths"].append(second_return)
+    validate_function_contract(multi_return)
+    multi_hash = canonical_hash(multi_return)
+    multi_reference = {
+        "artifact_hash": multi_hash,
+        "kind": "ImportedFunctionRefV2",
+        "module": ["library"],
+        "name": "choose_once",
+    }
+    mismatched_consumer = copy.deepcopy(q_oracle["contract"])
+    replace_imported_contract_reference(
+        mismatched_consumer, old_hash, multi_reference,
+    )
+    multi_imports = single_import_scope(
+        multi_hash, multi_return, ("library",), "choose_once",
+    )
+    expect_diagnostic(
+        "task28 concrete all-Returns projection",
+        "contract-parameter-inconsistent-instantiation",
+        lambda: validate_function_contract(
+            mismatched_consumer, imports=multi_imports,
+        ),
+    )
+
+    baseline_imports = resolve_imports(q_oracle, directory)
+    mixed_join = copy.deepcopy(q_oracle["contract"])
+    terminal_path = copy.deepcopy(
+        mixed_join["computation"]["continuation"]["continuation"]["paths"][0]
+    )
+    terminal_path["outcome"] = {
+        "kind": "AbortsV2",
+        "origin": "task28:mixed-terminal-join",
+    }
+    mixed_join["computation"]["prefix"] = {
+        "kind": "JoinV2",
+        "members": [
+            mixed_join["computation"]["prefix"],
+            {"kind": "LiteralPathsV2", "paths": [terminal_path]},
+        ],
+    }
+    validate_function_contract(mixed_join, imports=baseline_imports)
+    mixed_outcomes = [
+        item["path"]["outcome"]["kind"]
+        for item in evaluate_contract_computation(
+            mixed_join, imports=baseline_imports,
+        )
+    ]
+    require(
+        mixed_outcomes == ["AbortsV2", "ReturnsV2"],
+        "task28 mixed terminal Join did not bypass the ReturnBinder",
+    )
+
+    hof_oracle = load_json(directory / "hof-mixed-later.json")
+    hof_imports = resolve_imports(hof_oracle, directory)
+    nested_consumer = copy.deepcopy(hof_oracle["consumer_contract"])
+    nested_application = nested_consumer["applications"][0]
+    nested_source = hof_imports[nested_application["contract"]["artifact_hash"]]
+    nested_slot = 20
+    nested_binder = concrete_return_binder(
+        nested_source, nested_application, nested_slot,
+        imports=hof_imports, local_functions={},
+    )
+    nested_template = q_oracle["contract"]["computation"]["continuation"]["continuation"]["paths"][0]
+    nested_consumer["computation"] = {
+        "kind": "PathBindV2",
+        "prefix": nested_consumer["computation"],
+        "return_binder": nested_binder,
+        "continuation": pure_return_continuation(nested_template, nested_slot),
+        "terminal_policy": "PreserveTerminalV2",
+    }
+    validate_function_contract(nested_consumer, imports=hof_imports)
+    nested_outcomes = [
+        item["path"]["outcome"]["kind"]
+        for item in evaluate_contract_computation(
+            nested_consumer, imports=hof_imports,
+        )
+    ]
+    require(
+        len(nested_outcomes) == 7
+        and nested_outcomes.count("ReturnsV2") == 1
+        and nested_outcomes.count("AbortsV2") == 2
+        and nested_outcomes.count("TransfersV2") == 4,
+        "task28 nested PathBind source lost its seven-path flow",
+    )
+
+    secondary_source = copy.deepcopy(choose)
+    secondary_path = secondary_source["computation"]["paths"][0]
+    secondary_latent = secondary_path["LatentSites"][0]
+    secondary_path["ParametricObligations"] = []
+    secondary_latent["call_obligation_ids"] = []
+    secondary_latent["install_obligation_ids"] = []
+    secondary_latent["site_slot"] = 5
+    secondary_latent["instantiated_signature"]["secondary_sites"] = {
+        "kind": "Closed",
+        "sites": [
+            {
+                "site_slot": 7,
+                "receiver": copy.deepcopy(secondary_latent["receiver"]),
+                "operation": copy.deepcopy(secondary_latent["operation"]),
+                "route": copy.deepcopy(secondary_latent["route"]),
+                "suspension": {"atoms": [], "grade": "NoSuspend"},
+                "semantic_summary": {"kind": "PureV1"},
+                "origin": "task28:secondary-site",
+            }
+        ],
+    }
+    secondary_demand = copy.deepcopy(secondary_path["attributed_demand"][0])
+    secondary_demand["site_slot"] = 7
+    secondary_demand["site_role"] = {
+        "kind": "Secondary",
+        "secondary_slot": 7,
+    }
+    secondary_path["attributed_demand"] = [secondary_demand]
+    validate_function_contract(secondary_source)
+    secondary_hash = canonical_hash(secondary_source)
+    secondary_reference = {
+        "artifact_hash": secondary_hash,
+        "kind": "ImportedFunctionRefV2",
+        "module": ["library"],
+        "name": "choose_once",
+    }
+    secondary_consumer = copy.deepcopy(q_oracle["contract"])
+    replace_imported_contract_reference(
+        secondary_consumer, old_hash, secondary_reference,
+    )
+    secondary_imports = single_import_scope(
+        secondary_hash, secondary_source, ("library",), "choose_once",
+    )
+    validate_function_contract(secondary_consumer, imports=secondary_imports)
+    qualified_paths = evaluate_contract_computation(
+        secondary_consumer, imports=secondary_imports,
+    )
+    require(len(qualified_paths) == 1, "task28 secondary qualification path count")
+    qualified_path = qualified_paths[0]["path"]
+    secondary_sites = sorted(
+        site["site_slot"]
+        for latent in qualified_path["LatentSites"]
+        for site in latent["instantiated_signature"]["secondary_sites"]["sites"]
+    )
+    secondary_references = sorted(
+        node["secondary_slot"]
+        for node in walk(qualified_path)
+        if isinstance(node, dict) and node.get("kind") == "Secondary"
+    )
+    require(
+        len(secondary_sites) == 2
+        and len(set(secondary_sites)) == 2
+        and secondary_references == secondary_sites,
+        "task28 Secondary.secondary_slot qualification broke target identity",
+    )
+    return 4
+
+
+def validate_task28_call_and_exactness_regressions() -> int:
+    """Exercise task #28 groups 3-6 through complete root contracts."""
+
+    directory = INTERFACES
+    local_oracle = load_json(directory / "local-function-call.json")
+
+    def call_case(
+        label: str,
+        expected: str,
+        mutate: Callable[[dict[str, Any]], None],
+    ) -> None:
+        document = copy.deepcopy(local_oracle)
+        mutate(document)
+        expect_diagnostic(
+            label, expected,
+            lambda: validate_local_contract_oracle(document),
+        )
+
+    call_case(
+        "task28 actual Parameter scope",
+        "contract-projection-escapes-scope",
+        lambda document: document["contract"]["applications"][0]["actual_arguments"][0].__setitem__(
+            "capture",
+            {
+                "kind": "LegacyCaptureExprV2",
+                "value": {
+                    "kind": "CaptureSlotsV1",
+                    "slots": [slot("Parameter", 999)],
+                },
+            },
+        ),
+    )
+
+    def mutate_closure_scope(document: dict[str, Any]) -> None:
+        obligation = document["local_declarations"][0]["contract"]["computation"]["paths"][0]["ParametricObligations"][0]["value"]
+        obligation["slots"][0] = slot("ClosureCapture", 999)
+
+    call_case(
+        "task28 Call-Q ClosureCapture scope",
+        "contract-projection-escapes-scope",
+        mutate_closure_scope,
+    )
+
+    def mutate_boundary_environment(document: dict[str, Any]) -> None:
+        actual = document["contract"]["applications"][0]["actual_arguments"][0]
+        actual["provenance"] = {
+            "kind": "EnvironmentV2",
+            "bindings": [
+                {
+                    "slot": slot("Parameter", 0),
+                    "type": copy.deepcopy(actual["type"]),
+                    "provenance": {
+                        "kind": "LegacyProvenanceExprV2",
+                        "value": {"kind": "BottomProvenanceV1"},
+                    },
+                    "capture": {
+                        "kind": "LegacyCaptureExprV2",
+                        "value": {"kind": "BottomCaptureV1"},
+                    },
+                }
+            ],
+        }
+
+    call_case(
+        "task28 BoundarySafe EnvironmentV2 bottom",
+        "call-obligation-unsatisfied",
+        mutate_boundary_environment,
+    )
+
+    def replace_call_obligation(
+        document: dict[str, Any],
+        value: dict[str, Any],
+    ) -> None:
+        document["local_declarations"][0]["contract"]["computation"]["paths"][0]["ParametricObligations"][0]["value"] = value
+
+    def mutate_stable_bottom(document: dict[str, Any]) -> None:
+        clocked_source = load_json(
+            directory / "mixed-next-callback-function-contract.json"
+        )
+        local_binders = document["local_declarations"][0]["contract"]["binders"]
+        for field in ("owner_binders", "identity_binders", "clock_binders"):
+            local_binders[field] = copy.deepcopy(clocked_source["binders"][field])
+        local_binders["owner_binders"][0]["source"] = slot("Parameter", 0)
+        caller_binders = document["contract"]["binders"]
+        for field in ("owner_binders", "identity_binders", "clock_binders"):
+            caller_binders[field] = copy.deepcopy(local_binders[field])
+        substitution = document["contract"]["applications"][0]["substitution"]
+        substitution["owner_arguments"] = [
+            {"binder_slot": 0, "value": slot("Owner", 0)}
+        ]
+        substitution["identity_arguments"] = [
+            {"binder_slot": 0, "value": slot("Identity", 0)}
+        ]
+        substitution["clock_arguments"] = [
+            {"binder_slot": 0, "value": slot("Clock", 0)}
+        ]
+        replace_call_obligation(
+            document,
+            {
+                "kind": "StableAcrossV1",
+                "id": 1,
+                "stage": "Call",
+                "slots": [slot("Parameter", 0)],
+                "clock_slot": slot("Clock", 0),
+                "worlds": [],
+                "origin": "task28:stable-bottom",
+            },
+        )
+        document["contract"]["applications"][0]["actual_arguments"][0]["capture"] = {
+            "kind": "LegacyCaptureExprV2",
+            "value": {"kind": "BottomCaptureV1"},
+        }
+
+    call_case(
+        "task28 StableAcross BottomCapture",
+        "call-obligation-unsatisfied",
+        mutate_stable_bottom,
+    )
+
+    def mutate_duplicable_owner(document: dict[str, Any]) -> None:
+        replace_call_obligation(
+            document,
+            {
+                "kind": "DuplicableEnvV1",
+                "id": 1,
+                "stage": "Call",
+                "slots": [slot("Parameter", 0)],
+                "site_slot": 0,
+                "origin": "task28:duplicable-owner",
+            },
+        )
+        document["contract"]["applications"][0]["actual_arguments"][0]["capture"] = {
+            "kind": "LegacyCaptureExprV2",
+            "value": {
+                "kind": "CaptureSlotsV1",
+                "slots": [slot("Owner", 0)],
+            },
+        }
+
+    call_case(
+        "task28 DuplicableEnv Owner capture",
+        "call-obligation-unsatisfied",
+        mutate_duplicable_owner,
+    )
+
+    def mutate_unproved_phase(document: dict[str, Any]) -> None:
+        replace_call_obligation(
+            document,
+            {
+                "kind": "PhaseAllowsV1",
+                "id": 1,
+                "stage": "Call",
+                "required_phase": {
+                    "allowed_phases": ["Pure", "Compute", "Action", "Commit"],
+                    "required_authorities": [],
+                    "current_owner": None,
+                },
+                "origin": "task28:unproved-phase",
+            },
+        )
+
+    call_case(
+        "task28 unproved Call-stage variant",
+        "call-obligation-unsatisfied",
+        mutate_unproved_phase,
+    )
+
+    source_null_oracle = copy.deepcopy(local_oracle)
+    source_null_source = source_null_oracle["local_declarations"][0]["contract"]
+    source_null_source["computation"]["paths"][0]["outcome"]["result_transformer"] = {
+        "kind": "ParametricResultV2",
+        "provenance": {
+            "kind": "LegacyProvenanceExprV2",
+            "value": {"kind": "StableV1"},
+        },
+        "capture": {
+            "kind": "LegacyCaptureExprV2",
+            "value": {"kind": "NoCaptureV1"},
+        },
+    }
+    source_null_contract = source_null_oracle["contract"]
+    source_null_application = source_null_contract["applications"][0]
+    source_null_locals = {0: source_null_source}
+    source_null_slot = 20
+    source_null_binder = concrete_return_binder(
+        source_null_source, source_null_application, source_null_slot,
+        imports=ImportScope(), local_functions=source_null_locals,
+    )
+    source_null_template = source_null_contract["computation"]["members"][0]["paths"][0]
+    source_null_contract["computation"] = {
+        "kind": "PathBindV2",
+        "prefix": {"kind": "InvokeV2", "application_slot": 0},
+        "return_binder": source_null_binder,
+        "continuation": pure_return_continuation(
+            source_null_template, source_null_slot,
+        ),
+        "terminal_policy": "PreserveTerminalV2",
+    }
+    validate_function_contract(
+        source_null_source, local_functions=source_null_locals,
+    )
+    validate_function_contract(
+        source_null_contract, local_functions=source_null_locals,
+    )
+    source_null_paths = evaluate_contract_computation(
+        source_null_contract, imports=ImportScope(),
+        local_functions=source_null_locals,
+    )
+    require(
+        len(source_null_paths) == 1
+        and source_null_paths[0]["path"]["outcome"]["kind"] == "ReturnsV2",
+        "task28 source:null ParametricResultV2 did not evaluate to ReturnsV2",
+    )
+
+    def mutate_legacy_cleanup(document: dict[str, Any]) -> None:
+        replace_call_obligation(
+            document,
+            {
+                "kind": "ReplayableCleanupV1",
+                "id": 1,
+                "stage": "Call",
+                "site_slot": 0,
+                "cleanup": {
+                    "residual_row": {"kind": "EmptyV1"},
+                    "attributed_demand": [],
+                    "transition": {"kind": "ReturnWorldV2", "return_slot": 0},
+                    "suspension": {"atoms": [], "grade": "NoSuspend"},
+                    "semantic_summary": {"kind": "PureV1"},
+                },
+                "origin": "task28:legacy-cleanup-v2-transition",
+            },
+        )
+
+    call_case(
+        "task28 Legacy cleanup hides V2 transition",
+        "unsupported-contract-schema-version",
+        mutate_legacy_cleanup,
+    )
+
+    choose = load_json(directory / "choose-once-function-contract.json")
+
+    def validate_unbound_signature() -> None:
+        contract = copy.deepcopy(choose)
+        latent = contract["computation"]["paths"][0]["LatentSites"][0]
+        unbound_type = {"kind": "TypeParameterV2", "slot": 999}
+        latent["actual_arguments"][0]["type"] = copy.deepcopy(unbound_type)
+        latent["instantiated_signature"]["parameters"][0] = unbound_type
+        validate_function_contract(contract)
+
+    expect_diagnostic(
+        "task28 operation signature unbound TypeParameterV2",
+        "contract-projection-escapes-scope",
+        validate_unbound_signature,
+    )
+
+    def validate_extra_declaration_kind() -> None:
+        contract = copy.deepcopy(choose)
+        contract["declaration_kind"]["extra"] = True
+        validate_function_contract(contract)
+
+    expect_diagnostic(
+        "task28 declaration kind extra field",
+        "contract-component-kind-mismatch",
+        validate_extra_declaration_kind,
+    )
+
+    def validate_forged_visible_row() -> None:
+        contract = copy.deepcopy(choose)
+        contract["declaration_kind"]["visible_row"] = {
+            "kind": "ReturnSlotRefV2",
+            "return_slot": 0,
+        }
+        validate_function_contract(contract)
+
+    expect_diagnostic(
+        "task28 declaration kind forged visible row",
+        "contract-parameter-inconsistent-instantiation",
+        validate_forged_visible_row,
+    )
+
+    hof_oracle = load_json(directory / "hof-mixed-later.json")
+    hof_imports = resolve_imports(hof_oracle, directory)
+    pass_through = copy.deepcopy(hof_oracle["consumer_contract"])
+    callback_hash = next(
+        entry["artifact_hash"]
+        for entry in hof_oracle["imports"]
+        if entry["function_name"] == "mixed_next_callback"
+    )
+    callback_source = hof_imports[callback_hash]
+    pass_through_binder = copy.deepcopy(
+        hof_oracle["contract"]["binders"]["contract_binders"][0]
+    )
+    pass_through["binders"]["contract_binders"] = [pass_through_binder]
+    pass_through_reference = {
+        "kind": "ContractParameterRefV2",
+        "parameter": {
+            "slot": pass_through_binder["slot"],
+            "kind": binder_kind(pass_through_binder),
+        },
+    }
+    replace_imported_contract_reference(
+        pass_through, callback_hash, pass_through_reference,
+    )
+    validate_function_contract(pass_through, imports=hof_imports)
+    pass_through_paths = evaluate_contract_computation(
+        pass_through, imports=hof_imports,
+        contract_environment={pass_through_binder["slot"]: callback_source},
+    )
+    require(
+        len(pass_through_paths) == 7
+        and sum(
+            item["path"]["outcome"]["kind"] == "ReturnsV2"
+            for item in pass_through_paths
+        ) == 1,
+        "task28 pass-through ContractParameter did not evaluate seven paths",
+    )
+    pass_through_application = pass_through["applications"][0]
+    pass_through_source = hof_imports[
+        pass_through_application["contract"]["artifact_hash"]
+    ]
+    pass_through_slot = 21
+    pass_through_binder_result = concrete_return_binder(
+        pass_through_source, pass_through_application, pass_through_slot,
+        imports=hof_imports, local_functions={},
+    )
+    continuation_template = local_oracle["contract"]["computation"]["members"][0]["paths"][0]
+    pass_through["computation"] = {
+        "kind": "PathBindV2",
+        "prefix": pass_through["computation"],
+        "return_binder": pass_through_binder_result,
+        "continuation": pure_return_continuation(
+            continuation_template, pass_through_slot,
+        ),
+        "terminal_policy": "PreserveTerminalV2",
+    }
+    validate_function_contract(pass_through, imports=hof_imports)
+    wrapped_pass_through_paths = evaluate_contract_computation(
+        pass_through, imports=hof_imports,
+        contract_environment={pass_through_binder["slot"]: callback_source},
+    )
+    require(
+        len(wrapped_pass_through_paths) == 7
+        and sum(
+            item["path"]["outcome"]["kind"] == "ReturnsV2"
+            for item in wrapped_pass_through_paths
+        ) == 1,
+        "task28 pass-through PathBind did not preserve seven paths",
+    )
+    return 13
+
+
+def validate_task28_regressions() -> int:
+    return (
+        validate_task28_path_and_qualification_regressions()
+        + validate_task28_call_and_exactness_regressions()
+    )
+
+
 def validate_mutations() -> tuple[int, int]:
     oracle = load_json(MUTATIONS)
     require(oracle.get("artifact") == "CireMutationOracleV2", "mutation oracle header")
@@ -3821,11 +4752,13 @@ def main() -> int:
     diagnostic_count = validate_diagnostics()
     mutation_cases, mutation_operations = validate_mutations()
     runtime_count = validate_runtime()
+    task28_probe_count = validate_task28_regressions()
     validate_normative_producer_alignment()
     print(
         f"PASS: {len(interface_paths)} interface artifacts, "
         f"{mutation_cases} decoder mutation cases/{mutation_operations} RFC 6902 operations, "
-        f"{runtime_count} runtime traces, {diagnostic_count} diagnostic ids"
+        f"{runtime_count} runtime traces, {diagnostic_count} diagnostic ids, "
+        f"{task28_probe_count} task-28 full-root probes"
     )
     return 0
 
