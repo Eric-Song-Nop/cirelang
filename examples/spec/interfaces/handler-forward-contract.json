@@ -28,6 +28,7 @@
     "clause_application_ledger": [20],
     "delegates_scope": "HandlerContractV2.clause_computations[0].computation only",
     "forward_transfer": "Open->Forwarded/ExclusiveToForwardContract",
+    "current_disposition_evaluated_outcomes": ["ReturnsV2"],
     "return_bound_authority_slot": 10,
     "return_usage_surfaces": ["PathContractV2.usage", "LiveAcrossSiteV2.usage", "BoundarySafeV2.slots"]
   },

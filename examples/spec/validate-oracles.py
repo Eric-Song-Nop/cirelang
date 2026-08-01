@@ -13,6 +13,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 import sys
 import unicodedata
 from pathlib import Path
@@ -27,6 +28,14 @@ DIAGNOSTICS = ROOT / "diagnostics-v2.json"
 FORMALIZATION = ROOT.parent.parent / "docs" / "temporal-reactivity-formalization.typ"
 PROFILE = "Cire-TR₀/2026-08-01"
 U32_MAX = (1 << 32) - 1
+WIRE_U32_FIELDS = {
+    "application_slot", "binder_site_slot", "binder_slot", "claim_cell_slot",
+    "clock_slot", "continuation_site_slot", "contract_slot", "declaration_slot",
+    "forward_site_slot", "id", "identity_slot", "local_id", "owner_slot", "park_site_slot",
+    "path_index", "port_slot", "prompt_slot", "return_slot", "secondary_slot",
+    "site_slot", "slot", "source_local_id", "source_site_slot",
+}
+WIRE_U32_OR_SLOT_REF_FIELDS = {"clock_slot", "owner_slot", "slot"}
 
 
 class Diagnostic(Exception):
@@ -168,6 +177,18 @@ def validate_phase_requirement(phase: dict[str, Any]) -> None:
     require(allowed == [item for item in PHASE_ORDER if item in set(allowed)], "PhaseRequirementV1 phase order/duplicates")
     authorities = phase["required_authorities"]
     require(authorities == sorted(ordered_unique(authorities), key=jcs), "PhaseRequirementV1 authority order/duplicates")
+    for authority in authorities:
+        kind = authority.get("kind")
+        if kind == "OwnerAuthorityV1":
+            exact_fields(authority, {"kind", "owner"}, kind)
+            validate_slot_v1(authority["owner"], "Owner")
+        elif kind == "IdentityAuthorityV1":
+            exact_fields(authority, {"kind", "identity"}, kind)
+            validate_slot_v1(authority["identity"], "Identity")
+        elif kind == "AnonymousEffectAuthorityV1":
+            exact_fields(authority, {"kind", "family"}, kind)
+        else:
+            raise Diagnostic("contract-component-kind-mismatch")
     if phase["current_owner"] is not None:
         validate_slot_v1(phase["current_owner"], "Owner")
 
@@ -249,6 +270,22 @@ def validate_u32(value: Any, label: str) -> None:
         isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= U32_MAX,
         "wire-u32-out-of-range",
     )
+
+
+def validate_wire_u32_fields(value: Any) -> None:
+    """Range-check every field name declared u32 by the frozen wire schema."""
+
+    if isinstance(value, list):
+        for member in value:
+            validate_wire_u32_fields(member)
+        return
+    if not isinstance(value, dict):
+        return
+    for key, member in value.items():
+        if key in WIRE_U32_FIELDS:
+            if key not in WIRE_U32_OR_SLOT_REF_FIELDS or not isinstance(member, dict):
+                validate_u32(member, key)
+        validate_wire_u32_fields(member)
 
 
 ReturnScope = dict[int, dict[str, Any]]
@@ -554,6 +591,8 @@ def validate_type_v2(
     if kind == "LegacyTypeRefV2":
         require(isinstance(type_ref["value"], dict), "LegacyTypeRefV2.value missing")
         reject(any(isinstance(node, dict) and str(node.get("kind", "")).endswith("V2") for node in walk(type_ref["value"])), "unsupported-contract-schema-version")
+    elif kind == "TypeParameterV2":
+        validate_u32(type_ref["slot"], "TypeParameterV2 slot")
     elif kind in {"NominalTypeV2", "ApplyTypeV2"}:
         for argument in type_ref["arguments"]:
             validate_type_v2(argument, returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
@@ -639,6 +678,7 @@ def validate_world(world: dict[str, Any], returns: ReturnScope) -> None:
         validate_return_ref(world, returns)
     elif kind == "ApplicationEntryWorldV2":
         exact_fields(world, {"kind", "application_slot"}, kind)
+        validate_u32(world["application_slot"], "ApplicationEntryWorldV2 application_slot")
     elif kind == "ApplyWorldTransitionV2":
         exact_fields(world, {"kind", "input", "transition"}, kind)
         validate_world(world["input"], returns)
@@ -891,6 +931,7 @@ def validate_park(
     contract_binders: dict[int, dict[str, Any]] | None = None,
     local_functions: LocalFunctionScope | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    validate_wire_u32_fields(park)
     returns = returns or {}
     imports = imports or ImportScope()
     contract_binders = contract_binders or {}
@@ -972,13 +1013,58 @@ def obligation_value(obligation: dict[str, Any]) -> dict[str, Any]:
     return obligation["value"] if obligation.get("kind") == "LegacyObligationV2" else obligation
 
 
+OBLIGATION_FIELDS_V1 = {
+    "BoundarySafeV1": {"kind", "id", "stage", "slots", "boundary", "origin"},
+    "StableAcrossV1": {"kind", "id", "stage", "slots", "clock_slot", "worlds", "origin"},
+    "OutlivesV1": {"kind", "id", "stage", "shorter", "longer", "origin"},
+    "PhaseAllowsV1": {"kind", "id", "stage", "required_phase", "origin"},
+    "DuplicableEnvV1": {"kind", "id", "stage", "slots", "site_slot", "origin"},
+    "ReplayableCleanupV1": {"kind", "id", "stage", "site_slot", "cleanup", "origin"},
+    "TickWitnessV1": {"kind", "id", "stage", "clock_slot", "site_slot", "origin"},
+    "OwnerParkingV1": {"kind", "id", "stage", "owner_slot", "site_slot", "origin"},
+    "RowLacksV1": {"kind", "id", "stage", "row_slot", "entry", "origin"},
+}
+
+
+def validate_obligation_stage(value: dict[str, Any]) -> None:
+    reject(value.get("stage") not in {"Call", "HandlerInstall"}, "unknown-obligation-stage")
+
+
+def validate_legacy_obligation(value: dict[str, Any]) -> None:
+    kind = value.get("kind")
+    reject(kind not in OBLIGATION_FIELDS_V1, "unknown-obligation-variant")
+    exact_fields(value, OBLIGATION_FIELDS_V1[kind], kind)
+    validate_u32(value["id"], "ObligationV1 id")
+    validate_obligation_stage(value)
+    for reference in value.get("slots", []):
+        validate_slot_v1(reference)
+    for key in ("shorter", "longer", "clock_slot", "owner_slot", "row_slot"):
+        if key in value and isinstance(value[key], dict):
+            validate_slot_v1(value[key])
+    if "site_slot" in value:
+        validate_u32(value["site_slot"], "ObligationV1 site_slot")
+    if kind == "BoundarySafeV1":
+        reject(
+            value["boundary"] not in {
+                "CallArgument", "Return", "Closure", "Aggregate", "OwnerStorage",
+                "ContinuationCapture", "TemporalLock", "Suspension", "FFI",
+            },
+            "unknown-obligation-variant",
+        )
+    if kind == "PhaseAllowsV1":
+        validate_phase_requirement(value["required_phase"])
+    if kind == "ReplayableCleanupV1":
+        validate_cleanup(value["cleanup"])
+    if kind == "RowLacksV1":
+        validate_effect_entry_selector(value["entry"])
+
+
 def validate_obligation(obligation: dict[str, Any], returns: ReturnScope) -> None:
     kind = obligation.get("kind")
     if kind == "LegacyObligationV2":
         exact_fields(obligation, {"kind", "value"}, kind)
         require(isinstance(obligation["value"], dict), "LegacyObligationV2 value")
-        if "id" in obligation["value"]:
-            validate_u32(obligation["value"]["id"], "LegacyObligationV2 id")
+        validate_legacy_obligation(obligation["value"])
         return
     fields = {
         "BoundarySafeV2": {"kind", "id", "stage", "slots", "boundary", "origin"},
@@ -991,16 +1077,36 @@ def validate_obligation(obligation: dict[str, Any], returns: ReturnScope) -> Non
         "OwnerParkingV2": {"kind", "id", "stage", "owner_slot", "site_slot", "origin"},
         "RowLacksV2": {"kind", "id", "stage", "row_slot", "entry", "origin"},
     }
-    require(kind in fields, f"unknown ObligationV2: {kind!r}")
+    reject(kind not in fields, "unknown-obligation-variant")
     exact_fields(obligation, fields[kind], kind)
     validate_u32(obligation["id"], "ObligationV2 id")
+    validate_obligation_stage(obligation)
     for reference in obligation.get("slots", []):
         validate_slot_v2(reference, returns)
     for key in ("shorter", "longer"):
         if key in obligation:
             validate_slot_v2(obligation[key], returns)
+    for key in ("clock_slot", "owner_slot", "row_slot"):
+        if key in obligation and isinstance(obligation[key], dict):
+            validate_slot_v1(obligation[key])
     for world in obligation.get("worlds", []):
         validate_world(world, returns)
+    if "site_slot" in obligation:
+        validate_u32(obligation["site_slot"], "ObligationV2 site_slot")
+    if kind == "BoundarySafeV2":
+        reject(
+            obligation["boundary"] not in {
+                "CallArgument", "Return", "Closure", "Aggregate", "OwnerStorage",
+                "ContinuationCapture", "TemporalLock", "Suspension", "FFI",
+            },
+            "unknown-obligation-variant",
+        )
+    if kind == "PhaseAllowsV2":
+        validate_phase_requirement(obligation["required_phase"])
+    if kind == "ReplayableCleanupV2":
+        validate_cleanup(obligation["cleanup"])
+    if kind == "RowLacksV2":
+        validate_effect_entry_selector(obligation["entry"])
 
 
 def validate_operation_signature(signature: dict[str, Any], returns: ReturnScope) -> None:
@@ -1225,11 +1331,12 @@ def computation_return_types(
     if kind == "CurrentDispositionPathsV2":
         if disposition_binder is None:
             return None
-        return [
+        result_types = [
             copy.deepcopy(disposition_binder["type"])
             for path in computation["paths"]
             if path["outcome"].get("kind") == "ReturnsV2"
         ]
+        return result_types or None
     if kind == "LiteralPathsV2":
         result_types: list[dict[str, Any]] = []
         for path in computation["paths"]:
@@ -1252,7 +1359,7 @@ def computation_return_types(
             if len(matching_sites) != 1:
                 return None
             result_types.append(copy.deepcopy(matching_sites[0]["instantiated_signature"]["result"]))
-        return result_types
+        return result_types or None
     if kind == "InvokeV2":
         application = applications[computation["application_slot"]]
         target_kind, _ = resolve_contract_target(
@@ -1359,6 +1466,7 @@ def validate_computation(
             reject(binder["type"] != result_type, "path-bind-return-binder-mismatch")
         if computation["prefix"].get("kind") == "InvokeV2":
             application = applications[computation["prefix"]["application_slot"]]
+            validate_application_return_lineage(application, binder)
             _, target = resolve_contract_target(
                 application["contract"], imports, contract_binders, local_functions,
             )
@@ -1618,6 +1726,7 @@ def validate_function_contract(
     imports: ImportScope | None = None,
     local_functions: LocalFunctionScope | None = None,
 ) -> None:
+    validate_wire_u32_fields(contract)
     imports = imports or ImportScope()
     local_functions = local_functions or {}
     exact_fields(contract, {"artifact", "profile", "schema_version", "declaration_kind", "binders", "applications", "computation", "closure_environment"}, "FunctionContractV2")
@@ -1657,6 +1766,7 @@ def validate_handler_contract(
     local_functions: LocalFunctionScope | None = None,
     nearest_outer_prompt_slot: int | None = None,
 ) -> None:
+    validate_wire_u32_fields(contract)
     imports = imports or ImportScope()
     local_functions = local_functions or {}
     exact_fields(contract, {"handled_entry", "prompt_slot", "residual_row", "attributed_demand", "suspension", "semantic_summary", "required_phase", "handler_environment", "applications", "return_computation", "clause_computations"}, "HandlerContractV2")
@@ -1769,6 +1879,17 @@ def validate_application_return_binder(source: dict[str, Any], application: dict
         "transition": transition,
     }
     reject(binder["world"] != expected_world, "contract-parameter-inconsistent-instantiation")
+
+
+def validate_application_return_lineage(application: dict[str, Any], binder: dict[str, Any]) -> None:
+    """Keep even abstract ContractParameter projections tied to their call entry."""
+    expected_slot = application["application_slot"]
+    entry_slots = {
+        node["application_slot"]
+        for node in walk(binder["world"])
+        if isinstance(node, dict) and node.get("kind") == "ApplicationEntryWorldV2"
+    }
+    reject(entry_slots != {expected_slot}, "contract-parameter-inconsistent-instantiation")
 
 
 def resolve_imports(oracle: dict[str, Any], directory: Path) -> ImportScope:
@@ -1932,6 +2053,11 @@ def qualify_application_locals(
 ) -> Any:
     qualifier = qualifier or FreshLocalQualifier()
 
+    # Allocation is a semantic batch ordered by local id, never by JSON object
+    # member order encountered during the subsequent structural rewrite.
+    for local_id in sorted(collect_local_ids(value)):
+        qualifier.qualify(application_slot, local_id)
+
     def qualified(number: int) -> int:
         return qualifier.qualify(application_slot, number)
 
@@ -1957,6 +2083,31 @@ def qualify_application_locals(
 
 
 VALUE_SUMMARY_FIELDS = {"source", "type", "nominal_index", "provenance", "capture", "usage", "origin"}
+
+
+def discharge_call_obligation(
+    obligation: dict[str, Any],
+    source_contract: dict[str, Any],
+    application: dict[str, Any],
+) -> None:
+    """Resolve every formal in a Call obligation to its complete actual summary."""
+
+    parameter_slots = [binder["slot"] for binder in source_contract["binders"]["parameter_binders"]]
+    actual_by_slot = dict(zip(parameter_slots, application["actual_arguments"]))
+
+    def resolve(node: Any) -> Any:
+        if isinstance(node, list):
+            return [resolve(member) for member in node]
+        if not isinstance(node, dict):
+            return node
+        if set(node) == {"namespace", "slot"} and node["namespace"] == "Parameter":
+            reject(node["slot"] not in actual_by_slot, "application-arity-mismatch")
+            actual = actual_by_slot[node["slot"]]
+            exact_fields(actual, VALUE_SUMMARY_FIELDS, "ValueSummaryExprV2")
+            return {"kind": "ResolvedCallActual", "summary": copy.deepcopy(actual)}
+        return {key: resolve(member) for key, member in node.items()}
+
+    resolve(obligation)
 
 
 def substitute_term_actuals(
@@ -1988,7 +2139,7 @@ def substitute_term_actuals(
         if node.get("kind") == "LegacySlotRefV2":
             actual = actual_for_slot_ref(node.get("value"))
             if actual is not None:
-                require(actual["source"] is not None, "evaluator cannot materialize computed actual as a slot")
+                reject(actual["source"] is None, "term-actual-source-unavailable")
                 return copy.deepcopy(actual["source"])
         if node.get("kind") == "LegacyProvenanceExprV2":
             expression = node.get("value", {})
@@ -2005,7 +2156,7 @@ def substitute_term_actuals(
         if set(node) == {"namespace", "slot"}:
             actual = actual_for_slot_ref(node)
             if actual is not None:
-                require(actual["source"] is not None, "evaluator cannot materialize computed actual as a slot")
+                reject(actual["source"] is None, "term-actual-source-unavailable")
                 return copy.deepcopy(actual["source"]["value"])
         return {key: rewrite(member) for key, member in node.items()}
 
@@ -2022,7 +2173,12 @@ def instantiate_invoked_path(
         substitute_contract_kind(path, application["substitution"]),
         application["application_slot"], qualifier,
     )
-    instantiated = substitute_term_actuals(instantiated, source_contract, application)
+    # Call-stage obligations are discharged against the complete actual summary
+    # and removed before any surviving bare SlotRef projection is materialized.
+    # This keeps schema-valid computed actuals (source=null) evaluable.
+    for obligation in instantiated["ParametricObligations"]:
+        if obligation_value(obligation)["stage"] == "Call":
+            discharge_call_obligation(obligation, source_contract, application)
     instantiated["ParametricObligations"] = [
         obligation
         for obligation in instantiated["ParametricObligations"]
@@ -2030,6 +2186,7 @@ def instantiate_invoked_path(
     ]
     for latent in instantiated["LatentSites"]:
         latent["call_obligation_ids"] = []
+    instantiated = substitute_term_actuals(instantiated, source_contract, application)
     return instantiated
 
 
@@ -2071,18 +2228,20 @@ def evaluate_contract_computation(
     imports: ImportScope,
     contract_environment: dict[int, dict[str, Any]] | None = None,
     local_functions: LocalFunctionScope | None = None,
-    qualifier: FreshLocalQualifier | None = None,
 ) -> list[dict[str, Any]]:
     """Evaluate V2 computation to complete normalized PathContractV2 values."""
 
     contract_environment = contract_environment or {}
     local_functions = local_functions or {}
-    qualifier = qualifier or FreshLocalQualifier(collect_local_ids(contract["computation"]))
+    # Every declaration owns one qualifier. Its raw locals are reserved before
+    # any nested application is evaluated; nested declarations get their own
+    # allocator and are re-qualified only when projected into this declaration.
+    qualifier = FreshLocalQualifier(collect_local_ids(contract["computation"]))
     applications = {application["application_slot"]: application for application in contract["applications"]}
 
     def evaluate(node: dict[str, Any]) -> list[dict[str, Any]]:
         kind = node["kind"]
-        if kind == "LiteralPathsV2":
+        if kind in {"LiteralPathsV2", "CurrentDispositionPathsV2"}:
             return [
                 {
                     "path": copy.deepcopy(path),
@@ -2116,7 +2275,7 @@ def evaluate_contract_computation(
                 raise AssertionError("evaluator cannot resolve contract reference")
             paths = evaluate_contract_computation(
                 source, imports=imports, contract_environment=nested_environment,
-                local_functions=local_functions, qualifier=qualifier,
+                local_functions=local_functions,
             )
             return [
                 {
@@ -2273,6 +2432,7 @@ def validate_clock_package(
     *,
     storage_owner_scope: set[int] | None = None,
 ) -> None:
+    validate_wire_u32_fields(package)
     exact_fields(package, {"artifact", "profile", "schema_version", "storage_owner", "child_owner_binder", "owner_relation", "clock_binder", "summary_binder", "body", "control_protocol", "sealed_origin"}, "PackedNextPackageV2")
     reject(
         package.get("artifact") != "PackedNextPackageV2"
@@ -2322,6 +2482,7 @@ def validate_clock_package(
 
 
 def validate_clock_open(computation: dict[str, Any]) -> None:
+    validate_wire_u32_fields(computation)
     for path in computation["paths"]:
         for obligation in path["ParametricObligations"]:
             entry = obligation_value(obligation)
@@ -2515,6 +2676,18 @@ def validate_handler_oracle(oracle: dict[str, Any], directory: Path) -> None:
     source = imported[applications[0]["contract"]["artifact_hash"]]
     validate_application_return_binder(source, applications[0], return_computation["return_binder"])
     clause = oracle["handler_contract"]["clause_computations"][0]
+    evaluated_clause = evaluate_contract_computation(
+        {
+            "applications": applications,
+            "computation": clause["computation"]["prefix"],
+        },
+        imports=imported,
+    )
+    require(
+        [item["path"]["outcome"]["kind"] for item in evaluated_clause]
+        == oracle["expectation"]["current_disposition_evaluated_outcomes"],
+        "CurrentDispositionPathsV2 evaluator expectation",
+    )
     continuation_path = clause["computation"]["continuation"]["paths"][0]
     require(continuation_path["outcome"]["kind"] == "DelegatesV2", "handler oracle positive DelegatesV2")
     forward = continuation_path["outcome"]["forward_contract"]
@@ -2560,6 +2733,17 @@ def validate_local_contract_oracle(oracle: dict[str, Any]) -> None:
         != oracle["expectation"]["evaluated_outcomes"],
         "local-function-evaluation-mismatch",
     )
+    reject(
+        [
+            [
+                obligation_value(obligation)["id"]
+                for obligation in item["path"]["ParametricObligations"]
+            ]
+            for item in evaluated
+        ]
+        != oracle["expectation"]["evaluated_q_ids"],
+        "local-function-evaluation-mismatch",
+    )
     next_transition = {"kind": "NextWorldV1", "clock": slot("Clock", 0)}
     composed_usage = compose_usage(
         [{"kind": "LegacyUsageExprV2", "value": {"slot": slot("Parameter", 0), "kind": "Once"}}],
@@ -2574,6 +2758,19 @@ def validate_local_contract_oracle(oracle: dict[str, Any]) -> None:
     large_pair_slots = [
         qualify_application_locals({"prompt_slot": 65536}, 65536, large_qualifier)["prompt_slot"],
         qualify_application_locals({"prompt_slot": 65536}, 65537, large_qualifier)["prompt_slot"],
+    ]
+    order_a = qualify_application_locals(
+        {"site_slot": 5, "prompt_slot": 7}, 0, FreshLocalQualifier(),
+    )
+    order_b = qualify_application_locals(
+        {"prompt_slot": 7, "site_slot": 5}, 0, FreshLocalQualifier(),
+    )
+    outer_qualifier = FreshLocalQualifier({0})
+    nested_declaration_slots = [
+        0,
+        qualify_application_locals(
+            {"site_slot": 0}, 0, outer_qualifier,
+        )["site_slot"],
     ]
     exhaustion_probe = FreshLocalQualifier()
     # Compressed representation of the monotone search state after every u32
@@ -2592,16 +2789,20 @@ def validate_local_contract_oracle(oracle: dict[str, Any]) -> None:
             "next_then_same": compose_transition(next_transition, {"kind": "SameWorldV1"}),
             "once_then_once": composed_usage[0]["value"]["kind"],
             "large_pair_slots": large_pair_slots,
+            "nested_declaration_slots": nested_declaration_slots,
             "qualified_prompt_slots": qualified_prompts,
+            "object_order_invariant": order_a == order_b,
         }
         or len(set(qualified_prompts)) != 2
         or len(set(large_pair_slots)) != 2
+        or len(set(nested_declaration_slots)) != 2
         or any(number > U32_MAX for number in [*qualified_prompts, *large_pair_slots]),
         "path-bind-observer-composition-mismatch",
     )
 
 
 def validate_document(document: dict[str, Any], directory: Path) -> None:
+    validate_wire_u32_fields(document)
     artifact = document.get("artifact")
     if artifact == "FunctionContractV2":
         validate_function_contract(document)
@@ -2624,6 +2825,7 @@ def validate_v1_decoder(target: dict[str, Any]) -> None:
 
 
 def decode_named(decoder: str, target: dict[str, Any], document: dict[str, Any], directory: Path) -> None:
+    validate_wire_u32_fields(target)
     if decoder in {"FunctionContractV1", "ParkContractV1"}:
         validate_v1_decoder(target)
     elif decoder == "FunctionContractV2":
@@ -2637,6 +2839,8 @@ def decode_named(decoder: str, target: dict[str, Any], document: dict[str, Any],
         validate_flow_oracle(target)
     elif decoder == "CireLocalContractOracleV2":
         validate_local_contract_oracle(target)
+    elif decoder == "CireHandlerContractOracleV2":
+        validate_handler_oracle(target, directory)
     elif decoder == "CireRuntimeModelOracleV2":
         validate_runtime_oracle(target)
     elif decoder == "ParkContractV2":
@@ -2843,6 +3047,11 @@ def validate_runtime() -> int:
 
 def validate_normative_producer_alignment() -> None:
     text = FORMALIZATION.read_text(encoding="utf-8")
+    declared_u32_fields = set(re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*): u32\b", text))
+    require(
+        declared_u32_fields == WIRE_U32_FIELDS,
+        "wire u32 decoder field inventory differs from the frozen schema",
+    )
     start = text.index("check_try_open_packed_next(ctx, packed_expr, body):")
     end = text.index("check_dispose_packed_next(ctx, packed_expr):", start)
     try_open = text[start:end]

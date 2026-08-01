@@ -1833,6 +1833,13 @@ MissingRoutePolicyV1 = RootOfEntryV1
 StageV1 = Call | HandlerInstall
 ```
 
+`StageV1` 是 closed enum；其他 string必须产生
+`unknown-obligation-stage`。`LegacyObligationV2` 不是 opaque escape hatch：其
+`value` 必须按上列九个 `ObligationV1` variant之一做 exact field decoding，未知
+variant产生 `unknown-obligation-variant`，其中每个 `id`、site与 slot仍受 V2
+importer的 scope/u32检查，并在 application projection时使用同一
+declaration-local qualification，不能保留未限定的 raw id。
+
 `Cire-TR₀/2026-08-01` 的 canonical envelope 是
 `FunctionContractV2`。`FunctionContractV1` 只描述 fully concrete legacy
 artifact；V1 decoder遇到 V2 field/tag必须拒绝。V2 importer先以
@@ -1872,7 +1879,12 @@ usage按顺序 semiring组合，尤其 `Once+Once=Many`，`Zero`从 canonical ma
 `PathBindV2.prefix` 中 exact `CurrentDispositionPathsV2 { paths }`，此时完整
 path observers仍显式携带，而每条 Returns path的 result type由该 clause当前
 唯一 `ClauseDispositionBinderV2.type` 派生。`CurrentDispositionPathsV2` 在其他
-位置/context、携带额外 field或没有当前 disposition时均非法。其他 untyped
+位置/context、携带额外 field或没有当前 disposition时均非法。零个 reachable
+Returns的 Aborts/Transfers-only literal prefix没有
+result type，不能因 empty universal check vacuously通过。contract evaluator把合法
+`CurrentDispositionPathsV2` 与 `LiteralPathsV2` 一样作为显式 path bundle求值，
+同时保留上述 implicit current-disposition result-type来源，不能落入 unknown-kind。
+其他 untyped
 literal prefix不得作为 `PathBindV2.prefix`；serializer必须改写成带 declaration kind的
 local/imported `InvokeV2`，而 importer报
 `path-bind-literal-prefix-forbidden`。因此 literal/binder不能互相自证一个伪造
@@ -1880,10 +1892,15 @@ Bool type。
 
 每次 `InvokeV2` alpha-refresh site/prompt/Q ids；投影 id以
 `(application_slot, local_id)` qualified，在完整实例化后才 flatten。
-该 qualification使用 declaration-local、确定性的 bounded fresh-u32 allocator：
-先保留 enclosing computation已有的全部 local ids，再按 evaluator的 canonical
-path/source order为每个不同 `(application_slot, local_id)` 分配最低未用 u32，
-并缓存该映射供 site、prompt、claim/port与 Q/$Lambda$ 中全部引用共享。输入
+每个 function/handler/local declaration evaluation各自拥有一个
+declaration-local、确定性的 bounded fresh-u32 allocator；开始求值该 declaration
+前，先收集并保留其 own computation中全部 raw local ids。nested declaration用
+自己的 allocator求值，只有其结果投影到 caller declaration时才由 caller的
+allocator再次 qualification，不能递归复用 caller allocator。
+对一次 projection，先收集全部 distinct raw local ids并按数值排序，预分配每个
+`(application_slot, local_id)` 的最低未用 u32，之后才做 structural rewrite；JSON
+object member顺序、pretty printer顺序或 traversal偶然性不得影响输出。缓存映射
+由 site、prompt、claim/port与 Q/$Lambda$ 中全部引用共享。输入
 application/local id与输出都必须通过 u32 range check，空间耗尽则拒绝。
 固定 radix或未检查宽度的 arithmetic pairing都不是合法实现：前者会让
 `(0,1000)` 与 `(1,0)` 碰撞，后者会把合法 u32 pair溢出 wire domain。
@@ -2081,6 +2098,12 @@ encoding” 唯一指 `JCS(NFC-validated value)`，不依赖宿主 JSON pretty p
 schema列出的字段
 必须且只能出现一次；duplicate key、unknown field/tag、非最小整数、悬空
 slot/id、非 canonical collection或另一种等价 encoding一律拒绝。
+schema中每一个声明为 `u32` 的 occurrence都必须在进入 variant-specific逻辑前
+穷尽检查为 JSON integer且位于 $[0, 2^32-1]$；这不是只检查常见顶层 id的
+选择性规则。尤其 `ApplicationEntryWorldV2.application_slot`、
+`TypeParameterV2.slot`、`OwnerAuthorityV1.owner.slot` 与
+`PromptSlotDeclV1.binder_site_slot` 同样受该规则；负数、boolean与越界整数统一
+产生 `wire-u32-out-of-range`。
 `TypeRefV2` 的 identity/Owner/clock/contract-bearing variants可递归出现在
 任意 nested type；旁表 binder只提供引用作用域，不能替 type本身补猜 index。
 `NextTypeV2` 只嵌入 `LaterContractV2`或 V2 contract parameter；
@@ -2248,9 +2271,15 @@ application slots及两套 alpha-refreshed site/Q ids，而不会共享 actual/w
 `parameter_binders` 的 declaration order把本 application的
 `actual_arguments` 代入被调 path的全部 term-level projection：完整
 `ValueSummaryExprV2`、Parameter `SlotRefV1/SlotRefV2`、Argument provenance与
-Argument capture。source-derived local ids先按本 application qualification，
-actual summary再插入而不重新 qualification其 caller-owned refs，最后作
-Call-Q discharge。
+Argument capture。source-derived local ids先按本 application qualification。
+随后以完整 actual summary（type、nominal、provenance、capture、usage以及可选
+source）求解并 discharge全部 Call-stage Q，之后才把仍存活的 term projection
+materialize进 path；actual summary中 caller-owned refs不重新 qualification。
+`ValueSummaryExprV2.source=null` 对纯 computed actual是合法的：若 Call-stage
+obligation已由 summary其余字段 discharge，就不需要凭空构造 slot；若 surviving
+HandlerInstall Q、Lambda或其他 path observer仍含该 formal的裸
+`Parameter SlotRef`，importer必须产生 `term-actual-source-unavailable`，不得
+assert/crash或伪造 slot。
 因此同一 imported function在 app 0收到 `Parameter/0`、app 1收到
 `Parameter/1` 时，两条 retained Lambda actual summary必须分别保存 0与 1；
 只替换 type/contract而保留 source formal Parameter/0是不完整实例化。
@@ -2333,6 +2362,12 @@ expression偷偷绕过 return-binder substitution。
 path usage、live-site usage与 $Q$ 中被引用。importer必须由同一个 lexical
 return-binder type environment验证这三类引用；普通返回值不能借
 `ReturnUsageV2` 伪造 disposition authority。
+当 prefix是 abstract `ContractParameterRefV2` application时，kind projection虽
+不能提供 concrete source path，binder world中的 `ApplicationEntryWorldV2`
+lineage仍必须存在且只能指向该 prefix的同一个 `application_slot`；不能把 app0
+的 binder接到 app1 entry。imported/local concrete target还在此基础上检查
+exact world transition、provenance与 capture。两类失败统一产生
+`contract-parameter-inconsistent-instantiation`。
 
 `HandlerContractV2.applications` 是 return computation与全部 clause
 computations共享的原子 application ledger，application slot在整个 handler
@@ -2427,6 +2462,9 @@ term区分 kind/instantiation/scope/cycle、terminal bind、return-flow、Q stag
 `unknown-contract-computation-variant` 与 `unknown-path-outcome-v2`。V1
 decoder看到 V2 field/tag必须产生
 `unsupported-contract-schema-version`，不能忽略或回填。
+closed Q/source/u32 exactness另固定 `unknown-obligation-stage`、
+`unknown-obligation-variant`、`term-actual-source-unavailable` 与
+`wire-u32-out-of-range`。
 本轮 exactness diagnostics另外固定 summary/HOF、ContractRef/T-App、
 Handler/Forward、Park/Packed/runtime各自的稳定 id：
 `semantic-summary-not-normalized`、`hof-complete-path-observer-mismatch`、

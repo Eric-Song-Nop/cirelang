@@ -81,11 +81,18 @@ JCS hash，覆盖 row/demand/suspension/ordered-summary/usage/phase/Q/Lambda，
 `interfaces/local-function-call.json` 固定 `LocalFunctionRefV2` 的 module-local
 declaration-slot resolution，并对同一 T-App算法提供 exact callee
 `FunctionTypeV2`、actual arity与逐位 type正例；deterministic evaluator也实际
-解析该 local declaration。其 composition probe另外固定 NextWorld+SameWorld、
+解析该 local declaration。callee含引用 Parameter/0的 Call-stage Q，而 actual
+是合法 `source:null` computed value；evaluator先用完整 summary discharge Call Q，
+同时保留不依赖 value slot的 HandlerInstall Q。把前者改成 surviving
+HandlerInstall Q则精确拒绝 `term-actual-source-unavailable`。enclosing literal
+raw id 0与 nested local retained raw id 0通过真实 `JoinV2` evaluation成为两条
+path中的 `[[0],[1]]`。其 composition probe另外固定 NextWorld+SameWorld、
 Once+Once=Many，以及覆盖 prompt slot的 bounded fresh-u32 qualifier；合法的
 `(65536,65536)` 等大输入仍产生 distinct in-range ids，负数输入被 wire decoder
 拒绝；压缩的全域耗尽 probe还精确固定
-`qualified-local-id-space-exhausted`。
+`qualified-local-id-space-exhausted`。额外 probe固定 JSON object key order不影响
+预分配，并证明 enclosing literal site 0与 nested local declaration site 0投影后
+仍为 distinct `[0,1]`。
 `interfaces/flow-abort-transfer-owner.json` 则逐 variant固定 `AbortsV2`、
 `TransfersV2(ParkContractV2)`、`OwnerBoundV1`、root route以及
 sealed Park summary、required phase与 Owner/generation-CAS wire形状。它显式使用 `A=Int`、`B=Array[Int]`，要求
@@ -118,8 +125,10 @@ route必须是 nearest lexical outer prompt；entry/operation使用封闭 varian
 mode quantity精确为 fun/once→Once、ctl→Many、abort→Zero。clause的
 `PathBindV2` 以 `CurrentDispositionPathsV2` 显式携带完整 path observers并注入
 当前 disposition，其 binder type只从 `ClauseDispositionBinderV2.type` 派生；
+validator还直接求值该 `CurrentDispositionPathsV2` prefix，证明 evaluator把它当作
+显式 path bundle而非 unknown kind；
 另一种合法 literal prefix必须由同 path的 `OperationResultProvenanceV1` + unique `LatentSiteV2`
-signature result派生，普通 untyped `LiteralPathsV2` prefix一律拒绝。
+signature result派生，普通 untyped以及 Aborts-only `LiteralPathsV2` prefix一律拒绝。
 `runtime/packed-next-lease-runtime.json` 的 transition table由
 `PackedNextPackageV2.control_protocol` JSON逐条导出，不含第二份 hardcoded
 lease machine；它覆盖 dispose/acquire线性化、active
@@ -133,7 +142,10 @@ Park observer、general Park observer、row/substitution domain、PathBind binde
 observer algebra、local evaluation、Forward prompt/variant/abort quantity、package
 profile/storage Owner/origin/outer Owner/certificate trust、T-Try summary NF、
 term-actual substitution、u32 qualification、Literal PathBind typing、control
-protocol及runtime schema/initial/table
+protocol及runtime schema/initial/table，以及新增 exact cases覆盖的所有 wire-u32
+occurrence（含 application world、type parameter、Owner authority与 prompt binder）、
+abstract ContractParameter PathBind application lineage、closed Legacy Q variant/stage、
+retained `source:null` bare slot以及 Aborts-only literal vacuity
 破坏。JSON oracle的 `canonical_json`
 expectation固定 schema规定的
 `RFC8785-JCS+NFC-V1` serializer；repository中的 oracle envelope保留

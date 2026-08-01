@@ -28,7 +28,29 @@
           "paths": [
             {
               "LatentSites": [],
-              "ParametricObligations": [],
+              "ParametricObligations": [
+                {
+                  "kind": "LegacyObligationV2",
+                  "value": {
+                    "boundary": "CallArgument",
+                    "id": 1,
+                    "kind": "BoundarySafeV1",
+                    "origin": "local-identity.cire:argument",
+                    "slots": [{ "namespace": "Parameter", "slot": 0 }],
+                    "stage": "Call"
+                  }
+                },
+                {
+                  "kind": "LegacyObligationV2",
+                  "value": {
+                    "id": 0,
+                    "kind": "PhaseAllowsV1",
+                    "origin": "local-identity.cire:retained",
+                    "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "required_authorities": [], "current_owner": null },
+                    "stage": "HandlerInstall"
+                  }
+                }
+              ],
               "attributed_demand": [],
               "outcome": {
                 "kind": "ReturnsV2",
@@ -101,18 +123,60 @@
         "origin": "local-call.cire:invoke"
       }
     ],
-    "computation": { "kind": "InvokeV2", "application_slot": 0 },
+    "computation": {
+      "kind": "JoinV2",
+      "members": [
+        {
+          "kind": "LiteralPathsV2",
+          "paths": [
+            {
+              "LatentSites": [],
+              "ParametricObligations": [
+                {
+                  "kind": "LegacyObligationV2",
+                  "value": {
+                    "id": 0,
+                    "kind": "PhaseAllowsV1",
+                    "origin": "local-call.cire:enclosing",
+                    "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "required_authorities": [], "current_owner": null },
+                    "stage": "HandlerInstall"
+                  }
+                }
+              ],
+              "attributed_demand": [],
+              "outcome": {
+                "kind": "ReturnsV2",
+                "transition": { "kind": "SameWorldV1" },
+                "result_transformer": {
+                  "kind": "LegacyResultTransformerV2",
+                  "value": { "kind": "ParametricResultV1", "provenance": { "kind": "StableV1" }, "capture": { "kind": "NoCaptureV1" } }
+                }
+              },
+              "required_phase": { "allowed_phases": ["Pure", "Compute", "Action", "Commit"], "required_authorities": [], "current_owner": null },
+              "residual_row": { "kind": "EmptyV1" },
+              "semantic_summary": { "kind": "PureV1" },
+              "suspension": { "atoms": [], "grade": "NoSuspend" },
+              "usage": []
+            }
+          ]
+        },
+        { "kind": "InvokeV2", "application_slot": 0 }
+      ]
+    },
     "closure_environment": []
   },
   "expectation": {
     "composition_probe": {
       "exhaustion_diagnostic": "qualified-local-id-space-exhausted",
       "large_pair_slots": [0, 1],
+      "nested_declaration_slots": [0, 1],
       "next_then_same": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextWorldV1" },
+      "object_order_invariant": true,
       "once_then_once": "Many",
       "qualified_prompt_slots": [0, 1]
     },
-    "evaluated_outcomes": ["ReturnsV2"],
+    "evaluated_outcomes": ["ReturnsV2", "ReturnsV2"],
+    "evaluated_q_ids": [[0], [1]],
     "resolved_local_slots": [0]
   }
 }

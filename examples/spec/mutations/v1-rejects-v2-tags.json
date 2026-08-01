@@ -572,6 +572,83 @@
       "diagnostic": "clock-package-path-observer-mismatch",
       "mutations": [{ "op": "replace", "path": "/open_computation/paths/0/semantic_summary", "value": { "kind": "SequenceSummaryV1", "members": [{ "fork": "Share", "kind": "CertificateV1", "origin": "cire.temporal:packed-acquire", "publish": "None", "replay_origin": "SharedPersistent", "suspend": "StackOnly", "temporal": "HostObservable", "trust": { "kind": "Sealed", "module": ["cire", "temporal"] } }, { "kind": "PureV1" }, { "fork": "Share", "kind": "CertificateV1", "origin": "cire.temporal:packed-release", "publish": "None", "replay_origin": "SharedPersistent", "suspend": "StackOnly", "temporal": "HostObservable", "trust": { "kind": "Sealed", "module": ["cire", "temporal"] } }] } }],
       "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/hof-mixed-later.json",
+      "decoder": "CireSpecInterfaceOracleV2",
+      "decoder_target": "",
+      "diagnostic": "wire-u32-out-of-range",
+      "mutations": [{ "op": "replace", "path": "/contract/applications/0/entry_world/application_slot", "value": -1 }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/choose-once-function-contract.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "",
+      "diagnostic": "wire-u32-out-of-range",
+      "mutations": [{ "op": "replace", "path": "/declaration_kind/result_type/slot", "value": -1 }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/mixed-next-callback-function-contract.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "",
+      "diagnostic": "wire-u32-out-of-range",
+      "mutations": [{ "op": "replace", "path": "/computation/continuation/paths/0/required_phase/required_authorities/0/owner/slot", "value": -1 }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/handler-forward-contract.json",
+      "decoder": "CireHandlerContractOracleV2",
+      "decoder_target": "",
+      "diagnostic": "wire-u32-out-of-range",
+      "mutations": [{ "op": "replace", "path": "/binders/prompt_binders/0/binder_site_slot", "value": -1 }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/hof-mixed-later.json",
+      "decoder": "CireSpecInterfaceOracleV2",
+      "decoder_target": "",
+      "diagnostic": "contract-parameter-inconsistent-instantiation",
+      "mutations": [{ "op": "replace", "path": "/contract/computation/return_binder/world/input/application_slot", "value": 1 }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/mixed-next-callback-function-contract.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "",
+      "diagnostic": "path-bind-literal-prefix-forbidden",
+      "mutations": [
+        { "from": "/computation/continuation", "op": "copy", "path": "/computation/prefix" },
+        { "op": "remove", "path": "/computation/prefix/paths/3" },
+        { "op": "remove", "path": "/computation/prefix/paths/2" },
+        { "op": "remove", "path": "/computation/prefix/paths/0" }
+      ],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/mixed-next-callback-function-contract.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "",
+      "diagnostic": "unknown-obligation-stage",
+      "mutations": [{ "op": "replace", "path": "/computation/prefix/paths/0/ParametricObligations/0/value/stage", "value": "BogusStage" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/mixed-next-callback-function-contract.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "",
+      "diagnostic": "unknown-obligation-variant",
+      "mutations": [{ "op": "replace", "path": "/computation/prefix/paths/0/ParametricObligations/0/value/kind", "value": "BogusObligationV1" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/local-function-call.json",
+      "decoder": "CireLocalContractOracleV2",
+      "decoder_target": "",
+      "diagnostic": "term-actual-source-unavailable",
+      "mutations": [{ "op": "replace", "path": "/local_declarations/0/contract/computation/paths/0/ParametricObligations/0/value/stage", "value": "HandlerInstall" }],
+      "result": "reject"
     }
   ],
   "profile": "Cire-TR₀/2026-08-01",
