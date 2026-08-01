@@ -5885,6 +5885,39 @@ capture；它们的 temporal provenance 仍须另外检查。
   [$K;I ⊢ "install-site"[e,a,m,kappa] " ok"$],
 )
 
+`ReplayableCleanup` 在 TR₀ 中是封闭且可判定的 predicate，不是由
+validator 为某个 fixture 提供的 sealed 特例。定义唯一的 neutral cleanup：
+
+$
+  "NeutralCleanup"(F) " iff "
+  F = { "residual_row": "EmptyV1",
+        "attributed_demand": [],
+        "transition": "SameWorldV1",
+        "suspension": { "atoms": [], "grade": "NoSuspend" },
+        "semantic_summary": "PureV1" }
+$
+
+并定义 $"EmptySuffixEnv"(kappa)$ 当且仅当
+`κ.D.live_bindings == []`；由 suffix environment投影得到的
+$Pi_k$ 与 $chi_k$ 因而都恰为 $emptyset$。基线 truth rule 是：
+
+#irule(
+  [ReplayableCleanup-Neutral],
+  (
+    [$"NeutralCleanup"(F)$],
+    [$Pi=emptyset quad chi=emptyset$],
+  ),
+  [$"ReplayableCleanup"(F,Pi,chi)$],
+)
+
+不存在其它 TR₀ derivation。对 Call-stage
+`ReplayableCleanupV1/V2 { site_slot, cleanup }`，checker还必须在携带该
+obligation 的同一个 `PathContractV2.LatentSites` 中解析唯一的
+$kappa$，并同时证明：`κ.site_slot == site_slot`、
+`cleanup == κ.suffix.cleanup`、`EmptySuffixEnv(κ)` 以及上面的
+`NeutralCleanup(cleanup)`。因此，缺失/重复 site、借用别的 site cleanup、
+非 neutral cleanup或非空 $Pi_k/chi_k$ 均不能 discharge。
+
 TR₀ 中 `WorldForkSafe(w)` 当且仅当 $w$ 对 lock projection是恒等变换。
 这比只检查 operation自己的 $zeta$ 更强：suffix中的 `yield` 也会使整个
 $w_k$ 非恒等，因而不能被 multi-shot resume两次。未来若设计显式

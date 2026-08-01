@@ -5,8 +5,8 @@ This is the executable reference decoder for the frozen V2 wire profile, not a
 compiler implementation. Its computation/outcome import is exhaustive and
 threads application, return-binder, and Handler-clause disposition scope. It
 also evaluates each mutation through the named decoder and checks the exact
-diagnostic that decoder emits. Task #28-#31 regressions additionally exercise
-eighteen formal-conformance clusters through complete root contracts.
+diagnostic that decoder emits. Task #28-#33 regressions additionally exercise
+formal-conformance clusters through complete root contracts.
 """
 
 from __future__ import annotations
@@ -55,7 +55,8 @@ def reject(condition: bool, diagnostic_id: str) -> None:
         raise Diagnostic(diagnostic_id)
 
 
-def exact_fields(value: dict[str, Any], expected: set[str], label: str) -> None:
+def exact_fields(value: Any, expected: set[str], label: str) -> None:
+    reject(not isinstance(value, dict), "contract-component-kind-mismatch")
     reject(set(value) != expected, "contract-component-kind-mismatch")
 
 
@@ -1327,6 +1328,7 @@ def validate_application_ledger(
     imports: ImportScope,
     contract_binders: dict[int, dict[str, Any]],
     local_functions: LocalFunctionScope,
+    row_binders: dict[int, dict[str, Any]] | None = None,
 ) -> ApplicationScope:
     applications: ApplicationScope = {}
     for application in ledger:
@@ -1341,6 +1343,7 @@ def validate_application_ledger(
             imports=imports,
             contract_binders=contract_binders,
             local_functions=local_functions,
+            row_binders=row_binders,
         )
     return applications
 
@@ -1353,9 +1356,14 @@ def validate_suffix(
     contract_binders: dict[int, dict[str, Any]],
     local_functions: LocalFunctionScope,
     disposition_binder: dict[str, Any] | None = None,
+    row_binders: dict[int, dict[str, Any]] | None = None,
 ) -> None:
     exact_fields(suffix, {"answer_type", "applications", "computation", "cleanup", "live_bindings"}, "SuffixContractV2")
-    applications = validate_application_ledger(suffix["applications"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+    applications = validate_application_ledger(
+        suffix["applications"], returns=returns, imports=imports,
+        contract_binders=contract_binders, local_functions=local_functions,
+        row_binders=row_binders,
+    )
     validate_type_v2(suffix["answer_type"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
     validate_cleanup(suffix["cleanup"])
     for binding in suffix["live_bindings"]:
@@ -1377,6 +1385,7 @@ def validate_suffix(
         returns=returns, context="suffix", imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
         disposition_binder=disposition_binder,
+        row_binders=row_binders,
     )
 
 
@@ -1387,6 +1396,7 @@ def validate_resume(
     imports: ImportScope | None = None,
     contract_binders: dict[int, dict[str, Any]] | None = None,
     local_functions: LocalFunctionScope | None = None,
+    row_binders: dict[int, dict[str, Any]] | None = None,
 ) -> None:
     returns = returns or {}
     imports = imports or ImportScope()
@@ -1399,7 +1409,11 @@ def validate_resume(
     validate_provenance(resumption["live_provenance"], returns)
     validate_capture(resumption["live_capture"], returns)
     validate_slot_v1(resumption["owner"], "Owner")
-    validate_suffix(resumption["continuation"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+    validate_suffix(
+        resumption["continuation"], returns=returns, imports=imports,
+        contract_binders=contract_binders, local_functions=local_functions,
+        row_binders=row_binders,
+    )
 
 
 def validate_park(
@@ -1409,6 +1423,7 @@ def validate_park(
     imports: ImportScope | None = None,
     contract_binders: dict[int, dict[str, Any]] | None = None,
     local_functions: LocalFunctionScope | None = None,
+    row_binders: dict[int, dict[str, Any]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     validate_wire_u32_fields(park)
     returns = returns or {}
@@ -1484,7 +1499,11 @@ def validate_park(
     )
     validate_type_v2(source["value_type"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
     validate_type_v2(port["value_type"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
-    validate_resume(resumption, returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+    validate_resume(
+        resumption, returns=returns, imports=imports,
+        contract_binders=contract_binders, local_functions=local_functions,
+        row_binders=row_binders,
+    )
     return owner, resumption["owner"]
 
 
@@ -1666,6 +1685,7 @@ def validate_latent_site(
     contract_binders: dict[int, dict[str, Any]],
     local_functions: LocalFunctionScope,
     disposition_binder: dict[str, Any] | None = None,
+    row_binders: dict[int, dict[str, Any]] | None = None,
 ) -> None:
     exact_fields(latent, {"site_slot", "stage", "receiver", "operation", "route", "actual_arguments", "instantiated_signature", "suffix", "secondary_sites", "call_obligation_ids", "install_obligation_ids", "origin"}, "LatentSiteV2")
     validate_u32(latent["site_slot"], "LatentSiteV2 site_slot")
@@ -1682,7 +1702,11 @@ def validate_latent_site(
         == latent["instantiated_signature"]["parameters"],
         "LatentSiteV2 actual/signature type mismatch",
     )
-    validate_suffix(latent["suffix"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, disposition_binder=disposition_binder)
+    validate_suffix(
+        latent["suffix"], returns=returns, imports=imports,
+        contract_binders=contract_binders, local_functions=local_functions,
+        disposition_binder=disposition_binder, row_binders=row_binders,
+    )
 
 
 def validate_forward_contract(
@@ -1698,6 +1722,7 @@ def validate_forward_contract(
     handled_entry: dict[str, Any],
     handler_prompt_slot: int,
     nearest_outer_prompt_slot: int | None,
+    row_binders: dict[int, dict[str, Any]] | None = None,
 ) -> None:
     exact_fields(forward, {"site_slot", "route", "entry", "operation", "continuation", "entry_world", "actual_argument_summaries", "instantiated_signature", "call_obligation_ids", "install_obligation_ids", "secondary_sites", "origin"}, "ForwardContractV2")
     validate_u32(forward["site_slot"], "ForwardContractV2 site_slot")
@@ -1749,7 +1774,11 @@ def validate_forward_contract(
         "forward-obligation-projection-mismatch",
     )
     require(forward["secondary_sites"].get("kind") == "Closed", "Forward secondary sites must be closed")
-    validate_suffix(forward["continuation"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, disposition_binder=disposition_binder)
+    validate_suffix(
+        forward["continuation"], returns=returns, imports=imports,
+        contract_binders=contract_binders, local_functions=local_functions,
+        disposition_binder=disposition_binder, row_binders=row_binders,
+    )
     resume_type = disposition_binder["type"]
     require(resume_type.get("kind") == "ResumeTypeRefV2", "ClauseDispositionBinderV2 type")
     require(resume_type["value"]["continuation"] == forward["continuation"], "Forward continuation/disposition mismatch")
@@ -1774,6 +1803,7 @@ def validate_path(
     imports: ImportScope,
     contract_binders: dict[int, dict[str, Any]],
     local_functions: LocalFunctionScope,
+    row_binders: dict[int, dict[str, Any]] | None = None,
     disposition_binder: dict[str, Any] | None = None,
     clause_operation: dict[str, Any] | None = None,
     handled_entry: dict[str, Any] | None = None,
@@ -1796,7 +1826,11 @@ def validate_path(
     q = [obligation_value(obligation) for obligation in path["ParametricObligations"]]
     q_keys = {(entry["stage"], entry["id"]) for entry in q}
     for latent in path["LatentSites"]:
-        validate_latent_site(latent, returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, disposition_binder=disposition_binder)
+        validate_latent_site(
+            latent, returns=returns, imports=imports,
+            contract_binders=contract_binders, local_functions=local_functions,
+            disposition_binder=disposition_binder, row_binders=row_binders,
+        )
         for local_id in latent["call_obligation_ids"]:
             reject(("Call", local_id) not in q_keys, "projected-obligation-stage-lost")
         for local_id in latent["install_obligation_ids"]:
@@ -1817,6 +1851,7 @@ def validate_path(
         parked_owner, resumption_owner = validate_park(
             outcome["park_contract"], returns=returns, imports=imports,
             contract_binders=contract_binders, local_functions=local_functions,
+            row_binders=row_binders,
         )
         if parked_owner != resumption_owner:
             expected_shorter = {"kind": "LegacySlotRefV2", "value": resumption_owner}
@@ -1868,6 +1903,7 @@ def validate_path(
             local_functions=local_functions, clause_operation=clause_operation,
             handled_entry=handled_entry, handler_prompt_slot=handler_prompt_slot,
             nearest_outer_prompt_slot=nearest_outer_prompt_slot,
+            row_binders=row_binders,
         )
     else:
         raise Diagnostic("unknown-path-outcome-v2")
@@ -1979,6 +2015,7 @@ def validate_computation(
     imports: ImportScope | None = None,
     contract_binders: dict[int, dict[str, Any]] | None = None,
     local_functions: LocalFunctionScope | None = None,
+    row_binders: dict[int, dict[str, Any]] | None = None,
     disposition_binder: dict[str, Any] | None = None,
     clause_operation: dict[str, Any] | None = None,
     handled_entry: dict[str, Any] | None = None,
@@ -2006,7 +2043,8 @@ def validate_computation(
             validate_path(
                 path, applications=applications, returns=returns, context=context,
                 imports=imports, contract_binders=contract_binders,
-                local_functions=local_functions, disposition_binder=disposition_binder,
+                local_functions=local_functions, row_binders=row_binders,
+                disposition_binder=disposition_binder,
                 clause_operation=clause_operation, handled_entry=handled_entry,
                 handler_prompt_slot=handler_prompt_slot,
                 nearest_outer_prompt_slot=nearest_outer_prompt_slot,
@@ -2018,7 +2056,8 @@ def validate_computation(
             validate_path(
                 path, applications=applications, returns=returns, context=context,
                 imports=imports, contract_binders=contract_binders,
-                local_functions=local_functions, disposition_binder=disposition_binder,
+                local_functions=local_functions, row_binders=row_binders,
+                disposition_binder=disposition_binder,
                 clause_operation=clause_operation, handled_entry=handled_entry,
                 handler_prompt_slot=handler_prompt_slot,
                 nearest_outer_prompt_slot=nearest_outer_prompt_slot,
@@ -2032,7 +2071,8 @@ def validate_computation(
         validate_computation(
             computation["prefix"], applications, returns=returns, context=context,
             imports=imports, contract_binders=contract_binders, local_functions=local_functions,
-            disposition_binder=disposition_binder, clause_operation=clause_operation,
+            row_binders=row_binders, disposition_binder=disposition_binder,
+            clause_operation=clause_operation,
             handled_entry=handled_entry, handler_prompt_slot=handler_prompt_slot,
             nearest_outer_prompt_slot=nearest_outer_prompt_slot,
             allow_current_disposition_paths=context == "handler_clause",
@@ -2061,7 +2101,8 @@ def validate_computation(
         validate_computation(
             computation["continuation"], applications, returns=continuation_returns,
             context=context, imports=imports, contract_binders=contract_binders,
-            local_functions=local_functions, disposition_binder=disposition_binder,
+            local_functions=local_functions, row_binders=row_binders,
+            disposition_binder=disposition_binder,
             clause_operation=clause_operation, handled_entry=handled_entry,
             handler_prompt_slot=handler_prompt_slot,
             nearest_outer_prompt_slot=nearest_outer_prompt_slot,
@@ -2073,7 +2114,8 @@ def validate_computation(
             validate_computation(
                 member, applications, returns=returns, context=context,
                 imports=imports, contract_binders=contract_binders,
-                local_functions=local_functions, disposition_binder=disposition_binder,
+                local_functions=local_functions, row_binders=row_binders,
+                disposition_binder=disposition_binder,
                 clause_operation=clause_operation, handled_entry=handled_entry,
                 handler_prompt_slot=handler_prompt_slot,
                 nearest_outer_prompt_slot=nearest_outer_prompt_slot,
@@ -2201,6 +2243,21 @@ def is_authority_bearing_type(type_ref: Any) -> bool:
     )
 
 
+def authority_usage_grade(type_ref: Any) -> str | None:
+    """Return the exact Resume/disposition grade carried by a binder type."""
+
+    if not isinstance(type_ref, dict):
+        return None
+    if type_ref.get("kind") == "ResumeTypeRefV2":
+        value = type_ref.get("value")
+        return value.get("usage") if isinstance(value, dict) else None
+    if type_ref.get("kind") == "LegacyTypeRefV2":
+        value = type_ref.get("value")
+        if isinstance(value, dict) and value.get("kind") == "ResumeTypeV1":
+            return value.get("usage")
+    return None
+
+
 def validate_authority_bearing_usages(
     value: Any,
     *,
@@ -2254,8 +2311,11 @@ def validate_authority_bearing_usages(
                 resolved_type = operation_argument_types[number]
         else:
             resolved_type = slot_types.get((namespace, number))
+        occurrence_grade = value["value"]["kind"]
         reject(
-            not is_authority_bearing_type(resolved_type),
+            not is_authority_bearing_type(resolved_type)
+            or occurrence_grade == "Zero"
+            or occurrence_grade != authority_usage_grade(resolved_type),
             "contract-component-kind-mismatch",
         )
         return
@@ -2398,12 +2458,14 @@ def validate_application_instantiation(
     imports: ImportScope | None = None,
     contract_binders: dict[int, dict[str, Any]] | None = None,
     local_functions: LocalFunctionScope | None = None,
+    row_binders: dict[int, dict[str, Any]] | None = None,
 ) -> None:
     returns = returns or {}
     applications = applications or {}
     imports = imports or ImportScope()
     contract_binders = contract_binders or {}
     local_functions = local_functions or {}
+    row_binders = row_binders or {}
     exact_fields(application, {"application_slot", "contract", "callee_summary", "actual_arguments", "substitution", "entry_world", "origin"}, "AppliedContractV2")
     validate_u32(application["application_slot"], "AppliedContractV2 application_slot")
     validate_contract_ref(
@@ -2487,7 +2549,7 @@ def validate_application_instantiation(
     reject(actual_types != expected_actual_types, "application-argument-type-mismatch")
     if target is not None:
         validate_concrete_application_call_obligations(
-            application, target,
+            application, target, caller_row_binders=row_binders,
         )
 
 
@@ -2586,13 +2648,18 @@ def validate_function_contract(
         "Clock": {binder["slot"] for binder in binders["clock_binders"]},
         "Row": {binder["slot"] for binder in binders["row_binders"]},
     }
+    row_binders = {
+        binder["slot"]: binder for binder in binders["row_binders"]
+    }
     applications = validate_application_ledger(
         contract["applications"], returns={}, imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
+        row_binders=row_binders,
     )
     validate_computation(
         contract["computation"], applications, context="function", imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
+        row_binders=row_binders,
     )
     for node in walk([
         contract["closure_environment"], contract["applications"],
@@ -3255,9 +3322,15 @@ def discharge_call_obligation(
     obligation: dict[str, Any],
     source_contract: dict[str, Any],
     application: dict[str, Any],
+    *,
+    returns: ReturnScope | None = None,
+    source_path: dict[str, Any] | None = None,
+    caller_row_binders: dict[int, dict[str, Any]] | None = None,
 ) -> None:
     """Resolve every formal and prove the Call predicate before discharge."""
 
+    returns = returns or {}
+    caller_row_binders = caller_row_binders or {}
     parameter_slots = [binder["slot"] for binder in source_contract["binders"]["parameter_binders"]]
     actual_by_slot = dict(zip(parameter_slots, application["actual_arguments"]))
     closure_by_slot = {
@@ -3301,6 +3374,14 @@ def discharge_call_obligation(
         )
         return formal
 
+    def return_binder(formal: Any) -> dict[str, Any] | None:
+        if not isinstance(formal, dict) or formal.get("kind") != "ReturnSlotRefV2":
+            return None
+        exact_fields(formal, {"kind", "return_slot"}, "ReturnSlotRefV2")
+        number = formal["return_slot"]
+        reject(number not in returns, "contract-projection-escapes-scope")
+        return returns[number]
+
     def resolve_summary(formal: Any) -> dict[str, Any]:
         formal = normalized_slot(formal)
         namespace = formal["namespace"]
@@ -3326,15 +3407,9 @@ def discharge_call_obligation(
         exact_fields(actual, VALUE_SUMMARY_FIELDS, "ValueSummaryExprV2")
         return copy.deepcopy(actual)
 
-    def resolve_owner(formal: Any) -> dict[str, Any] | None:
-        formal = normalized_slot(formal)
-        if formal["namespace"] == "Owner":
-            return copy.deepcopy(owner_arguments.get(formal["slot"]))
-        try:
-            summary = resolve_summary(formal)
-        except Diagnostic:
+    def owner_from_provenance(provenance: Any) -> dict[str, Any] | None:
+        if not isinstance(provenance, dict):
             return None
-        provenance = summary["provenance"]
         if provenance.get("kind") != "LegacyProvenanceExprV2":
             return None
         legacy = provenance.get("value", {})
@@ -3343,7 +3418,24 @@ def discharge_call_obligation(
         }:
             return None
         owner = legacy.get("owner")
-        return copy.deepcopy(owner) if isinstance(owner, dict) else None
+        if not isinstance(owner, dict):
+            return None
+        if owner.get("namespace") == "Owner":
+            return copy.deepcopy(owner_arguments.get(owner.get("slot"), owner))
+        return copy.deepcopy(owner)
+
+    def resolve_owner(formal: Any) -> dict[str, Any] | None:
+        binder = return_binder(formal)
+        if binder is not None:
+            return owner_from_provenance(binder["provenance"])
+        formal = normalized_slot(formal)
+        if formal["namespace"] == "Owner":
+            return copy.deepcopy(owner_arguments.get(formal["slot"]))
+        try:
+            summary = resolve_summary(formal)
+        except Diagnostic:
+            return None
+        return owner_from_provenance(summary["provenance"])
 
     value = obligation_value(obligation)
     kind = value["kind"]
@@ -3375,6 +3467,17 @@ def discharge_call_obligation(
         instantiated = {
             "row": copy.deepcopy(row_arguments.get(row_slot["slot"])),
             "entry": copy.deepcopy(value["entry"]),
+            "caller_row_binders": caller_row_binders,
+        }
+        actuals = []
+    elif kind in {"ReplayableCleanupV1", "ReplayableCleanupV2"}:
+        sites = [
+            site
+            for site in (source_path or {}).get("LatentSites", [])
+            if site.get("site_slot") == value["site_slot"]
+        ]
+        instantiated = {
+            "site": copy.deepcopy(sites[0]) if len(sites) == 1 else None,
         }
         actuals = []
     else:
@@ -3587,9 +3690,14 @@ def capture_is_duplicable(capture: dict[str, Any]) -> bool:
     return False
 
 
-def row_lacks_entry(row: Any, entry: dict[str, Any]) -> bool:
-    """Decide the proof-independent closed fragment of the RowLacks algebra."""
+def row_lacks_entry(
+    row: Any,
+    entry: dict[str, Any],
+    row_binders: dict[int, dict[str, Any]] | None = None,
+) -> bool:
+    """Decide closed rows or a Tail backed by the caller's lexical Lacks proof."""
 
+    row_binders = row_binders or {}
     if not isinstance(row, dict):
         return False
     kind = row.get("kind")
@@ -3598,9 +3706,28 @@ def row_lacks_entry(row: Any, entry: dict[str, Any]) -> bool:
     if kind == "ClosedV1":
         return entry not in row.get("entries", [])
     if kind == "UnionV1":
-        return all(row_lacks_entry(member, entry) for member in row.get("members", []))
-    # An unresolved TailV1 needs evidence outside this concrete application.
+        return all(
+            row_lacks_entry(member, entry, row_binders)
+            for member in row.get("members", [])
+        )
+    if kind == "TailV1":
+        reference = row.get("row_slot", {})
+        binder = row_binders.get(reference.get("slot"))
+        return (
+            reference.get("namespace") == "Row"
+            and binder is not None
+            and entry in binder.get("lacks", [])
+        )
     return False
+
+
+NEUTRAL_REPLAYABLE_CLEANUP = {
+    "residual_row": {"kind": "EmptyV1"},
+    "attributed_demand": [],
+    "transition": {"kind": "SameWorldV1"},
+    "suspension": {"atoms": [], "grade": "NoSuspend"},
+    "semantic_summary": {"kind": "PureV1"},
+}
 
 
 def solve_call_obligation(
@@ -3666,11 +3793,20 @@ def solve_call_obligation(
         reject(
             not row_lacks_entry(
                 instantiated.get("row"), instantiated.get("entry", {}),
+                instantiated.get("caller_row_binders", {}),
             ),
             "call-obligation-unsatisfied",
         )
+    elif kind in {"ReplayableCleanupV1", "ReplayableCleanupV2"}:
+        site = instantiated.get("site")
+        suffix = site.get("suffix", {}) if isinstance(site, dict) else {}
+        reject(
+            value["cleanup"] != NEUTRAL_REPLAYABLE_CLEANUP
+            or suffix.get("cleanup") != value["cleanup"]
+            or suffix.get("live_bindings") != [],
+            "call-obligation-unsatisfied",
+        )
     elif kind in {
-        "ReplayableCleanupV1", "ReplayableCleanupV2",
         "TickWitnessV1", "TickWitnessV2",
         "OwnerParkingV1", "OwnerParkingV2",
     }:
@@ -3684,17 +3820,64 @@ def solve_call_obligation(
 def validate_concrete_application_call_obligations(
     application: dict[str, Any],
     source_contract: dict[str, Any],
+    *,
+    caller_row_binders: dict[int, dict[str, Any]] | None = None,
 ) -> None:
     """ContractWF discharges every concrete callee Call-Q, not only evaluator runs."""
 
-    for node in walk(source_contract["computation"]):
-        if not isinstance(node, dict) or "ParametricObligations" not in node:
-            continue
-        for obligation in node["ParametricObligations"]:
+    caller_row_binders = caller_row_binders or {}
+
+    def scan_value(value: Any, returns: ReturnScope) -> None:
+        if isinstance(value, list):
+            for member in value:
+                scan_value(member, returns)
+            return
+        if not isinstance(value, dict):
+            return
+        if value.get("kind") in {
+            "LiteralPathsV2", "CurrentDispositionPathsV2", "InvokeV2",
+            "PathBindV2", "JoinV2",
+        }:
+            scan_computation(value, returns)
+            return
+        for member in value.values():
+            scan_value(member, returns)
+
+    def scan_path(path: dict[str, Any], returns: ReturnScope) -> None:
+        for obligation in path["ParametricObligations"]:
             if obligation_value(obligation)["stage"] == "Call":
                 discharge_call_obligation(
                     obligation, source_contract, application,
+                    returns=returns, source_path=path,
+                    caller_row_binders=caller_row_binders,
                 )
+        for site in path["LatentSites"]:
+            scan_value(site, returns)
+
+    def scan_computation(
+        computation: dict[str, Any], returns: ReturnScope,
+    ) -> None:
+        kind = computation["kind"]
+        if kind in {"LiteralPathsV2", "CurrentDispositionPathsV2"}:
+            for path in computation["paths"]:
+                scan_path(path, returns)
+            return
+        if kind == "PathBindV2":
+            scan_computation(computation["prefix"], returns)
+            continuation_returns = dict(returns)
+            binder = computation["return_binder"]
+            continuation_returns[binder["slot"]] = binder
+            scan_computation(computation["continuation"], continuation_returns)
+            return
+        if kind == "JoinV2":
+            for member in computation["members"]:
+                scan_computation(member, returns)
+            return
+        if kind == "InvokeV2":
+            return
+        raise Diagnostic("unknown-contract-computation-variant")
+
+    scan_computation(source_contract["computation"], {})
 
 
 def substitute_term_actuals(
@@ -3755,6 +3938,8 @@ def instantiate_invoked_path(
     application: dict[str, Any],
     source_contract: dict[str, Any],
     qualifier: FreshLocalQualifier,
+    *,
+    caller_row_binders: dict[int, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     instantiated = qualify_application_locals(
         substitute_contract_kind(path, application["substitution"]),
@@ -3764,9 +3949,12 @@ def instantiate_invoked_path(
     # removed before any surviving bare SlotRef projection is materialized.
     # A source=null actual remains valid only where no later projection needs a
     # materialized slot; that later use emits term-actual-source-unavailable.
-    for obligation in instantiated["ParametricObligations"]:
+    for obligation in path["ParametricObligations"]:
         if obligation_value(obligation)["stage"] == "Call":
-            discharge_call_obligation(obligation, source_contract, application)
+            discharge_call_obligation(
+                obligation, source_contract, application,
+                source_path=path, caller_row_binders=caller_row_binders,
+            )
     instantiated["ParametricObligations"] = [
         obligation
         for obligation in instantiated["ParametricObligations"]
@@ -3834,6 +4022,10 @@ def evaluate_contract_computation(
     # allocator and are re-qualified only when projected into this declaration.
     qualifier = FreshLocalQualifier(collect_local_ids(contract["computation"]))
     applications = {application["application_slot"]: application for application in contract["applications"]}
+    caller_row_binders = {
+        binder["slot"]: binder
+        for binder in contract.get("binders", {}).get("row_binders", [])
+    }
 
     def evaluate(node: dict[str, Any]) -> list[dict[str, Any]]:
         kind = node["kind"]
@@ -3888,6 +4080,7 @@ def evaluate_contract_computation(
                 {
                     "path": instantiate_invoked_path(
                         path["path"], application, source, qualifier,
+                        caller_row_binders=caller_row_binders,
                     ),
                     "trace": [outcome_event(application["application_slot"], path["path"]["outcome"]), *path["trace"]],
                 }
@@ -4090,7 +4283,7 @@ def validate_clock_package(
     validate_u32(clock["identity_slot"], "PackedNext identity binder")
     validate_u32(clock["clock_refinement"]["clock_slot"], "PackedNext clock binder")
     reject(clock["family_witness"] != {"kind": "CanonicalFrameClockV2", "module": ["cire", "temporal"], "name": "FrameClock", "sealed_origin": "cire.temporal:FrameClock"}, "clock-package-family-not-clock-indexing")
-    require(clock["owner"] == child, "PackedNext clock Owner mismatch")
+    reject(clock["owner"] != child, "contract-component-kind-mismatch")
     identity = slot("Identity", clock["identity_slot"])
     clock_ref = slot("Clock", clock["clock_refinement"]["clock_slot"])
     require(clock["clock_refinement"]["identity"] == identity, "PackedNext identity/clock pairing")
@@ -5948,6 +6141,332 @@ def validate_task31_regressions() -> int:
     return 11
 
 
+def validate_task33_regressions() -> int:
+    """Exercise task #33 usage, Call-Q, replay, scope, and exact-wire roots."""
+
+    directory = INTERFACES
+
+    def handler_usage_grade(kind: str) -> None:
+        document = load_json(directory / "handler-forward-contract.json")
+        usage = document["handler_contract"]["clause_computations"][0][
+            "computation"
+        ]["continuation"]["paths"][0]["usage"][0]
+        usage["value"]["kind"] = kind
+        validate_handler_oracle(document, directory)
+
+    handler_usage_grade("Once")
+    expect_diagnostic(
+        "task33 Resume Once authority cannot be recorded as Many",
+        "contract-component-kind-mismatch",
+        lambda: handler_usage_grade("Many"),
+    )
+    expect_diagnostic(
+        "task33 explicit Zero UsageV1 is noncanonical",
+        "contract-component-kind-mismatch",
+        lambda: handler_usage_grade("Zero"),
+    )
+
+    local_oracle = load_json(directory / "local-function-call.json")
+
+    def generic_row_tail(*, v2: bool, caller_has_evidence: bool) -> None:
+        document = copy.deepcopy(local_oracle)
+        source = document["local_declarations"][0]["contract"]
+        caller = document["contract"]
+        entry = {
+            "kind": "AnonV1",
+            "family": {
+                "kind": "NominalTypeV1",
+                "module": ["library"],
+                "name": "Choice",
+                "arguments": [],
+            },
+        }
+        source["binders"]["row_binders"] = [
+            {"slot": 0, "lacks": [copy.deepcopy(entry)]},
+        ]
+        caller["binders"]["row_binders"] = [
+            {
+                "slot": 1,
+                "lacks": [copy.deepcopy(entry)] if caller_has_evidence else [],
+            },
+        ]
+        caller["applications"][0]["substitution"]["row_arguments"] = [
+            {
+                "binder_slot": 0,
+                "value": {"kind": "TailV1", "row_slot": slot("Row", 1)},
+            },
+        ]
+        obligation = {
+            "kind": "RowLacksV2" if v2 else "RowLacksV1",
+            "id": 1,
+            "stage": "Call",
+            "row_slot": slot("Row", 0),
+            "entry": copy.deepcopy(entry),
+            "origin": "task33:generic-row-tail-lacks",
+        }
+        source_obligation = source["computation"]["paths"][0][
+            "ParametricObligations"
+        ][0]
+        if v2:
+            source["computation"]["paths"][0]["ParametricObligations"][0] = (
+                obligation
+            )
+        else:
+            source_obligation["value"] = obligation
+        validate_local_contract_oracle(document)
+
+    generic_row_tail(v2=False, caller_has_evidence=True)
+    generic_row_tail(v2=True, caller_has_evidence=True)
+    expect_diagnostic(
+        "task33 generic TailV1 requires caller Lacks evidence",
+        "call-obligation-unsatisfied",
+        lambda: generic_row_tail(v2=False, caller_has_evidence=False),
+    )
+
+    def replayable_documents(
+        mode: str,
+    ) -> tuple[dict[str, Any], dict[str, Any], str]:
+        handler = load_json(directory / "handler-forward-contract.json")
+        source = load_json(directory / "choose-once-function-contract.json")
+        source_path = source["computation"]["paths"][0]
+        site = source_path["LatentSites"][0]
+        neutral = copy.deepcopy(site["suffix"]["cleanup"])
+        obligation_cleanup = copy.deepcopy(neutral)
+        if mode in {"mismatched-cleanup", "nonneutral-cleanup"}:
+            obligation_cleanup["suspension"]["grade"] = "MaySuspend"
+        if mode == "nonneutral-cleanup":
+            site["suffix"]["cleanup"] = copy.deepcopy(obligation_cleanup)
+        source_path["ParametricObligations"][0] = {
+            "kind": "LegacyObligationV2",
+            "value": {
+                "kind": "ReplayableCleanupV1",
+                "id": 0,
+                "stage": "Call",
+                "site_slot": 999 if mode == "missing-site" else site["site_slot"],
+                "cleanup": obligation_cleanup,
+                "origin": "task33:replayable-cleanup",
+            },
+        }
+        if mode == "nonempty-environment":
+            source["binders"]["owner_binders"] = [
+                {"slot": 0, "source": slot("Parameter", 0)},
+            ]
+            resume_type = copy.deepcopy(
+                handler["handler_contract"]["clause_computations"][0][
+                    "disposition_binder"
+                ]["type"]
+            )
+            stable = {
+                "kind": "LegacyProvenanceExprV2",
+                "value": {"kind": "StableV1"},
+            }
+            empty_capture = {
+                "kind": "LegacyCaptureExprV2",
+                "value": {"kind": "NoCaptureV1"},
+            }
+            source["closure_environment"] = [
+                {
+                    "slot": slot("ClosureCapture", 0),
+                    "type": copy.deepcopy(resume_type),
+                    "provenance": copy.deepcopy(stable),
+                    "capture": copy.deepcopy(empty_capture),
+                },
+            ]
+            site["suffix"]["live_bindings"] = [
+                {
+                    "slot": {
+                        "kind": "LegacySlotRefV2",
+                        "value": slot("ClosureCapture", 0),
+                    },
+                    "type": copy.deepcopy(resume_type),
+                    "provenance": stable,
+                    "capture": empty_capture,
+                    "usage": {
+                        "kind": "LegacyUsageExprV2",
+                        "value": {
+                            "slot": slot("ClosureCapture", 0),
+                            "kind": "Once",
+                        },
+                    },
+                },
+            ]
+
+        old_hash = handler["imports"][0]["artifact_hash"]
+        new_hash = canonical_hash(source)
+
+        def replace_import_hash(value: Any) -> None:
+            if isinstance(value, list):
+                for member in value:
+                    replace_import_hash(member)
+            elif isinstance(value, dict):
+                if value.get("artifact_hash") == old_hash:
+                    value["artifact_hash"] = new_hash
+                for member in value.values():
+                    replace_import_hash(member)
+
+        replace_import_hash(handler)
+        if mode == "nonempty-environment":
+            handler["handler_contract"]["applications"][0]["substitution"][
+                "owner_arguments"
+            ] = [{"binder_slot": 0, "value": slot("Owner", 0)}]
+        return handler, source, new_hash
+
+    def validate_replayable_source(mode: str) -> None:
+        _, source, _ = replayable_documents(mode)
+        validate_function_contract(source)
+
+    def validate_replayable_handler(mode: str) -> None:
+        handler, source, source_hash = replayable_documents(mode)
+        validate_function_contract(source)
+        imports = ImportScope()
+        imports[source_hash] = source
+        import_entry = handler["imports"][0]
+        imports.exports[source_hash] = (
+            tuple(import_entry["module"]), import_entry["function_name"],
+        )
+        validate_handler_contract(
+            handler["handler_contract"], imports=imports,
+            nearest_outer_prompt_slot=1,
+        )
+
+    validate_replayable_source("neutral")
+    validate_replayable_handler("neutral")
+    expect_diagnostic(
+        "task33 ReplayableCleanup must equal its site's cleanup",
+        "call-obligation-unsatisfied",
+        lambda: validate_replayable_handler("mismatched-cleanup"),
+    )
+    expect_diagnostic(
+        "task33 ReplayableCleanup exact nonneutral cleanup is not replayable",
+        "call-obligation-unsatisfied",
+        lambda: validate_replayable_handler("nonneutral-cleanup"),
+    )
+    expect_diagnostic(
+        "task33 ReplayableCleanup must resolve one local site",
+        "call-obligation-unsatisfied",
+        lambda: validate_replayable_handler("missing-site"),
+    )
+    validate_replayable_source("nonempty-environment")
+    expect_diagnostic(
+        "task33 ReplayableCleanup requires empty Pi and chi",
+        "call-obligation-unsatisfied",
+        lambda: validate_replayable_handler("nonempty-environment"),
+    )
+
+    def nested_return_call_outlives() -> None:
+        document = copy.deepcopy(local_oracle)
+        base_declaration = copy.deepcopy(document["local_declarations"][0])
+        base_declaration["declaration_slot"] = 1
+        base = base_declaration["contract"]
+        base["binders"]["owner_binders"] = [
+            {"slot": 0, "source": slot("Parameter", 0)},
+        ]
+        base["computation"]["paths"][0]["outcome"]["result_transformer"][
+            "value"
+        ]["provenance"] = {"kind": "OwnerV1", "owner": slot("Owner", 0)}
+
+        middle = copy.deepcopy(document["contract"])
+        middle["binders"]["owner_binders"] = [
+            {"slot": 0, "source": slot("Parameter", 0)},
+        ]
+        application = middle["applications"][0]
+        application["contract"]["declaration_slot"] = 1
+        application["callee_summary"]["type"]["contract"][
+            "declaration_slot"
+        ] = 1
+        application["substitution"]["owner_arguments"] = [
+            {"binder_slot": 0, "value": slot("Owner", 0)},
+        ]
+        return_binder = concrete_return_binder(
+            base, application, 10, imports=ImportScope(),
+            local_functions={1: base},
+        )
+        template = copy.deepcopy(
+            document["contract"]["computation"]["members"][0]["paths"][0]
+        )
+        continuation = pure_return_continuation(template, 10)
+        continuation["paths"][0]["ParametricObligations"] = [
+            {
+                "kind": "OutlivesV2",
+                "id": 2,
+                "stage": "Call",
+                "shorter": {"kind": "ReturnSlotRefV2", "return_slot": 10},
+                "longer": {"kind": "ReturnSlotRefV2", "return_slot": 10},
+                "origin": "task33:return-reflexive-outlives",
+            },
+        ]
+        middle["computation"] = {
+            "kind": "PathBindV2",
+            "prefix": {"kind": "InvokeV2", "application_slot": 0},
+            "return_binder": return_binder,
+            "continuation": continuation,
+            "terminal_policy": "PreserveTerminalV2",
+        }
+
+        outer = copy.deepcopy(document["contract"])
+        outer["binders"]["owner_binders"] = [
+            {"slot": 0, "source": slot("Parameter", 0)},
+        ]
+        outer_application = outer["applications"][0]
+        outer_application["contract"]["declaration_slot"] = 0
+        outer_application["callee_summary"]["type"]["contract"][
+            "declaration_slot"
+        ] = 0
+        outer_application["substitution"]["owner_arguments"] = [
+            {"binder_slot": 0, "value": slot("Owner", 0)},
+        ]
+        local_functions = {0: middle, 1: base}
+        validate_function_contract(base, local_functions=local_functions)
+        validate_function_contract(middle, local_functions=local_functions)
+        validate_function_contract(outer, local_functions=local_functions)
+
+    def unscoped_return_call_outlives() -> None:
+        document = copy.deepcopy(local_oracle)
+        source = document["local_declarations"][0]["contract"]
+        source["computation"]["paths"][0]["ParametricObligations"][0] = {
+            "kind": "OutlivesV2",
+            "id": 2,
+            "stage": "Call",
+            "shorter": {"kind": "ReturnSlotRefV2", "return_slot": 99},
+            "longer": {"kind": "ReturnSlotRefV2", "return_slot": 99},
+            "origin": "task33:unscoped-return-outlives",
+        }
+        validate_local_contract_oracle(document)
+
+    nested_return_call_outlives()
+    expect_diagnostic(
+        "task33 Call-Q ReturnSlotRefV2 must be lexical",
+        "contract-projection-escapes-scope",
+        unscoped_return_call_outlives,
+    )
+
+    validate_clock_oracle(load_json(directory / "clock-package-paths.json"))
+
+    def scalar_child_owner_relation() -> None:
+        document = load_json(directory / "clock-package-paths.json")
+        document["package"]["owner_relation"] = 0
+        validate_clock_oracle(document)
+
+    def child_clock_owner_mismatch() -> None:
+        document = load_json(directory / "clock-package-paths.json")
+        document["package"]["clock_binder"]["owner"] = copy.deepcopy(
+            document["package"]["storage_owner"]
+        )
+        validate_clock_oracle(document)
+
+    expect_diagnostic(
+        "task33 ChildOwnerWitnessV2 scalar exact object",
+        "contract-component-kind-mismatch",
+        scalar_child_owner_relation,
+    )
+    expect_diagnostic(
+        "task33 PackedNext clock must use the fresh child Owner",
+        "contract-component-kind-mismatch",
+        child_clock_owner_mismatch,
+    )
+    return 18
+
+
 def validate_mutations() -> tuple[int, int]:
     oracle = load_json(MUTATIONS)
     require(oracle.get("artifact") == "CireMutationOracleV2", "mutation oracle header")
@@ -6150,6 +6669,7 @@ def main() -> int:
     task29_probe_count = validate_task29_regressions()
     task30_probe_count = validate_task30_regressions()
     task31_probe_count = validate_task31_regressions()
+    task33_probe_count = validate_task33_regressions()
     validate_normative_producer_alignment()
     print(
         f"PASS: {len(interface_paths)} interface artifacts, "
@@ -6158,7 +6678,8 @@ def main() -> int:
         f"{task28_probe_count} task-28 full-root probes, "
         f"{task29_probe_count} task-29 full-root probes, "
         f"{task30_probe_count} task-30 full-root probes, "
-        f"{task31_probe_count} task-31 full-root probes"
+        f"{task31_probe_count} task-31 full-root probes, "
+        f"{task33_probe_count} task-33 full-root probes"
     )
     return 0
 

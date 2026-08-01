@@ -206,6 +206,19 @@ field和 child-Owner sealed-origin漂移均稳定返回
 `contract-component-kind-mismatch`，不再泄漏 `AssertionError`；同时保留 local
 Type、nested evaluator与 CallArgument BoundarySafe三个正控。
 
+另有 18 个 task #33 full-root probe固定 authority、generic row、cleanup truth、
+lexical Return及 recursive exact-wire边界：`LegacyUsageExprV2`只允许引用
+Resume/disposition authority、grade必须与 binder type完全相等，且 Zero occurrence
+必须省略；`RowLacksV1/V2`的 `TailV1` actual只能由 caller lexical row binder上的
+同一 Lacks evidence证明。`ReplayableCleanupV1/V2`按 normative truth rule要求
+obligation与同一 path内唯一 site的 cleanup exact相等、cleanup为唯一 neutral wire、
+suffix environment为空（因此 Π/χ均为空）；positive control与 linkage mismatch、
+nonneutral、missing-site、nonempty-environment negatives分别走完整 imported root。
+Call-Q扫描按 nested `PathBindV2`线程 Return scope，使 `ReturnSlotRefV2`的 reflexive
+Owner投影可证明而 unscoped ref稳定拒绝。最后，recursive exact-object scalar与
+PackedNext clock误指 parent Owner都稳定返回 `contract-component-kind-mismatch`，
+并保留完整 clock package正控。
+
 `diagnostics-v2.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；
 新增或重命名 id需要新 registry version，不能让 parser recovery改变同一
 profile的静态诊断接口。
