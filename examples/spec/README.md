@@ -195,6 +195,17 @@ Owner/Region/GenerationBound provenance以及 Owner capture没有 valid-at/outli
 SourceOrigin必须是非空 canonical `file:subject`，root closure slot也必须属于
 `ClosureCapture` namespace；这两类 malformed wire均返回稳定 diagnostic。
 
+另有 11 个 task #31 full-root probe补齐相邻的实例化与递归 scope：Call-Q会按
+variant解析 `shorter/longer` 与 `row_slot`，两个 formal落到同一 Owner时用
+Outlives reflexivity消去，`EmptyV1`满足已声明的 `RowLacksV1`；普通 `Int`
+Parameter不能在 `UsageV1`中伪造 `Many` authority。Operation-local cross-kind
+shadow同样覆盖仍合法的 `LegacyTypeRefV2(TypeParameterV1)` encoding；nested
+`PathBindV2` continuation保留完整 ambient Return scope，使 decoder与 evaluator
+都接受外层 live `ReturnBound`。nested `SlotRefV1`/`LegacyCaptureExprV2` extra
+field和 child-Owner sealed-origin漂移均稳定返回
+`contract-component-kind-mismatch`，不再泄漏 `AssertionError`；同时保留 local
+Type、nested evaluator与 CallArgument BoundarySafe三个正控。
+
 `diagnostics-v2.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；
 新增或重命名 id需要新 registry version，不能让 parser recovery改变同一
 profile的静态诊断接口。
