@@ -209,6 +209,11 @@
       "outward": []
     },
     "canonical_json": "RFC8785-JCS+NFC-V1",
+    "evaluated_latent_actual_sources": [
+      { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 0 } },
+      { "kind": "LegacySlotRefV2", "value": { "namespace": "Parameter", "slot": 1 } }
+    ],
+    "evaluated_path_hashes": ["sha256:0e48ac1d542aae41ee93af3c7c57b23632c0de8a392d208c75d096af1aa9d09d"],
     "flow": {
       "prefix_terminal_paths_bypass_second_invoke": true,
       "returns_reach_second_invoke": true

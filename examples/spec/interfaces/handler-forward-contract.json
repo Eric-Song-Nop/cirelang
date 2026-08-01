@@ -181,7 +181,7 @@
           },
           "kind": "PathBindV2",
           "prefix": {
-            "kind": "LiteralPathsV2",
+            "kind": "CurrentDispositionPathsV2",
             "paths": [
               {
                 "LatentSites": [], "ParametricObligations": [], "attributed_demand": [],

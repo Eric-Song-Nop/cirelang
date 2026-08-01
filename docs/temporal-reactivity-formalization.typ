@@ -727,6 +727,7 @@ WorldExprV2 =
 
 ContractComputationV2 =
     LiteralPathsV2 { paths: nonempty [PathContractV2] }
+  | CurrentDispositionPathsV2 { paths: nonempty [PathContractV2] }
   | InvokeV2 { application_slot: u32 }
   | PathBindV2 {
       prefix: ContractComputationV2,
@@ -1864,12 +1865,28 @@ transformer在本次 actual上的实例化。只验证 binder自身 well-formed�
 与 prefix return相连是不合法的。Returns→Returns的 transition按顺序组合，
 `SameWorldV1` 仅是 identity，不能覆盖先前 `NextWorldV1`；同一 authority的
 usage按顺序 semiring组合，尤其 `Once+Once=Many`，`Zero`从 canonical map省略。
+`LiteralPathsV2` 没有独立可写的 result type。literal-path-based
+`PathBindV2.prefix` 的 result type只有两个且穷尽的可推导来源：(1) Returns transformer是 exact
+`OperationResultProvenanceV1(site)` 且该 path有唯一同 site `LatentSiteV2`，此时
+由其 `instantiated_signature.result` 派生；(2) handler clause的
+`PathBindV2.prefix` 中 exact `CurrentDispositionPathsV2 { paths }`，此时完整
+path observers仍显式携带，而每条 Returns path的 result type由该 clause当前
+唯一 `ClauseDispositionBinderV2.type` 派生。`CurrentDispositionPathsV2` 在其他
+位置/context、携带额外 field或没有当前 disposition时均非法。其他 untyped
+literal prefix不得作为 `PathBindV2.prefix`；serializer必须改写成带 declaration kind的
+local/imported `InvokeV2`，而 importer报
+`path-bind-literal-prefix-forbidden`。因此 literal/binder不能互相自证一个伪造
+Bool type。
 
 每次 `InvokeV2` alpha-refresh site/prompt/Q ids；投影 id以
 `(application_slot, local_id)` qualified，在完整实例化后才 flatten。
-该 qualification必须使用对两个非负整数的 injective pairing（或等价 fresh
-allocator），覆盖 site、prompt、claim/port与 Q/$Lambda$ 中全部 local id；
-固定 radix加法不是合法实现，因为例如 `(0,1000)` 与 `(1,0)` 会碰撞。
+该 qualification使用 declaration-local、确定性的 bounded fresh-u32 allocator：
+先保留 enclosing computation已有的全部 local ids，再按 evaluator的 canonical
+path/source order为每个不同 `(application_slot, local_id)` 分配最低未用 u32，
+并缓存该映射供 site、prompt、claim/port与 Q/$Lambda$ 中全部引用共享。输入
+application/local id与输出都必须通过 u32 range check，空间耗尽则拒绝。
+固定 radix或未检查宽度的 arithmetic pairing都不是合法实现：前者会让
+`(0,1000)` 与 `(1,0)` 碰撞，后者会把合法 u32 pair溢出 wire domain。
 Call-stage Q在 invocation处 discharge；HandlerInstall-stage Q与 exact
 $Lambda$ application key一起保留到 fresh prompt存在。`FunctionContractKindV2`
 把 visible row与 parameter/result type一起匹配；依赖求解顺序固定为
@@ -2156,7 +2173,8 @@ serialize_clock_package_v2(scope, i, c, L, A, body):
   emit body under scopes i, c and L
 
 import_packed_next_package_v2(scope, wire):
-  require wire.artifact == PackedNextPackageV2 and schema_version == 2
+  require wire.artifact == PackedNextPackageV2 and
+    wire.profile == "Cire-TR₀/2026-08-01" and schema_version == 2
   storage = resolve Owner(wire.storage_owner) in scope
   ρc = scope.declare(Owner, wire.child_owner_binder.owner_slot)
   require wire.owner_relation == ChildOwnerWitnessV2(
@@ -2184,6 +2202,10 @@ import_packed_next_package_v2(scope, wire):
 oracle envelope在调用 importer前必须以自己的 `DeclarationBindersV2` 验证
 `storage_owner` 与所有 outward Owner refs；package内部 existential binder只
 引入 child Owner，不能反向充当被删掉的 outer storage binder。
+named `PackedNextPackageV2` decoder本身先要求 artifact/profile/schema逐 literal
+等于本 profile，并把 `storage_owner` 解码为 Owner namespace的 u32 slot；若
+decoder由 envelope调用，还必须在同一 outer Owner scope中解析该 slot。
+`owner_relation.parent` 的自洽相等不能替代 namespace/scope resolution。
 `PackedNextPackageV2.sealed_origin`、direct-child witness的 sealed origin与所有
 first-party summary trust都必须精确等于 `cire.temporal:pack_next` / sealed
 `cire.temporal` 常量；任意 forged origin或 trust erasure在 seal前拒绝。
@@ -2222,6 +2244,16 @@ parameter或另一个 local declaration。
 仍创建独立 `AppliedContractV2`，保存自己的 callee/actual summaries、entry
 world与完整 substitution；因此同一个 contract actual被调用两次会得到两个
 application slots及两套 alpha-refreshed site/Q ids，而不会共享 actual/world。
+求值 `InvokeV2` 时，contract/type/Owner等 substitution完成后，还必须按 source
+`parameter_binders` 的 declaration order把本 application的
+`actual_arguments` 代入被调 path的全部 term-level projection：完整
+`ValueSummaryExprV2`、Parameter `SlotRefV1/SlotRefV2`、Argument provenance与
+Argument capture。source-derived local ids先按本 application qualification，
+actual summary再插入而不重新 qualification其 caller-owned refs，最后作
+Call-Q discharge。
+因此同一 imported function在 app 0收到 `Parameter/0`、app 1收到
+`Parameter/1` 时，两条 retained Lambda actual summary必须分别保存 0与 1；
+只替换 type/contract而保留 source formal Parameter/0是不完整实例化。
 当该 ref是 imported root contract，同一 outer application的 Owner/identity/
 Clock substitution必须先把 imported declaration kind alpha-instantiate到 use-site
 binder kind；只写 contract hash而留空这些必需 nominal mapping不能通过
@@ -2318,6 +2350,14 @@ import_contract_computation_v2(node, applications, returns, delegates):
       require paths nonempty
       return map(paths, p => import_path_v2(
         p, applications, returns, delegates))
+    CurrentDispositionPathsV2(paths):
+      require delegates is HandlerClauseOnly(disposition_binder)
+        or diagnose path-bind-literal-prefix-forbidden
+      require this node is the immediate PathBindV2 prefix
+      require paths nonempty
+      return CurrentDispositionPaths(
+        map(paths, p => import_path_v2(
+          p, applications, returns, delegates)), disposition_binder)
     InvokeV2(slot):
       require unique slot in applications
       return Invoke(slot)
@@ -2326,8 +2366,12 @@ import_contract_computation_v2(node, applications, returns, delegates):
         prefix, applications, returns, delegates)
       require binder.slot not in returns
       b = import_return_binder_v2(binder, returns)
+      prefix_types = derive_return_types(
+        p, applications, delegates.current_disposition)
+      require prefix_types is defined
+        or diagnose path-bind-literal-prefix-forbidden
+      require every t in prefix_types has b.type == t
       require every Returns path r in p has
-        b.type == r.result_type and
         b.world/provenance/capture == project_return(r, applications)
       c = import_contract_computation_v2(
         continuation, applications, returns + {binder.slot -> b}, delegates)
@@ -7883,7 +7927,7 @@ check_try_open_packed_next(ctx, packed_expr, body):
   δacquire = PackedAcquireSummaryV2(HostObservable, NoSuspend)
   δrelease = PackedReleaseSummaryV2(HostObservable, NoSuspend)
   require Allowed(ctx.Φ, ∅, direct(NoSuspend),
-                  δacquire ⊗ δrelease)
+                  OrderedSummaryNF(δacquire, δrelease))
   lost = AcquireLostNonePath(
     summary = δacquire, world = ctx.Θ,
     provenance = Stable, capture = ∅)
@@ -7907,13 +7951,16 @@ check_try_open_packed_next(ctx, packed_expr, body):
     for path in checked.flow:
       require packed_next_outward_safe(
         ρc, j, i, L, Sp, checked.type, path, path.evidence)
+      expected_summary = OrderedSummaryNF(
+        δacquire, path.summary, δrelease)
       require Allowed(
         ctx.Φ, path.row, path.suspension,
-        SequenceSummaryV1(δacquire, path.summary, δrelease))
+        expected_summary)
       won_paths += acquire_release_map_some_path(
         acquire_summary = δacquire,
         body_path = path,
         release_summary = δrelease,
+        normalized_summary = expected_summary,
         release_action = ExactlyOnceRelease,
         hidden = {ρc, j, i, L, Sp, owner_child})
   paths = normalize({lost} ∪ won_paths)
@@ -7929,7 +7976,7 @@ check_try_open_packed_next(ctx, packed_expr, body):
         require_action_and_hide_private(body_path.required_phase) and
       won_path.Q == hide_private(body_path.Q) and
       won_path.Lambda == hide_private(body_path.Lambda) and
-      won_path.summary == SequenceSummaryV1(
+      won_path.summary == OrderedSummaryNF(
         δacquire, body_path.summary, δrelease)
   return aggregate_check_result(
     paths, packed.evidence,

@@ -59,7 +59,9 @@ evidence artifact，不得只检查 parser 是否接受。
 与 Lambda exact key以 `(application_slot,local_id)` 保留，两个 invocation
 site id不得 alias；每个 callee summary均为与同一 ImportedFunctionRef及其
 instantiated declaration kind一致的 `FunctionTypeV2`，prefix terminal path
-必须 byte-for-byte旁路第二次调用。
+必须 byte-for-byte旁路第二次调用。evaluator还把 app 0/1各自的完整 term
+actual summary代入 retained Lambda：本 fixture的 source必须分别是
+`Parameter/0` 与 `Parameter/1`，并以 complete path JCS hash固定结果。
 `interfaces/mixed-next-callback-function-contract.json` 是可独立导入的
 `FunctionContractV2`：它有 exact `{Branch}` row、nonempty Call/HandlerInstall
 Q与 Lambda，并保存 Returns(`Next[...,L]`)/Aborts/两个 Transfers
@@ -80,8 +82,10 @@ JCS hash，覆盖 row/demand/suspension/ordered-summary/usage/phase/Q/Lambda，
 declaration-slot resolution，并对同一 T-App算法提供 exact callee
 `FunctionTypeV2`、actual arity与逐位 type正例；deterministic evaluator也实际
 解析该 local declaration。其 composition probe另外固定 NextWorld+SameWorld、
-Once+Once=Many，以及覆盖 prompt slot的 collision-free application/local-id
-pairing。
+Once+Once=Many，以及覆盖 prompt slot的 bounded fresh-u32 qualifier；合法的
+`(65536,65536)` 等大输入仍产生 distinct in-range ids，负数输入被 wire decoder
+拒绝；压缩的全域耗尽 probe还精确固定
+`qualified-local-id-space-exhausted`。
 `interfaces/flow-abort-transfer-owner.json` 则逐 variant固定 `AbortsV2`、
 `TransfersV2(ParkContractV2)`、`OwnerBoundV1`、root route以及
 sealed Park summary、required phase与 Owner/generation-CAS wire形状。它显式使用 `A=Int`、`B=Array[Int]`，要求
@@ -102,14 +106,20 @@ terminal-close；ordered summary删除 Pure identity/flatten sequence，pack输�
 phase还必须是 body phase与 Action + storage OwnerAuthority/current Owner的
 `RequireBoth`。package的 outer storage Owner binder、first-party sealed origin、
 allocate/terminal-close exact certificate trust与 runtime schema V2同样由 oracle
-decoder验证，不能从被验证 certificate自身反向提取信任。
+decoder验证，不能从被验证 certificate自身反向提取信任。named package decoder
+还逐 literal验证 profile/schema，并把 storage owner解析成 envelope scope中的
+Owner slot；自洽地同时伪造 relation parent不能通过。
 `interfaces/handler-forward-contract.json` 是正向
 `HandlerContractV2`/`DelegatesV2`/`ForwardContractV2` fixture：handler-level
 application ledger、clause disposition lexical scope、exclusive
 Open→Forwarded evidence，以及 return-bound Resume在 path usage、live-site
 usage和 V2 Q slot中的引用全部由同一 context-sensitive decoder检查。Forward
 route必须是 nearest lexical outer prompt；entry/operation使用封闭 variant，且
-mode quantity精确为 fun/once→Once、ctl→Many、abort→Zero。
+mode quantity精确为 fun/once→Once、ctl→Many、abort→Zero。clause的
+`PathBindV2` 以 `CurrentDispositionPathsV2` 显式携带完整 path observers并注入
+当前 disposition，其 binder type只从 `ClauseDispositionBinderV2.type` 派生；
+另一种合法 literal prefix必须由同 path的 `OperationResultProvenanceV1` + unique `LatentSiteV2`
+signature result派生，普通 untyped `LiteralPathsV2` prefix一律拒绝。
 `runtime/packed-next-lease-runtime.json` 的 transition table由
 `PackedNextPackageV2.control_protocol` JSON逐条导出，不含第二份 hardcoded
 lease machine；它覆盖 dispose/acquire线性化、active
@@ -121,7 +131,9 @@ sequence identity、unbound SuffixLive、Forward operation/route/signature、
 import/local ContractRef、T-App arity/type、Park CAS/state/phase/Outlives、unpacked
 Park observer、general Park observer、row/substitution domain、PathBind binder与
 observer algebra、local evaluation、Forward prompt/variant/abort quantity、package
-origin/outer Owner/certificate trust、control protocol及runtime schema/initial/table
+profile/storage Owner/origin/outer Owner/certificate trust、T-Try summary NF、
+term-actual substitution、u32 qualification、Literal PathBind typing、control
+protocol及runtime schema/initial/table
 破坏。JSON oracle的 `canonical_json`
 expectation固定 schema规定的
 `RFC8785-JCS+NFC-V1` serializer；repository中的 oracle envelope保留

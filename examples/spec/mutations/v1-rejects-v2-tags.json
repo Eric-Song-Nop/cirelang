@@ -475,6 +475,103 @@
       "diagnostic": "packed-next-runtime-protocol-mismatch",
       "mutations": [{ "op": "replace", "path": "/schema_version", "value": 1 }],
       "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/clock-package-paths.json",
+      "decoder": "PackedNextPackageV2",
+      "decoder_target": "/package",
+      "diagnostic": "packed-next-package-header-mismatch",
+      "mutations": [{ "op": "replace", "path": "/package/profile", "value": "attacker-profile" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/clock-package-paths.json",
+      "decoder": "PackedNextPackageV2",
+      "decoder_target": "/package",
+      "diagnostic": "packed-next-storage-owner-mismatch",
+      "mutations": [
+        { "op": "replace", "path": "/package/storage_owner/namespace", "value": "Clock" },
+        { "op": "replace", "path": "/package/owner_relation/parent/namespace", "value": "Clock" }
+      ],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/clock-package-paths.json",
+      "decoder": "PackedNextPackageV2",
+      "decoder_target": "/package",
+      "diagnostic": "packed-next-storage-owner-mismatch",
+      "mutations": [
+        { "op": "replace", "path": "/package/storage_owner/slot", "value": 999 },
+        { "op": "replace", "path": "/package/owner_relation/parent/slot", "value": 999 }
+      ],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/q-lambda-call-install.json",
+      "decoder": "CireSpecInterfaceOracleV2",
+      "decoder_target": "",
+      "diagnostic": "term-actual-substitution-mismatch",
+      "mutations": [{ "op": "replace", "path": "/expectation/evaluated_latent_actual_sources/1/value/slot", "value": 0 }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/mixed-next-callback-function-contract.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "",
+      "diagnostic": "wire-u32-out-of-range",
+      "mutations": [{ "op": "replace", "path": "/computation/prefix/paths/0/ParametricObligations/0/value/id", "value": -1 }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/local-function-call.json",
+      "decoder": "CireLocalContractOracleV2",
+      "decoder_target": "",
+      "diagnostic": "path-bind-observer-composition-mismatch",
+      "mutations": [{ "op": "replace", "path": "/expectation/composition_probe/large_pair_slots", "value": [8590065664, 8590196737] }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/mixed-next-callback-function-contract.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "",
+      "diagnostic": "path-bind-return-binder-mismatch",
+      "mutations": [{ "op": "replace", "path": "/computation/return_binder/type/value/name", "value": "Bool" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/mixed-next-callback-function-contract.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "",
+      "diagnostic": "path-bind-literal-prefix-forbidden",
+      "mutations": [{ "from": "/computation/continuation", "op": "copy", "path": "/computation/prefix" }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/mixed-next-callback-function-contract.json",
+      "decoder": "FunctionContractV2",
+      "decoder_target": "",
+      "diagnostic": "path-bind-literal-prefix-forbidden",
+      "mutations": [
+        { "op": "replace", "path": "/computation/prefix", "value": { "kind": "CurrentDispositionPathsV2", "paths": [] } },
+        { "from": "/computation/continuation/paths", "op": "copy", "path": "/computation/prefix/paths" }
+      ],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/handler-forward-contract.json",
+      "decoder": "HandlerContractV2",
+      "decoder_target": "/handler_contract",
+      "diagnostic": "path-bind-return-binder-mismatch",
+      "mutations": [{ "op": "replace", "path": "/handler_contract/clause_computations/0/computation/return_binder/type", "value": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Bool" } } }],
+      "result": "reject"
+    },
+    {
+      "base_file": "../interfaces/clock-package-paths.json",
+      "decoder": "T-Clock-Unpack-Paths",
+      "decoder_target": "/open_computation",
+      "diagnostic": "clock-package-path-observer-mismatch",
+      "mutations": [{ "op": "replace", "path": "/open_computation/paths/0/semantic_summary", "value": { "kind": "SequenceSummaryV1", "members": [{ "fork": "Share", "kind": "CertificateV1", "origin": "cire.temporal:packed-acquire", "publish": "None", "replay_origin": "SharedPersistent", "suspend": "StackOnly", "temporal": "HostObservable", "trust": { "kind": "Sealed", "module": ["cire", "temporal"] } }, { "kind": "PureV1" }, { "fork": "Share", "kind": "CertificateV1", "origin": "cire.temporal:packed-release", "publish": "None", "replay_origin": "SharedPersistent", "suspend": "StackOnly", "temporal": "HostObservable", "trust": { "kind": "Sealed", "module": ["cire", "temporal"] } }] } }],
+      "result": "reject"
     }
   ],
   "profile": "Cire-TR₀/2026-08-01",

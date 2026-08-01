@@ -228,13 +228,13 @@
       { "attributed_demand": 2, "latent_sites": 2, "obligations": 2, "semantic_summary": { "kind": "PureV1" }, "suspension_atoms": 2, "suspension_grade": "NoSuspend" }
     ],
     "evaluated_path_contracts": [
-      { "path_hash": "sha256:c288fab60e1148ff8a828f341777d785d5665e0f583fd4cf4cf4c80f38f8fa5e", "trace": "app0:AbortsV2" },
-      { "path_hash": "sha256:5ec1fe017f04a10c61e5aa49d69948612ae99555c48ab4795e5a3722684d594d", "trace": "app0:TransfersV2(site=3)" },
-      { "path_hash": "sha256:11a8b6f2a2f19b6f588011cb78d4892a7441308262f61d77adde2ebdd3098e60", "trace": "app0:TransfersV2(site=4)" },
-      { "path_hash": "sha256:2d615b6c2d91472d2fb2441f5cb51e327e3eba4d13bed30c4f6f8aa5a266e1dd", "trace": "app0:ReturnsV2>app1:AbortsV2" },
-      { "path_hash": "sha256:6ffc86a0c84c0b897f48944e13fa7fd8fb890c34201b5000eefeb279527ece0f", "trace": "app0:ReturnsV2>app1:TransfersV2(site=3)" },
-      { "path_hash": "sha256:10fdf272ebc9915c08c5f154f048b6478301dacb7e1db1b0535b747e07a2cdc1", "trace": "app0:ReturnsV2>app1:TransfersV2(site=4)" },
-      { "path_hash": "sha256:e9475087e24b4d9f86865933350fbadf5e81f674c3012a0b24e03dbb451232dd", "trace": "app0:ReturnsV2>app1:ReturnsV2" }
+      { "path_hash": "sha256:85258a6756e3dcb2aa2371d3aea60a7617ace30a958a3e5aa1fa4ec7c6618b2d", "trace": "app0:AbortsV2" },
+      { "path_hash": "sha256:e4264f039f7d415710ebc9a683bb9929f6c62b3e277d5e4a95d18ca99c5e92cf", "trace": "app0:TransfersV2(site=3)" },
+      { "path_hash": "sha256:6daec2fded3f5b2879d1dafaa0b9ddfbc8e7545cf6e8537f2e6407bdf702a4f4", "trace": "app0:TransfersV2(site=4)" },
+      { "path_hash": "sha256:d78833049c783f8d8ec7db588bd57ecdabada9b684971585c226c778d41184cc", "trace": "app0:ReturnsV2>app1:AbortsV2" },
+      { "path_hash": "sha256:7f7d2332d8e14e7c73ed82ddd268970e48e503ba761ece3b4bbf6ccf3ef16a94", "trace": "app0:ReturnsV2>app1:TransfersV2(site=3)" },
+      { "path_hash": "sha256:5416fb4151990d8a519c3693fc440d49cc9a4765e3e3219c7c334cb50d2d33e7", "trace": "app0:ReturnsV2>app1:TransfersV2(site=4)" },
+      { "path_hash": "sha256:f27b62fe54dd1ef8447c0e64004d6626fb9634b4135770c8cf3c14ab07c98fca", "trace": "app0:ReturnsV2>app1:ReturnsV2" }
     ],
     "later_contract_preserved": true,
     "runtime_callback_argument_index": 1,

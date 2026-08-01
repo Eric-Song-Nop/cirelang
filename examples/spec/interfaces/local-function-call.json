@@ -19,7 +19,7 @@
           "visible_row": { "kind": "EmptyV1" }
         },
         "binders": {
-          "parameter_binders": [], "type_binders": [], "row_binders": [], "contract_binders": [],
+          "parameter_binders": [{ "slot": 0, "type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }], "type_binders": [], "row_binders": [], "contract_binders": [],
           "owner_binders": [], "clock_binders": [], "identity_binders": [], "prompt_binders": []
         },
         "applications": [],
@@ -61,7 +61,7 @@
       "visible_row": { "kind": "EmptyV1" }
     },
     "binders": {
-      "parameter_binders": [], "type_binders": [], "row_binders": [], "contract_binders": [],
+      "parameter_binders": [{ "slot": 0, "type": { "kind": "LegacyTypeRefV2", "value": { "kind": "BuiltinTypeV1", "name": "Int" } } }], "type_binders": [], "row_binders": [], "contract_binders": [],
       "owner_binders": [], "clock_binders": [], "identity_binders": [], "prompt_binders": []
     },
     "applications": [
@@ -106,9 +106,11 @@
   },
   "expectation": {
     "composition_probe": {
+      "exhaustion_diagnostic": "qualified-local-id-space-exhausted",
+      "large_pair_slots": [0, 1],
       "next_then_same": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextWorldV1" },
       "once_then_once": "Many",
-      "qualified_prompt_slots": [501500, 1]
+      "qualified_prompt_slots": [0, 1]
     },
     "evaluated_outcomes": ["ReturnsV2"],
     "resolved_local_slots": [0]
