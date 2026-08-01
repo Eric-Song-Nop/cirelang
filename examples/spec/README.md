@@ -186,6 +186,15 @@ latent site的 `OperationArgument`绑定到各自 actual position；`StableAcros
 signature enum都必须在 untrusted-wire阶段给稳定 diagnostic，不能 ACCEPT或泄漏内部
 assertion。
 
+另有 15 个 task #30 full-root probe固定 boundary与 lexical shadow的相邻语义：
+Owner/Region/GenerationBound provenance以及 Owner capture没有 valid-at/outlives evidence
+时不能跨 Suspension或 OwnerStorage，但 CallArgument正向仍合法；Call-stage
+`PhaseAllows` 的 all-phase/no-authority identity可直接证明，非平凡 phase要求没有证据
+仍拒绝。Operation signature的同号 local binder按 lexical scope遮蔽 outer binder，
+因此 local Type/0正向接受而 Effect/0不能让 `TypeParameterV2/0`逃逸。所有
+SourceOrigin必须是非空 canonical `file:subject`，root closure slot也必须属于
+`ClosureCapture` namespace；这两类 malformed wire均返回稳定 diagnostic。
+
 `diagnostics-v2.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；
 新增或重命名 id需要新 registry version，不能让 parser recovery改变同一
 profile的静态诊断接口。
