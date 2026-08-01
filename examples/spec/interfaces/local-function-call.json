@@ -172,6 +172,7 @@
       "nested_declaration_slots": [0, 1],
       "next_then_same": { "clock": { "namespace": "Clock", "slot": 0 }, "kind": "NextWorldV1" },
       "object_order_invariant": true,
+      "path_batch_order_invariant": true,
       "once_then_once": "Many",
       "qualified_prompt_slots": [0, 1]
     },

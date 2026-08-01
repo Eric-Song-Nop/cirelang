@@ -6,6 +6,7 @@
     { "id": "abort-has-no-resume-transition", "stage": "ContractWF" },
     { "id": "application-argument-type-mismatch", "stage": "ContractWF" },
     { "id": "application-arity-mismatch", "stage": "ContractWF" },
+    { "id": "call-obligation-unsatisfied", "stage": "ContractWF" },
     { "id": "clock-package-family-not-clock-indexing", "stage": "Kind" },
     { "id": "clock-package-path-observer-mismatch", "stage": "ContractWF" },
     { "id": "clock-package-private-identity-escape", "stage": "Nonescape" },

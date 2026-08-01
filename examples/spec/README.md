@@ -125,8 +125,9 @@ route必须是 nearest lexical outer prompt；entry/operation使用封闭 varian
 mode quantity精确为 fun/once→Once、ctl→Many、abort→Zero。clause的
 `PathBindV2` 以 `CurrentDispositionPathsV2` 显式携带完整 path observers并注入
 当前 disposition，其 binder type只从 `ClauseDispositionBinderV2.type` 派生；
-validator还直接求值该 `CurrentDispositionPathsV2` prefix，证明 evaluator把它当作
-显式 path bundle而非 unknown kind；
+validator还直接求值完整 clause（prefix与 continuation），把 return-bound slot/
+world/provenance/capture/usage投影到同一 `SuffixLive` disposition并得到
+`DelegatesV2`，而不是只测 prefix或把它当作 unknown kind；
 另一种合法 literal prefix必须由同 path的 `OperationResultProvenanceV1` + unique `LatentSiteV2`
 signature result派生，普通 untyped以及 Aborts-only `LiteralPathsV2` prefix一律拒绝。
 `runtime/packed-next-lease-runtime.json` 的 transition table由
@@ -146,7 +147,11 @@ protocol及runtime schema/initial/table，以及新增 exact cases覆盖的所�
 occurrence（含 application world、type parameter、Owner authority与 prompt binder）、
 abstract ContractParameter PathBind application lineage、closed Legacy Q variant/stage、
 retained `source:null` bare slot以及 Aborts-only literal vacuity
-破坏。JSON oracle的 `canonical_json`
+破坏。本轮还直接覆盖 Join包裹后的 abstract/concrete application lineage、
+literal与 CurrentDisposition binder的 exact world/provenance/capture、跨全部
+Invoke result paths的一次性排序 id batch、Call-Q fully decoded actual与真实
+BoundarySafe求解、declaration-kind/binder arity、完整 handler clause求值、
+recursive Legacy world/Q slot与 OperationSignature type binder解码。JSON oracle的 `canonical_json`
 expectation固定 schema规定的
 `RFC8785-JCS+NFC-V1` serializer；repository中的 oracle envelope保留
 human-readable layout，本身不是 raw artifact byte golden。

@@ -1838,7 +1838,13 @@ StageV1 = Call | HandlerInstall
 `value` 必须按上列九个 `ObligationV1` variant之一做 exact field decoding，未知
 variant产生 `unknown-obligation-variant`，其中每个 `id`、site与 slot仍受 V2
 importer的 scope/u32检查，并在 application projection时使用同一
-declaration-local qualification，不能保留未限定的 raw id。
+declaration-local qualification，不能保留未限定的 raw id。所谓 exact decoding
+必须递归到底：`StableAcrossV1.worlds` 的每个成员必须是完整 `WorldExprV1`，
+`clock_slot`/`owner_slot`/`row_slot` 与 `shorter`/`longer` 必须是对应 namespace
+的 `SlotRefV1` object，不能用 scalar或在 opaque payload内藏 V2 marker。
+同理，每个 `OperationSignatureV2.type_binders` 成员必须 exact-decode 为
+`TypeBinderV1 { slot: u32, kind: Type | Effect | OwnerRegion }`；空列表不构成
+忽略非空列表的许可。
 
 `Cire-TR₀/2026-08-01` 的 canonical envelope 是
 `FunctionContractV2`。`FunctionContractV1` 只描述 fully concrete legacy
@@ -1848,6 +1854,13 @@ contract ref、callee/argument summary、完整 type/row/contract/Owner/
 identity/clock substitution与 entry world必须一起通过 kind/scope检查，任何
 field都不能携带第二套 actuals。随后验证 `ContractComputationV2` 是无环有根
 term，并从同一 term派生以下 observers：
+
+`FunctionContractV2.declaration_kind.parameter_type` 展开的 argument序列必须与
+`binders.parameter_binders` 等长且逐项同 type；decoder不能接受 unary kind加两个
+parameter binder并把 arity failure留到 evaluator。`ValueSummaryExprV2.source` 可以
+在不需要 slot materialization的 computed actual中为 null；一旦 result projection、
+bare `SlotRefV1` substitution或其他规则确实需要 actual slot，import/evaluation必须报
+`term-actual-source-unavailable`，不能抛内部 assertion。
 
 ```text
 flow(C), row(C), demand(C), normal_return(C), suspension(C), summary(C),
@@ -1872,6 +1885,13 @@ transformer在本次 actual上的实例化。只验证 binder自身 well-formed�
 与 prefix return相连是不合法的。Returns→Returns的 transition按顺序组合，
 `SameWorldV1` 仅是 identity，不能覆盖先前 `NextWorldV1`；同一 authority的
 usage按顺序 semiring组合，尤其 `Once+Once=Many`，`Zero`从 canonical map省略。
+该联系检查递归穿过 `JoinV2` 与 nested computation，对每个返回 path独立成立；
+把 `InvokeV2(app0)` 包成 `JoinV2([InvokeV2(app0)])` 不能使 binder改贴成 app1。
+对 operation-result literal，binder的 world必须是该唯一 site的
+`EntryWorldV1` 经本 path transition后的结果，provenance/capture必须逐字段等于
+本 path transformer；对 `CurrentDispositionPathsV2`，world从当前
+`ClauseDispositionBinderV2.site_slot` 派生，type/provenance/capture/usage全部
+从当前 disposition与本 path transformer派生，不能只检查 type。
 `LiteralPathsV2` 没有独立可写的 result type。literal-path-based
 `PathBindV2.prefix` 的 result type只有两个且穷尽的可推导来源：(1) Returns transformer是 exact
 `OperationResultProvenanceV1(site)` 且该 path有唯一同 site `LatentSiteV2`，此时
@@ -1884,6 +1904,9 @@ Returns的 Aborts/Transfers-only literal prefix没有
 result type，不能因 empty universal check vacuously通过。contract evaluator把合法
 `CurrentDispositionPathsV2` 与 `LiteralPathsV2` 一样作为显式 path bundle求值，
 同时保留上述 implicit current-disposition result-type来源，不能落入 unknown-kind。
+完整 clause（prefix加 continuation）也必须求值：其中 `ReturnSlotRefV2` materialize
+为当前 clause唯一 `SuffixLive` disposition slot，`ReturnUsageV2` 等其他投影来自
+同一 return binder；只求值 prefix而跳过 continuation不构成验收。
 其他 untyped
 literal prefix不得作为 `PathBindV2.prefix`；serializer必须改写成带 declaration kind的
 local/imported `InvokeV2`，而 importer报
@@ -1897,9 +1920,11 @@ declaration-local、确定性的 bounded fresh-u32 allocator；开始求值该 d
 前，先收集并保留其 own computation中全部 raw local ids。nested declaration用
 自己的 allocator求值，只有其结果投影到 caller declaration时才由 caller的
 allocator再次 qualification，不能递归复用 caller allocator。
-对一次 projection，先收集全部 distinct raw local ids并按数值排序，预分配每个
+对一次 `InvokeV2` projection，先跨该 invocation返回的全部 path收集全部 distinct
+raw local ids并按数值排序，预分配每个
 `(application_slot, local_id)` 的最低未用 u32，之后才做 structural rewrite；JSON
-object member顺序、pretty printer顺序或 traversal偶然性不得影响输出。缓存映射
+object member顺序、path顺序、pretty printer顺序或 traversal偶然性不得影响输出。
+逐 path各自预分配不是 canonical batch。缓存映射
 由 site、prompt、claim/port与 Q/$Lambda$ 中全部引用共享。输入
 application/local id与输出都必须通过 u32 range check，空间耗尽则拒绝。
 固定 radix或未检查宽度的 arithmetic pairing都不是合法实现：前者会让
@@ -1910,6 +1935,11 @@ $Lambda$ application key一起保留到 fresh prompt存在。`FunctionContractKi
 type/Owner/identity+clock/row，再 contract binder，再全 term substitution与
 normalization。occurs-check、forward ref、cross-kind projection或 scope escape
 一律拒绝。
+Call-stage discharge不是删除操作：importer先把 Q 中每个 formal slot解析成完整
+actual `ValueSummaryExprV2`，递归 exact-decode并检查其 scope，再实际判定
+`BoundarySafe`/`StableAcross`/`DuplicableEnv` 等 predicate；只有判定成功才可消掉
+该 obligation。`BottomCaptureV1` 不能满足 `BoundarySafe`，伪造 capture kind或
+unbound `SuffixLive` 必须在 discharge前产生稳定 diagnostic。
 `ImportedFunctionRefV2` 的目标必须是 root
 `FunctionContractV2`，其 `declaration_kind` 非 null 且与 use-site binder的
 `FunctionContractKindV2` 逐字段相等；指向 oracle envelope中的裸

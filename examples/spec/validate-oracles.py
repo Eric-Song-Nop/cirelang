@@ -58,6 +58,18 @@ def exact_fields(value: dict[str, Any], expected: set[str], label: str) -> None:
     require(set(value) == expected, f"{label} fields: expected {sorted(expected)}, got {sorted(value)}")
 
 
+def validate_contract_object(value: Any) -> dict[str, Any]:
+    """Turn malformed recursive wire nodes into the profile's stable diagnostic."""
+
+    reject(not isinstance(value, dict), "contract-component-kind-mismatch")
+    return value
+
+
+def validate_contract_list(value: Any) -> list[Any]:
+    reject(not isinstance(value, list), "contract-component-kind-mismatch")
+    return value
+
+
 def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
@@ -370,8 +382,16 @@ RETURN_KINDS = {
 
 
 def validate_slot_v1(value: dict[str, Any], namespace: str | None = None) -> None:
+    value = validate_contract_object(value)
     exact_fields(value, {"namespace", "slot"}, "SlotRefV1")
     validate_u32(value["slot"], "SlotRefV1 slot")
+    reject(
+        value["namespace"] not in {
+            "Parameter", "ClosureCapture", "OperationArgument", "SuffixLive",
+            "Clock", "Owner", "Row", "Identity",
+        },
+        "contract-component-kind-mismatch",
+    )
     if namespace is not None:
         require(value["namespace"] == namespace, f"SlotRefV1 namespace must be {namespace}")
 
@@ -401,6 +421,57 @@ def validate_operation_selector(operation: dict[str, Any]) -> None:
         exact_fields(operation, {"kind"}, kind)
     else:
         raise Diagnostic("forward-operation-mismatch")
+
+
+def validate_route_selector(route: Any) -> None:
+    route = validate_contract_object(route)
+    kind = route.get("kind")
+    if kind in {"ResolveAtCallV1", "ResolveAtInstallationV1"}:
+        exact_fields(route, {"kind", "on_missing"}, kind)
+        reject(route["on_missing"] != "RootOfEntryV1", "contract-component-kind-mismatch")
+    elif kind in {"InstallationPromptV1", "OuterOfV1"}:
+        exact_fields(route, {"kind", "prompt_slot"}, kind)
+        validate_u32(route["prompt_slot"], f"{kind} prompt_slot")
+    elif kind == "RootOfEntryV1":
+        exact_fields(route, {"kind"}, kind)
+    else:
+        raise Diagnostic("contract-component-kind-mismatch")
+
+
+def validate_suspension(suspension: Any) -> None:
+    suspension = validate_contract_object(suspension)
+    exact_fields(suspension, {"atoms", "grade"}, "SuspensionV1")
+    reject(suspension["grade"] not in {"NoSuspend", "MaySuspend"}, "contract-component-kind-mismatch")
+    for atom in suspension["atoms"]:
+        atom = validate_contract_object(atom)
+        kind = atom.get("kind")
+        if kind == "DirectV1":
+            exact_fields(atom, {"kind", "grade", "origin"}, kind)
+            reject(atom["grade"] != "MaySuspend", "contract-component-kind-mismatch")
+        elif kind == "RequestV1":
+            exact_fields(
+                atom,
+                {"kind", "site_slot", "route", "entry", "operation", "site_role", "grade", "origin"},
+                kind,
+            )
+            validate_u32(atom["site_slot"], "RequestV1 site_slot")
+            validate_route_selector(atom["route"])
+            validate_effect_entry_selector(atom["entry"])
+            validate_operation_selector(atom["operation"])
+            reject(atom["grade"] not in {"NoSuspend", "MaySuspend"}, "contract-component-kind-mismatch")
+            role = atom["site_role"]
+            if role != "Primary":
+                role = validate_contract_object(role)
+                exact_fields(role, {"kind", "secondary_slot"}, "Secondary")
+                reject(role["kind"] != "Secondary", "contract-component-kind-mismatch")
+                validate_u32(role["secondary_slot"], "RequestV1 secondary_slot")
+        elif kind == "OwnerBoundV1":
+            exact_fields(atom, {"kind", "park_site_slot", "owner_slot", "grade", "origin"}, kind)
+            validate_u32(atom["park_site_slot"], "OwnerBoundV1 park_site_slot")
+            validate_u32(atom["owner_slot"], "OwnerBoundV1 owner_slot")
+            reject(atom["grade"] not in {"NoSuspend", "MaySuspend"}, "contract-component-kind-mismatch")
+        else:
+            raise Diagnostic("contract-component-kind-mismatch")
 
 
 def validate_row_expr(row: dict[str, Any]) -> None:
@@ -448,6 +519,272 @@ def validate_transition(transition: dict[str, Any]) -> None:
         raise Diagnostic("contract-parameter-inconsistent-instantiation")
 
 
+def validate_type_binder(binder: Any) -> None:
+    binder = validate_contract_object(binder)
+    exact_fields(binder, {"slot", "kind"}, "TypeBinderV1")
+    validate_u32(binder["slot"], "TypeBinderV1 slot")
+    reject(binder["kind"] not in {"Type", "Effect", "OwnerRegion"}, "contract-component-kind-mismatch")
+
+
+def validate_type_constructor_v1(constructor: Any) -> None:
+    constructor = validate_contract_object(constructor)
+    kind = constructor.get("kind")
+    if kind == "BuiltinConstructorV1":
+        exact_fields(constructor, {"kind", "name"}, kind)
+    elif kind == "NominalConstructorV1":
+        exact_fields(constructor, {"kind", "module", "name"}, kind)
+        reject(
+            not isinstance(constructor["module"], list)
+            or not all(isinstance(member, str) for member in constructor["module"]),
+            "contract-component-kind-mismatch",
+        )
+    else:
+        raise Diagnostic("contract-component-kind-mismatch")
+    reject(not isinstance(constructor["name"], str), "contract-component-kind-mismatch")
+
+
+def validate_type_v1(type_ref: Any) -> None:
+    type_ref = validate_contract_object(type_ref)
+    kind = type_ref.get("kind")
+    schemas = {
+        "BuiltinTypeV1": {"kind", "name"},
+        "TypeParameterV1": {"kind", "slot"},
+        "NominalTypeV1": {"kind", "module", "name", "arguments"},
+        "ApplyTypeV1": {"kind", "constructor", "arguments"},
+        "FunctionTypeV1": {"kind", "parameter", "result", "contract"},
+        "CapabilityTypeV1": {"kind", "identity", "family"},
+        "NextTypeV1": {"kind", "clock", "payload", "later_contract"},
+        "OwnerTypeV1": {"kind", "owner"},
+        "OwnerIndexedTypeV1": {"kind", "constructor", "owner", "payload"},
+        "ResourceTypeV1": {"kind", "owner", "value", "cleanup_result"},
+        "SignalTypeV1": {"kind", "clock", "payload"},
+        "PlanTypeV1": {"kind", "payload"},
+        "ResumeTypeV1": {
+            "kind", "usage", "continuation", "argument", "answer",
+            "live_provenance", "live_capture", "owner",
+        },
+        "HandlerTemplateTypeV1": {
+            "kind", "family", "owner", "input", "answer", "residual_row",
+            "contract", "policy",
+        },
+        "ForAllIdentityTypeV1": {"kind", "binder", "body"},
+        "ForAllContractTypeV1": {"kind", "binder", "body"},
+        "ExistsClockPackageTypeV1": {"kind", "clock_binder", "summary_binder", "body"},
+        "ForAllOwnerTypeV1": {"kind", "binder", "body"},
+    }
+    reject(kind not in schemas, "contract-component-kind-mismatch")
+    exact_fields(type_ref, schemas[kind], kind)
+    if kind == "BuiltinTypeV1":
+        reject(type_ref["name"] not in {"Unit", "Never", "Bool", "Int", "String"}, "contract-component-kind-mismatch")
+    elif kind == "TypeParameterV1":
+        validate_u32(type_ref["slot"], "TypeParameterV1 slot")
+    elif kind == "NominalTypeV1":
+        reject(
+            not isinstance(type_ref["module"], list)
+            or not all(isinstance(member, str) for member in type_ref["module"])
+            or not isinstance(type_ref["name"], str),
+            "contract-component-kind-mismatch",
+        )
+        for argument in validate_contract_list(type_ref["arguments"]):
+            validate_type_v1(argument)
+    elif kind == "ApplyTypeV1":
+        validate_type_constructor_v1(type_ref["constructor"])
+        for argument in validate_contract_list(type_ref["arguments"]):
+            validate_type_v1(argument)
+    elif kind == "FunctionTypeV1":
+        validate_type_v1(type_ref["parameter"])
+        validate_type_v1(type_ref["result"])
+        reject(not isinstance(type_ref["contract"], dict), "contract-component-kind-mismatch")
+    elif kind == "CapabilityTypeV1":
+        validate_slot_v1(type_ref["identity"], "Identity")
+        validate_type_v1(type_ref["family"])
+    elif kind == "NextTypeV1":
+        validate_slot_v1(type_ref["clock"], "Clock")
+        validate_type_v1(type_ref["payload"])
+        reject(not isinstance(type_ref["later_contract"], dict), "contract-component-kind-mismatch")
+    elif kind in {"OwnerTypeV1", "OwnerIndexedTypeV1", "ResourceTypeV1"}:
+        validate_slot_v1(type_ref["owner"], "Owner")
+        for key in ("payload", "value", "cleanup_result"):
+            if type_ref.get(key) is not None:
+                validate_type_v1(type_ref[key])
+    elif kind == "SignalTypeV1":
+        validate_slot_v1(type_ref["clock"], "Clock")
+        validate_type_v1(type_ref["payload"])
+    elif kind == "PlanTypeV1":
+        validate_type_v1(type_ref["payload"])
+    elif kind == "ResumeTypeV1":
+        reject(type_ref["usage"] not in {"Zero", "Once", "Many"}, "contract-component-kind-mismatch")
+        reject(not isinstance(type_ref["continuation"], dict), "contract-component-kind-mismatch")
+        validate_type_v1(type_ref["argument"])
+        validate_type_v1(type_ref["answer"])
+        validate_provenance_v1(type_ref["live_provenance"])
+        validate_capture_v1(type_ref["live_capture"])
+        validate_slot_v1(type_ref["owner"], "Owner")
+    elif kind == "HandlerTemplateTypeV1":
+        for key in ("family", "input", "answer"):
+            validate_type_v1(type_ref[key])
+        validate_slot_v1(type_ref["owner"], "Owner")
+        validate_row_expr(type_ref["residual_row"])
+        reject(not isinstance(type_ref["contract"], dict), "contract-component-kind-mismatch")
+        validate_summary_normal_form(type_ref["policy"])
+    elif kind in {"ForAllIdentityTypeV1", "ForAllContractTypeV1", "ForAllOwnerTypeV1"}:
+        reject(not isinstance(type_ref["binder"], dict), "contract-component-kind-mismatch")
+        validate_type_v1(type_ref["body"])
+    elif kind == "ExistsClockPackageTypeV1":
+        reject(
+            not isinstance(type_ref["clock_binder"], dict)
+            or not isinstance(type_ref["summary_binder"], dict),
+            "contract-component-kind-mismatch",
+        )
+        validate_type_v1(type_ref["body"])
+
+
+def validate_scoped_slot_v1(
+    reference: Any,
+    *,
+    disposition_binder: dict[str, Any] | None = None,
+    namespace: str | None = None,
+) -> None:
+    reference = validate_contract_object(reference)
+    validate_slot_v1(reference, namespace)
+    if reference["namespace"] == "SuffixLive":
+        reject(
+            disposition_binder is None or reference["slot"] != disposition_binder["slot"],
+            "handler-disposition-escapes-scope",
+        )
+
+
+def validate_world_v1(world: Any) -> None:
+    world = validate_contract_object(world)
+    kind = world.get("kind")
+    if kind == "EntryWorldV1":
+        exact_fields(world, {"kind", "site_slot"}, kind)
+        validate_u32(world["site_slot"], "EntryWorldV1 site_slot")
+    elif kind == "WorldParameterV1":
+        exact_fields(world, {"kind", "contract_slot"}, kind)
+        validate_u32(world["contract_slot"], "WorldParameterV1 contract_slot")
+    elif kind == "ApplyWorldTransitionV1":
+        exact_fields(world, {"kind", "input", "transition"}, kind)
+        validate_world_v1(world["input"])
+        validate_transition(world["transition"])
+    elif kind == "JoinWorldsV1":
+        exact_fields(world, {"kind", "members"}, kind)
+        for member in validate_contract_list(world["members"]):
+            validate_world_v1(member)
+    else:
+        raise Diagnostic("contract-component-kind-mismatch")
+
+
+def validate_environment_binding_v1(
+    binding: Any,
+    *,
+    disposition_binder: dict[str, Any] | None = None,
+) -> None:
+    binding = validate_contract_object(binding)
+    exact_fields(binding, {"slot", "type", "provenance", "capture"}, "EnvironmentBindingV1")
+    validate_scoped_slot_v1(binding["slot"], disposition_binder=disposition_binder)
+    validate_type_v1(binding["type"])
+    validate_provenance_v1(binding["provenance"], disposition_binder=disposition_binder)
+    validate_capture_v1(binding["capture"], disposition_binder=disposition_binder)
+
+
+def validate_provenance_v1(
+    provenance: Any,
+    *,
+    disposition_binder: dict[str, Any] | None = None,
+) -> None:
+    provenance = validate_contract_object(provenance)
+    kind = provenance.get("kind")
+    if kind in {"BottomProvenanceV1", "StableV1"}:
+        exact_fields(provenance, {"kind"}, kind)
+    elif kind in {"ArgumentV1", "ArrayElementProvenanceV1"}:
+        exact_fields(provenance, {"kind", "argument"}, kind)
+        validate_scoped_slot_v1(provenance["argument"], disposition_binder=disposition_binder)
+    elif kind in {"RegionV1", "OwnerV1", "GenerationBoundV1"}:
+        exact_fields(provenance, {"kind", "owner"}, kind)
+        validate_scoped_slot_v1(provenance["owner"], disposition_binder=disposition_binder, namespace="Owner")
+    elif kind in {"CallbackV1", "OperationResultProvenanceV1"}:
+        exact_fields(provenance, {"kind", "site_slot"}, kind)
+        validate_u32(provenance["site_slot"], f"{kind} site_slot")
+    elif kind == "EnvironmentV1":
+        exact_fields(provenance, {"kind", "bindings"}, kind)
+        for binding in validate_contract_list(provenance["bindings"]):
+            validate_environment_binding_v1(binding, disposition_binder=disposition_binder)
+    elif kind == "JoinProvenanceV1":
+        exact_fields(provenance, {"kind", "members"}, kind)
+        for member in validate_contract_list(provenance["members"]):
+            validate_provenance_v1(member, disposition_binder=disposition_binder)
+    else:
+        raise Diagnostic("contract-component-kind-mismatch")
+
+
+def validate_capture_v1(
+    capture: Any,
+    *,
+    disposition_binder: dict[str, Any] | None = None,
+) -> None:
+    capture = validate_contract_object(capture)
+    kind = capture.get("kind")
+    if kind in {"BottomCaptureV1", "NoCaptureV1"}:
+        exact_fields(capture, {"kind"}, kind)
+    elif kind == "CaptureSlotsV1":
+        exact_fields(capture, {"kind", "slots"}, kind)
+        for reference in validate_contract_list(capture["slots"]):
+            validate_scoped_slot_v1(reference, disposition_binder=disposition_binder)
+    elif kind in {"ArgumentCaptureV1", "ArrayElementCaptureV1"}:
+        exact_fields(capture, {"kind", "argument"}, kind)
+        validate_scoped_slot_v1(capture["argument"], disposition_binder=disposition_binder)
+    elif kind == "OperationResultCaptureV1":
+        exact_fields(capture, {"kind", "site_slot"}, kind)
+        validate_u32(capture["site_slot"], "OperationResultCaptureV1 site_slot")
+    elif kind == "UnionCaptureV1":
+        exact_fields(capture, {"kind", "members"}, kind)
+        for member in validate_contract_list(capture["members"]):
+            validate_capture_v1(member, disposition_binder=disposition_binder)
+    else:
+        raise Diagnostic("contract-component-kind-mismatch")
+
+
+def validate_nominal_index_v1(index: Any) -> None:
+    index = validate_contract_object(index)
+    kind = index.get("kind")
+    if kind == "NoNominalIndexV1":
+        exact_fields(index, {"kind"}, kind)
+    elif kind == "TypeParameterIndexV1":
+        exact_fields(index, {"kind", "slot"}, kind)
+        validate_u32(index["slot"], "TypeParameterIndexV1 slot")
+    elif kind == "IdentityIndexV1":
+        exact_fields(index, {"kind", "identity"}, kind)
+        validate_slot_v1(index["identity"], "Identity")
+    elif kind == "OwnerIndexV1":
+        exact_fields(index, {"kind", "owner"}, kind)
+        validate_slot_v1(index["owner"], "Owner")
+    else:
+        raise Diagnostic("contract-component-kind-mismatch")
+
+
+def validate_result_transformer_v1(
+    transformer: Any,
+    *,
+    disposition_binder: dict[str, Any] | None = None,
+) -> None:
+    transformer = validate_contract_object(transformer)
+    kind = transformer.get("kind")
+    if kind == "BottomResultV1":
+        exact_fields(transformer, {"kind"}, kind)
+    elif kind == "ParametricResultV1":
+        exact_fields(transformer, {"kind", "provenance", "capture"}, kind)
+        validate_provenance_v1(transformer["provenance"], disposition_binder=disposition_binder)
+        validate_capture_v1(transformer["capture"], disposition_binder=disposition_binder)
+    elif kind == "PathJoinResultV1":
+        exact_fields(transformer, {"kind", "paths"}, kind)
+        for path in validate_contract_list(transformer["paths"]):
+            reject(not isinstance(path, dict) or path.get("kind") != "ParametricResultV1", "contract-component-kind-mismatch")
+            validate_result_transformer_v1(path, disposition_binder=disposition_binder)
+    else:
+        raise Diagnostic("contract-component-kind-mismatch")
+
+
 def compose_transition(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
     steps: list[dict[str, Any]] = []
     for transition in (left, right):
@@ -478,6 +815,21 @@ def validate_slot_v2(value: dict[str, Any], returns: ReturnScope) -> None:
         validate_return_ref(value, returns)
     else:
         raise Diagnostic("contract-component-kind-mismatch")
+
+
+def validate_scoped_slot_v2(
+    value: dict[str, Any],
+    returns: ReturnScope,
+    *,
+    disposition_binder: dict[str, Any] | None = None,
+) -> None:
+    validate_slot_v2(value, returns)
+    if value.get("kind") == "LegacySlotRefV2" and value["value"]["namespace"] == "SuffixLive":
+        reject(
+            disposition_binder is None
+            or value["value"]["slot"] != disposition_binder["slot"],
+            "handler-disposition-escapes-scope",
+        )
 
 
 def validate_contract_kind(kind: dict[str, Any], returns: ReturnScope) -> None:
@@ -589,7 +941,7 @@ def validate_type_v2(
     require(kind in schemas, f"unknown TypeRefV2 variant: {kind!r}")
     exact_fields(type_ref, schemas[kind], kind)
     if kind == "LegacyTypeRefV2":
-        require(isinstance(type_ref["value"], dict), "LegacyTypeRefV2.value missing")
+        validate_type_v1(type_ref["value"])
         reject(any(isinstance(node, dict) and str(node.get("kind", "")).endswith("V2") for node in walk(type_ref["value"])), "unsupported-contract-schema-version")
     elif kind == "TypeParameterV2":
         validate_u32(type_ref["slot"], "TypeParameterV2 slot")
@@ -671,9 +1023,11 @@ def validate_type_v2(
 
 
 def validate_world(world: dict[str, Any], returns: ReturnScope) -> None:
+    world = validate_contract_object(world)
     kind = world.get("kind")
     if kind == "LegacyWorldExprV2":
         exact_fields(world, {"kind", "value"}, kind)
+        validate_world_v1(world["value"])
     elif kind == "ReturnWorldV2":
         validate_return_ref(world, returns)
     elif kind == "ApplicationEntryWorldV2":
@@ -682,6 +1036,7 @@ def validate_world(world: dict[str, Any], returns: ReturnScope) -> None:
     elif kind == "ApplyWorldTransitionV2":
         exact_fields(world, {"kind", "input", "transition"}, kind)
         validate_world(world["input"], returns)
+        validate_transition(world["transition"])
     elif kind == "JoinWorldsV2":
         exact_fields(world, {"kind", "members"}, kind)
         for member in world["members"]:
@@ -691,42 +1046,60 @@ def validate_world(world: dict[str, Any], returns: ReturnScope) -> None:
 
 
 def validate_nominal_index(index: dict[str, Any], returns: ReturnScope) -> None:
+    index = validate_contract_object(index)
     if index.get("kind") == "LegacyNominalIndexExprV2":
         exact_fields(index, {"kind", "value"}, "LegacyNominalIndexExprV2")
+        validate_nominal_index_v1(index["value"])
     elif index.get("kind") == "ReturnNominalIndexV2":
         validate_return_ref(index, returns)
     else:
         raise Diagnostic("contract-component-kind-mismatch")
 
 
-def validate_provenance(provenance: dict[str, Any], returns: ReturnScope) -> None:
+def validate_provenance(
+    provenance: dict[str, Any],
+    returns: ReturnScope,
+    *,
+    disposition_binder: dict[str, Any] | None = None,
+) -> None:
+    provenance = validate_contract_object(provenance)
     kind = provenance.get("kind")
     if kind == "LegacyProvenanceExprV2":
         exact_fields(provenance, {"kind", "value"}, kind)
+        validate_provenance_v1(provenance["value"], disposition_binder=disposition_binder)
     elif kind == "ReturnProvenanceV2":
         validate_return_ref(provenance, returns)
     elif kind == "EnvironmentV2":
         exact_fields(provenance, {"kind", "bindings"}, kind)
         for binding in provenance["bindings"]:
-            validate_environment_binding(binding, returns)
+            validate_environment_binding(
+                binding, returns, disposition_binder=disposition_binder,
+            )
     elif kind == "JoinProvenanceV2":
         exact_fields(provenance, {"kind", "members"}, kind)
         for member in provenance["members"]:
-            validate_provenance(member, returns)
+            validate_provenance(member, returns, disposition_binder=disposition_binder)
     else:
         raise Diagnostic("contract-component-kind-mismatch")
 
 
-def validate_capture(capture: dict[str, Any], returns: ReturnScope) -> None:
+def validate_capture(
+    capture: dict[str, Any],
+    returns: ReturnScope,
+    *,
+    disposition_binder: dict[str, Any] | None = None,
+) -> None:
+    capture = validate_contract_object(capture)
     kind = capture.get("kind")
     if kind == "LegacyCaptureExprV2":
         exact_fields(capture, {"kind", "value"}, kind)
+        validate_capture_v1(capture["value"], disposition_binder=disposition_binder)
     elif kind == "ReturnCaptureV2":
         validate_return_ref(capture, returns)
     elif kind == "UnionCaptureV2":
         exact_fields(capture, {"kind", "members"}, kind)
         for member in capture["members"]:
-            validate_capture(member, returns)
+            validate_capture(member, returns, disposition_binder=disposition_binder)
     else:
         raise Diagnostic("contract-component-kind-mismatch")
 
@@ -756,30 +1129,42 @@ def validate_usage(
         raise Diagnostic("contract-component-kind-mismatch")
 
 
-def validate_result_transformer(transformer: dict[str, Any], returns: ReturnScope) -> None:
+def validate_result_transformer(
+    transformer: dict[str, Any],
+    returns: ReturnScope,
+    *,
+    disposition_binder: dict[str, Any] | None = None,
+) -> None:
+    transformer = validate_contract_object(transformer)
     kind = transformer.get("kind")
     if kind == "LegacyResultTransformerV2":
         exact_fields(transformer, {"kind", "value"}, kind)
+        validate_result_transformer_v1(transformer["value"], disposition_binder=disposition_binder)
     elif kind == "ParametricResultV2":
         exact_fields(transformer, {"kind", "provenance", "capture"}, kind)
-        validate_provenance(transformer["provenance"], returns)
-        validate_capture(transformer["capture"], returns)
+        validate_provenance(transformer["provenance"], returns, disposition_binder=disposition_binder)
+        validate_capture(transformer["capture"], returns, disposition_binder=disposition_binder)
     elif kind == "ReturnBoundResultV2":
         validate_return_ref(transformer, returns)
     elif kind == "PathJoinResultV2":
         exact_fields(transformer, {"kind", "paths"}, kind)
         for path in transformer["paths"]:
-            validate_result_transformer(path, returns)
+            validate_result_transformer(path, returns, disposition_binder=disposition_binder)
     else:
         raise Diagnostic("contract-component-kind-mismatch")
 
 
-def validate_environment_binding(binding: dict[str, Any], returns: ReturnScope) -> None:
+def validate_environment_binding(
+    binding: dict[str, Any],
+    returns: ReturnScope,
+    *,
+    disposition_binder: dict[str, Any] | None = None,
+) -> None:
     exact_fields(binding, {"slot", "type", "provenance", "capture"}, "EnvironmentBindingV2")
     validate_slot_v1(binding["slot"])
     validate_type_v2(binding["type"], returns=returns)
-    validate_provenance(binding["provenance"], returns)
-    validate_capture(binding["capture"], returns)
+    validate_provenance(binding["provenance"], returns, disposition_binder=disposition_binder)
+    validate_capture(binding["capture"], returns, disposition_binder=disposition_binder)
 
 
 def validate_value_summary(
@@ -804,8 +1189,8 @@ def validate_value_summary(
         defer_function_contract_shape=defer_function_contract_shape,
     )
     validate_nominal_index(summary["nominal_index"], returns)
-    validate_provenance(summary["provenance"], returns)
-    validate_capture(summary["capture"], returns)
+    validate_provenance(summary["provenance"], returns, disposition_binder=disposition_binder)
+    validate_capture(summary["capture"], returns, disposition_binder=disposition_binder)
     if summary["usage"] is not None:
         validate_usage(summary["usage"], returns, disposition_binder=disposition_binder)
 
@@ -822,6 +1207,7 @@ def validate_return_binder(
     imports: ImportScope,
     contract_binders: dict[int, dict[str, Any]],
     local_functions: LocalFunctionScope,
+    disposition_binder: dict[str, Any] | None = None,
 ) -> None:
     exact_fields(binder, {"slot", "type", "world", "nominal_index", "provenance", "capture", "usage"}, "ReturnBinderV2")
     validate_u32(binder["slot"], "return binder slot")
@@ -830,10 +1216,10 @@ def validate_return_binder(
     validate_type_v2(binder["type"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
     validate_world(binder["world"], returns)
     validate_nominal_index(binder["nominal_index"], returns)
-    validate_provenance(binder["provenance"], returns)
-    validate_capture(binder["capture"], returns)
+    validate_provenance(binder["provenance"], returns, disposition_binder=disposition_binder)
+    validate_capture(binder["capture"], returns, disposition_binder=disposition_binder)
     if binder["usage"] is not None:
-        validate_usage(binder["usage"], returns)
+        validate_usage(binder["usage"], returns, disposition_binder=disposition_binder)
 
 
 def validate_cleanup(cleanup: dict[str, Any]) -> None:
@@ -890,8 +1276,8 @@ def validate_suffix(
                 "handler-disposition-escapes-scope",
             )
         validate_type_v2(binding["type"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
-        validate_provenance(binding["provenance"], returns)
-        validate_capture(binding["capture"], returns)
+        validate_provenance(binding["provenance"], returns, disposition_binder=disposition_binder)
+        validate_capture(binding["capture"], returns, disposition_binder=disposition_binder)
         validate_usage(binding["usage"], returns, disposition_binder=disposition_binder)
     validate_computation(
         suffix["computation"], applications,
@@ -1030,17 +1416,31 @@ def validate_obligation_stage(value: dict[str, Any]) -> None:
     reject(value.get("stage") not in {"Call", "HandlerInstall"}, "unknown-obligation-stage")
 
 
-def validate_legacy_obligation(value: dict[str, Any]) -> None:
+def validate_legacy_obligation(
+    value: dict[str, Any],
+    *,
+    disposition_binder: dict[str, Any] | None = None,
+) -> None:
+    value = validate_contract_object(value)
     kind = value.get("kind")
     reject(kind not in OBLIGATION_FIELDS_V1, "unknown-obligation-variant")
     exact_fields(value, OBLIGATION_FIELDS_V1[kind], kind)
     validate_u32(value["id"], "ObligationV1 id")
     validate_obligation_stage(value)
+    if "slots" in value:
+        reject(not isinstance(value["slots"], list), "contract-component-kind-mismatch")
+    if "worlds" in value:
+        reject(not isinstance(value["worlds"], list), "contract-component-kind-mismatch")
     for reference in value.get("slots", []):
-        validate_slot_v1(reference)
-    for key in ("shorter", "longer", "clock_slot", "owner_slot", "row_slot"):
-        if key in value and isinstance(value[key], dict):
-            validate_slot_v1(value[key])
+        validate_scoped_slot_v1(reference, disposition_binder=disposition_binder)
+    for key in ("shorter", "longer"):
+        if key in value:
+            validate_scoped_slot_v1(value[key], disposition_binder=disposition_binder)
+    for key, namespace in (("clock_slot", "Clock"), ("owner_slot", "Owner"), ("row_slot", "Row")):
+        if key in value:
+            validate_scoped_slot_v1(value[key], namespace=namespace)
+    for world in value.get("worlds", []):
+        validate_world_v1(world)
     if "site_slot" in value:
         validate_u32(value["site_slot"], "ObligationV1 site_slot")
     if kind == "BoundarySafeV1":
@@ -1059,12 +1459,19 @@ def validate_legacy_obligation(value: dict[str, Any]) -> None:
         validate_effect_entry_selector(value["entry"])
 
 
-def validate_obligation(obligation: dict[str, Any], returns: ReturnScope) -> None:
+def validate_obligation(
+    obligation: dict[str, Any],
+    returns: ReturnScope,
+    *,
+    disposition_binder: dict[str, Any] | None = None,
+) -> None:
     kind = obligation.get("kind")
     if kind == "LegacyObligationV2":
         exact_fields(obligation, {"kind", "value"}, kind)
         require(isinstance(obligation["value"], dict), "LegacyObligationV2 value")
-        validate_legacy_obligation(obligation["value"])
+        validate_legacy_obligation(
+            obligation["value"], disposition_binder=disposition_binder,
+        )
         return
     fields = {
         "BoundarySafeV2": {"kind", "id", "stage", "slots", "boundary", "origin"},
@@ -1081,14 +1488,22 @@ def validate_obligation(obligation: dict[str, Any], returns: ReturnScope) -> Non
     exact_fields(obligation, fields[kind], kind)
     validate_u32(obligation["id"], "ObligationV2 id")
     validate_obligation_stage(obligation)
+    if "slots" in obligation:
+        reject(not isinstance(obligation["slots"], list), "contract-component-kind-mismatch")
+    if "worlds" in obligation:
+        reject(not isinstance(obligation["worlds"], list), "contract-component-kind-mismatch")
     for reference in obligation.get("slots", []):
-        validate_slot_v2(reference, returns)
+        validate_scoped_slot_v2(
+            reference, returns, disposition_binder=disposition_binder,
+        )
     for key in ("shorter", "longer"):
         if key in obligation:
-            validate_slot_v2(obligation[key], returns)
-    for key in ("clock_slot", "owner_slot", "row_slot"):
-        if key in obligation and isinstance(obligation[key], dict):
-            validate_slot_v1(obligation[key])
+            validate_scoped_slot_v2(
+                obligation[key], returns, disposition_binder=disposition_binder,
+            )
+    for key, namespace in (("clock_slot", "Clock"), ("owner_slot", "Owner"), ("row_slot", "Row")):
+        if key in obligation:
+            validate_slot_v1(validate_contract_object(obligation[key]), namespace)
     for world in obligation.get("worlds", []):
         validate_world(world, returns)
     if "site_slot" in obligation:
@@ -1111,13 +1526,39 @@ def validate_obligation(obligation: dict[str, Any], returns: ReturnScope) -> Non
 
 def validate_operation_signature(signature: dict[str, Any], returns: ReturnScope) -> None:
     exact_fields(signature, {"type_binders", "parameters", "result", "mode", "transition", "suspension", "result_transformer", "required_phase", "obligation_ids", "secondary_sites"}, "OperationSignatureV2")
-    for parameter in signature["parameters"]:
+    type_binders = validate_contract_list(signature["type_binders"])
+    for binder in type_binders:
+        validate_type_binder(binder)
+    reject(
+        len({binder["slot"] for binder in type_binders}) != len(type_binders),
+        "contract-component-kind-mismatch",
+    )
+    for parameter in validate_contract_list(signature["parameters"]):
         validate_type_v2(parameter, returns=returns)
     validate_type_v2(signature["result"], returns=returns)
     require(signature["mode"] in {"fun", "once", "ctl", "abort"}, "OperationSignatureV2 mode")
-    for local_id in signature["obligation_ids"]:
+    validate_transition(signature["transition"])
+    validate_suspension(signature["suspension"])
+    validate_result_transformer_v1(signature["result_transformer"])
+    validate_phase_requirement(signature["required_phase"])
+    for local_id in validate_contract_list(signature["obligation_ids"]):
         validate_u32(local_id, "OperationSignatureV2 obligation id")
-    require(signature["secondary_sites"].get("kind") == "Closed", "operation secondary sites must be closed")
+    secondary_sites = validate_contract_object(signature["secondary_sites"])
+    exact_fields(secondary_sites, {"kind", "sites"}, "OperationSignatureV2 secondary_sites")
+    require(secondary_sites["kind"] == "Closed", "operation secondary sites must be closed")
+    for site in validate_contract_list(secondary_sites["sites"]):
+        site = validate_contract_object(site)
+        exact_fields(
+            site,
+            {"site_slot", "receiver", "operation", "route", "suspension", "semantic_summary", "origin"},
+            "SecondarySiteV1",
+        )
+        validate_u32(site["site_slot"], "SecondarySiteV1 site_slot")
+        validate_effect_entry_selector(site["receiver"])
+        validate_operation_selector(site["operation"])
+        validate_route_selector(site["route"])
+        validate_suspension(site["suspension"])
+        validate_summary_normal_form(site["semantic_summary"])
 
 
 def validate_latent_site(
@@ -1241,7 +1682,9 @@ def validate_path(
     for usage in path["usage"]:
         validate_usage(usage, returns, disposition_binder=disposition_binder)
     for obligation in path["ParametricObligations"]:
-        validate_obligation(obligation, returns)
+        validate_obligation(
+            obligation, returns, disposition_binder=disposition_binder,
+        )
     q = [obligation_value(obligation) for obligation in path["ParametricObligations"]]
     q_keys = {(entry["stage"], entry["id"]) for entry in q}
     for latent in path["LatentSites"]:
@@ -1255,7 +1698,10 @@ def validate_path(
     if kind == "ReturnsV2":
         exact_fields(outcome, {"kind", "transition", "result_transformer"}, kind)
         validate_transition(outcome["transition"])
-        validate_result_transformer(outcome["result_transformer"], returns)
+        validate_result_transformer(
+            outcome["result_transformer"], returns,
+            disposition_binder=disposition_binder,
+        )
     elif kind == "AbortsV2":
         exact_fields(outcome, {"kind", "origin"}, kind)
     elif kind == "TransfersV2":
@@ -1456,6 +1902,7 @@ def validate_computation(
         validate_return_binder(
             binder, returns, applications=applications, imports=imports,
             contract_binders=contract_binders, local_functions=local_functions,
+            disposition_binder=disposition_binder,
         )
         result_types = computation_return_types(
             computation["prefix"], applications, imports,
@@ -1464,14 +1911,12 @@ def validate_computation(
         reject(result_types is None, "path-bind-literal-prefix-forbidden")
         for result_type in result_types:
             reject(binder["type"] != result_type, "path-bind-return-binder-mismatch")
-        if computation["prefix"].get("kind") == "InvokeV2":
-            application = applications[computation["prefix"]["application_slot"]]
-            validate_application_return_lineage(application, binder)
-            _, target = resolve_contract_target(
-                application["contract"], imports, contract_binders, local_functions,
-            )
-            if target is not None:
-                validate_application_return_binder(target, application, binder)
+        validate_computation_return_projection(
+            computation["prefix"], binder,
+            applications=applications, imports=imports,
+            contract_binders=contract_binders, local_functions=local_functions,
+            disposition_binder=disposition_binder,
+        )
         continuation_returns = dict(returns)
         continuation_returns[binder["slot"]] = binder
         validate_computation(
@@ -1528,6 +1973,14 @@ def validate_declaration_binders(binders: dict[str, Any], closure_environment: l
     clocks = unique_slots(binders["clock_binders"], "slot", "Clock")
     contracts = unique_slots(binders["contract_binders"], "slot", "Contract")
     prompts = unique_slots(binders["prompt_binders"], "prompt_slot", "Prompt")
+    for parameter in binders["parameter_binders"]:
+        exact_fields(parameter, {"slot", "type"}, "ParameterBinderV2")
+    for binder in binders["type_binders"]:
+        validate_type_binder(binder)
+    for row in binders["row_binders"]:
+        exact_fields(row, {"slot", "lacks"}, "RowBinderV1")
+        for entry in row["lacks"]:
+            validate_effect_entry_selector(entry)
     for number in [*parameters, *types, *rows, *contracts, *owners, *identities, *clocks, *prompts]:
         validate_u32(number, "declaration binder slot")
     closure_slots = {binding["slot"]["slot"] for binding in closure_environment if binding["slot"]["namespace"] == "ClosureCapture"}
@@ -1718,6 +2171,10 @@ def validate_application_instantiation(
     actual_types = [summary["type"] for summary in application["actual_arguments"]]
     reject(len(actual_types) != len(expected_actual_types), "application-arity-mismatch")
     reject(actual_types != expected_actual_types, "application-argument-type-mismatch")
+    if target is not None:
+        validate_concrete_application_call_obligations(
+            application, target,
+        )
 
 
 def validate_function_contract(
@@ -1741,6 +2198,11 @@ def validate_function_contract(
         require(declaration_kind.get("kind") == "FunctionContractKindV2", "FunctionContractV2 declaration kind")
         validate_type_v2(declaration_kind["parameter_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
         validate_type_v2(declaration_kind["result_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+        reject(
+            [parameter["type"] for parameter in binders["parameter_binders"]]
+            != application_parameter_types(declaration_kind["parameter_type"]),
+            "contract-component-kind-mismatch",
+        )
     for binder in contract_binders.values():
         require(binder.get("kind") == "FunctionContractBinderV2", "unsupported ContractBinderV2 in fixture")
         validate_type_v2(binder["parameter_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
@@ -1858,7 +2320,10 @@ def instantiate_source_result(source: dict[str, Any], application: dict[str, Any
         provenance = copy.deepcopy(transformer["provenance"])
         capture = copy.deepcopy(transformer["capture"])
         actual_source = application["actual_arguments"][0]["source"]
-        require(actual_source and actual_source["kind"] == "LegacySlotRefV2", "source projection needs an actual slot")
+        reject(
+            actual_source is None or actual_source.get("kind") != "LegacySlotRefV2",
+            "term-actual-source-unavailable",
+        )
         for expression in (provenance, capture):
             for node in walk(expression):
                 if isinstance(node, dict) and "argument" in node and node["argument"] == slot("Parameter", 0):
@@ -1890,6 +2355,136 @@ def validate_application_return_lineage(application: dict[str, Any], binder: dic
         if isinstance(node, dict) and node.get("kind") == "ApplicationEntryWorldV2"
     }
     reject(entry_slots != {expected_slot}, "contract-parameter-inconsistent-instantiation")
+
+
+def returning_path_projection(path: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    transformer = path["outcome"]["result_transformer"]
+    if transformer["kind"] == "LegacyResultTransformerV2":
+        value = transformer["value"]
+        reject(value.get("kind") != "ParametricResultV1", "path-bind-literal-prefix-forbidden")
+        return (
+            {"kind": "LegacyProvenanceExprV2", "value": copy.deepcopy(value["provenance"])},
+            {"kind": "LegacyCaptureExprV2", "value": copy.deepcopy(value["capture"])},
+        )
+    reject(transformer["kind"] != "ParametricResultV2", "path-bind-literal-prefix-forbidden")
+    return copy.deepcopy(transformer["provenance"]), copy.deepcopy(transformer["capture"])
+
+
+def validate_computation_return_projection(
+    computation: dict[str, Any],
+    binder: dict[str, Any],
+    *,
+    applications: ApplicationScope,
+    imports: ImportScope,
+    contract_binders: dict[int, dict[str, Any]],
+    local_functions: LocalFunctionScope,
+    disposition_binder: dict[str, Any] | None,
+) -> None:
+    """Validate the one symbolic ReturnBinder against every returning prefix path."""
+
+    kind = computation["kind"]
+    if kind == "InvokeV2":
+        application = applications[computation["application_slot"]]
+        validate_application_return_lineage(application, binder)
+        _, target = resolve_contract_target(
+            application["contract"], imports, contract_binders, local_functions,
+        )
+        if target is not None:
+            validate_application_return_binder(target, application, binder)
+        return
+    if kind == "JoinV2":
+        for member in computation["members"]:
+            validate_computation_return_projection(
+                member, binder, applications=applications, imports=imports,
+                contract_binders=contract_binders,
+                local_functions=local_functions,
+                disposition_binder=disposition_binder,
+            )
+        return
+    if kind == "PathBindV2":
+        materialized_source = None
+        if computation["prefix"]["kind"] == "CurrentDispositionPathsV2":
+            reject(disposition_binder is None, "term-actual-source-unavailable")
+            materialized_source = {
+                "kind": "LegacySlotRefV2",
+                "value": slot("SuffixLive", disposition_binder["slot"]),
+            }
+        continuation = substitute_return_binder(
+            computation["continuation"], computation["return_binder"],
+            materialized_source=materialized_source,
+        )
+        validate_computation_return_projection(
+            continuation, binder,
+            applications=applications, imports=imports,
+            contract_binders=contract_binders,
+            local_functions=local_functions,
+            disposition_binder=disposition_binder,
+        )
+        return
+    if kind == "CurrentDispositionPathsV2":
+        reject(disposition_binder is None, "path-bind-literal-prefix-forbidden")
+        expected_usage = {
+            "kind": "LegacyUsageExprV2",
+            "value": {
+                "slot": slot("SuffixLive", disposition_binder["slot"]),
+                "kind": disposition_binder["type"]["value"]["usage"],
+            },
+        }
+        for path in computation["paths"]:
+            if path["outcome"]["kind"] != "ReturnsV2":
+                continue
+            provenance, capture = returning_path_projection(path)
+            expected_world = {
+                "kind": "LegacyWorldExprV2",
+                "value": {"kind": "EntryWorldV1", "site_slot": disposition_binder["site_slot"]},
+            }
+            reject(
+                binder["type"] != disposition_binder["type"]
+                or binder["world"] != expected_world
+                or binder["provenance"] != provenance
+                or binder["capture"] != capture
+                or binder["usage"] != expected_usage,
+                "contract-parameter-inconsistent-instantiation",
+            )
+        return
+    if kind == "LiteralPathsV2":
+        for path in computation["paths"]:
+            if path["outcome"]["kind"] != "ReturnsV2":
+                continue
+            provenance, capture = returning_path_projection(path)
+            legacy_provenance = (
+                provenance["value"]
+                if provenance.get("kind") == "LegacyProvenanceExprV2"
+                else None
+            )
+            reject(
+                not isinstance(legacy_provenance, dict)
+                or legacy_provenance.get("kind") != "OperationResultProvenanceV1",
+                "path-bind-literal-prefix-forbidden",
+            )
+            site_slot = legacy_provenance["site_slot"]
+            matching_sites = [
+                site for site in path["LatentSites"]
+                if site["site_slot"] == site_slot
+            ]
+            reject(len(matching_sites) != 1, "path-bind-literal-prefix-forbidden")
+            expected_world = {
+                "kind": "ApplyWorldTransitionV2",
+                "input": {
+                    "kind": "LegacyWorldExprV2",
+                    "value": {"kind": "EntryWorldV1", "site_slot": site_slot},
+                },
+                "transition": copy.deepcopy(path["outcome"]["transition"]),
+            }
+            reject(
+                binder["type"] != matching_sites[0]["instantiated_signature"]["result"]
+                or binder["world"] != expected_world
+                or binder["provenance"] != provenance
+                or binder["capture"] != capture,
+                "contract-parameter-inconsistent-instantiation",
+            )
+        return
+    raise Diagnostic("unknown-contract-computation-variant")
 
 
 def resolve_imports(oracle: dict[str, Any], directory: Path) -> ImportScope:
@@ -2046,6 +2641,20 @@ class FreshLocalQualifier:
         return self.mapping[key]
 
 
+def reserve_application_locals(
+    values: Iterable[Any],
+    application_slot: int,
+    qualifier: FreshLocalQualifier,
+) -> None:
+    """Allocate one application-wide sorted batch before rewriting any path."""
+
+    local_ids: set[int] = set()
+    for value in values:
+        local_ids.update(collect_local_ids(value))
+    for local_id in sorted(local_ids):
+        qualifier.qualify(application_slot, local_id)
+
+
 def qualify_application_locals(
     value: Any,
     application_slot: int,
@@ -2055,8 +2664,7 @@ def qualify_application_locals(
 
     # Allocation is a semantic batch ordered by local id, never by JSON object
     # member order encountered during the subsequent structural rewrite.
-    for local_id in sorted(collect_local_ids(value)):
-        qualifier.qualify(application_slot, local_id)
+    reserve_application_locals([value], application_slot, qualifier)
 
     def qualified(number: int) -> int:
         return qualifier.qualify(application_slot, number)
@@ -2090,7 +2698,7 @@ def discharge_call_obligation(
     source_contract: dict[str, Any],
     application: dict[str, Any],
 ) -> None:
-    """Resolve every formal in a Call obligation to its complete actual summary."""
+    """Resolve every formal and prove the Call predicate before discharge."""
 
     parameter_slots = [binder["slot"] for binder in source_contract["binders"]["parameter_binders"]]
     actual_by_slot = dict(zip(parameter_slots, application["actual_arguments"]))
@@ -2107,7 +2715,101 @@ def discharge_call_obligation(
             return {"kind": "ResolvedCallActual", "summary": copy.deepcopy(actual)}
         return {key: resolve(member) for key, member in node.items()}
 
-    resolve(obligation)
+    resolved = resolve(obligation)
+    solve_call_obligation(resolved)
+
+
+def legacy_capture_is_boundary_safe(capture: dict[str, Any]) -> bool:
+    kind = capture["kind"]
+    if kind == "BottomCaptureV1":
+        return False
+    if kind == "UnionCaptureV1":
+        return all(legacy_capture_is_boundary_safe(member) for member in capture["members"])
+    return kind in {
+        "NoCaptureV1", "CaptureSlotsV1", "ArgumentCaptureV1",
+        "ArrayElementCaptureV1", "OperationResultCaptureV1",
+    }
+
+
+def capture_is_boundary_safe(capture: dict[str, Any]) -> bool:
+    kind = capture["kind"]
+    if kind == "LegacyCaptureExprV2":
+        return legacy_capture_is_boundary_safe(capture["value"])
+    if kind == "UnionCaptureV2":
+        return all(capture_is_boundary_safe(member) for member in capture["members"])
+    return kind == "ReturnCaptureV2"
+
+
+def provenance_is_inhabited(provenance: dict[str, Any]) -> bool:
+    kind = provenance["kind"]
+    if kind == "LegacyProvenanceExprV2":
+        value = provenance["value"]
+        if value["kind"] == "BottomProvenanceV1":
+            return False
+        if value["kind"] == "JoinProvenanceV1":
+            return all(
+                provenance_is_inhabited({"kind": "LegacyProvenanceExprV2", "value": member})
+                for member in value["members"]
+            )
+        return True
+    if kind == "JoinProvenanceV2":
+        return all(provenance_is_inhabited(member) for member in provenance["members"])
+    return kind in {"ReturnProvenanceV2", "EnvironmentV2"}
+
+
+def solve_call_obligation(obligation: dict[str, Any]) -> None:
+    value = obligation_value(obligation)
+    reject(value["stage"] != "Call", "unknown-obligation-stage")
+    actuals = [
+        node["summary"]
+        for node in walk(value)
+        if isinstance(node, dict) and node.get("kind") == "ResolvedCallActual"
+    ]
+    kind = value["kind"]
+    if kind in {"BoundarySafeV1", "BoundarySafeV2"}:
+        reject(
+            any(
+                not provenance_is_inhabited(summary["provenance"])
+                or not capture_is_boundary_safe(summary["capture"])
+                for summary in actuals
+            ),
+            "call-obligation-unsatisfied",
+        )
+    elif kind in {"StableAcrossV1", "StableAcrossV2"}:
+        reject(
+            any(
+                summary["provenance"]
+                != {"kind": "LegacyProvenanceExprV2", "value": {"kind": "StableV1"}}
+                for summary in actuals
+            ),
+            "call-obligation-unsatisfied",
+        )
+    elif kind in {"DuplicableEnvV1", "DuplicableEnvV2"}:
+        reject(
+            any(
+                summary["usage"] is not None
+                and summary["usage"].get("kind") == "LegacyUsageExprV2"
+                and summary["usage"]["value"]["kind"] == "Once"
+                for summary in actuals
+            ),
+            "call-obligation-unsatisfied",
+        )
+
+
+def validate_concrete_application_call_obligations(
+    application: dict[str, Any],
+    source_contract: dict[str, Any],
+) -> None:
+    """ContractWF discharges every concrete callee Call-Q, not only evaluator runs."""
+
+    for node in walk(source_contract["computation"]):
+        if not isinstance(node, dict) or "ParametricObligations" not in node:
+            continue
+        for obligation in node["ParametricObligations"]:
+            if obligation_value(obligation)["stage"] == "Call":
+                discharge_call_obligation(
+                    obligation, source_contract, application,
+                )
 
 
 def substitute_term_actuals(
@@ -2173,9 +2875,10 @@ def instantiate_invoked_path(
         substitute_contract_kind(path, application["substitution"]),
         application["application_slot"], qualifier,
     )
-    # Call-stage obligations are discharged against the complete actual summary
-    # and removed before any surviving bare SlotRef projection is materialized.
-    # This keeps schema-valid computed actuals (source=null) evaluable.
+    # Call-stage obligations are solved against the complete actual summary and
+    # removed before any surviving bare SlotRef projection is materialized.
+    # A source=null actual remains valid only where no later projection needs a
+    # materialized slot; that later use emits term-actual-source-unavailable.
     for obligation in instantiated["ParametricObligations"]:
         if obligation_value(obligation)["stage"] == "Call":
             discharge_call_obligation(obligation, source_contract, application)
@@ -2190,7 +2893,12 @@ def instantiate_invoked_path(
     return instantiated
 
 
-def substitute_return_binder(value: Any, binder: dict[str, Any]) -> Any:
+def substitute_return_binder(
+    value: Any,
+    binder: dict[str, Any],
+    *,
+    materialized_source: dict[str, Any] | None = None,
+) -> Any:
     def rewrite(node: Any) -> Any:
         if isinstance(node, list):
             return [rewrite(member) for member in node]
@@ -2216,7 +2924,9 @@ def substitute_return_binder(value: Any, binder: dict[str, Any]) -> Any:
             projected = binder[projections[kind]]
             require(projected is not None, f"return binder has no {projections[kind]} projection")
             return copy.deepcopy(projected)
-        require(kind != "ReturnSlotRefV2", "evaluator cannot materialize a return value slot outside its PathBind")
+        if kind == "ReturnSlotRefV2":
+            reject(materialized_source is None, "term-actual-source-unavailable")
+            return copy.deepcopy(materialized_source)
         return {key: rewrite(member) for key, member in node.items()}
 
     return rewrite(value)
@@ -2228,6 +2938,7 @@ def evaluate_contract_computation(
     imports: ImportScope,
     contract_environment: dict[int, dict[str, Any]] | None = None,
     local_functions: LocalFunctionScope | None = None,
+    disposition_binder: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Evaluate V2 computation to complete normalized PathContractV2 values."""
 
@@ -2277,6 +2988,10 @@ def evaluate_contract_computation(
                 source, imports=imports, contract_environment=nested_environment,
                 local_functions=local_functions,
             )
+            reserve_application_locals(
+                [path["path"] for path in paths],
+                application["application_slot"], qualifier,
+            )
             return [
                 {
                     "path": instantiate_invoked_path(
@@ -2291,9 +3006,19 @@ def evaluate_contract_computation(
             terminal = [path for path in prefix if path["path"]["outcome"]["kind"] != "ReturnsV2"]
             continued: list[dict[str, Any]] = []
             continuation = evaluate(node["continuation"])
+            materialized_source = None
+            if node["prefix"]["kind"] == "CurrentDispositionPathsV2":
+                reject(disposition_binder is None, "term-actual-source-unavailable")
+                materialized_source = {
+                    "kind": "LegacySlotRefV2",
+                    "value": slot("SuffixLive", disposition_binder["slot"]),
+                }
             for returning in (path for path in prefix if path["path"]["outcome"]["kind"] == "ReturnsV2"):
                 for suffix in continuation:
-                    substituted_suffix = substitute_return_binder(suffix["path"], node["return_binder"])
+                    substituted_suffix = substitute_return_binder(
+                        suffix["path"], node["return_binder"],
+                        materialized_source=materialized_source,
+                    )
                     continued.append(
                         {
                             "path": compose_path_contracts(returning["path"], substituted_suffix),
@@ -2679,10 +3404,26 @@ def validate_handler_oracle(oracle: dict[str, Any], directory: Path) -> None:
     evaluated_clause = evaluate_contract_computation(
         {
             "applications": applications,
-            "computation": clause["computation"]["prefix"],
+            "computation": clause["computation"],
         },
         imports=imported,
+        disposition_binder=clause["disposition_binder"],
     )
+    application_scope = {
+        application["application_slot"]: application
+        for application in applications
+    }
+    for item in evaluated_clause:
+        validate_path(
+            item["path"], applications=application_scope, returns={},
+            context="handler_clause", imports=imported,
+            contract_binders={}, local_functions={},
+            disposition_binder=clause["disposition_binder"],
+            clause_operation=clause["operation"],
+            handled_entry=oracle["handler_contract"]["handled_entry"],
+            handler_prompt_slot=current_prompt,
+            nearest_outer_prompt_slot=nearest_outer_prompt,
+        )
     require(
         [item["path"]["outcome"]["kind"] for item in evaluated_clause]
         == oracle["expectation"]["current_disposition_evaluated_outcomes"],
@@ -2765,6 +3506,19 @@ def validate_local_contract_oracle(oracle: dict[str, Any]) -> None:
     order_b = qualify_application_locals(
         {"prompt_slot": 7, "site_slot": 5}, 0, FreshLocalQualifier(),
     )
+    path_order_a = FreshLocalQualifier()
+    reserve_application_locals(
+        [{"site_slot": 5}, {"site_slot": 3}], 0, path_order_a,
+    )
+    path_order_b = FreshLocalQualifier()
+    reserve_application_locals(
+        [{"site_slot": 3}, {"site_slot": 5}], 0, path_order_b,
+    )
+    path_batch_order_invariant = [
+        path_order_a.qualify(0, raw) for raw in (3, 5)
+    ] == [
+        path_order_b.qualify(0, raw) for raw in (3, 5)
+    ]
     outer_qualifier = FreshLocalQualifier({0})
     nested_declaration_slots = [
         0,
@@ -2792,6 +3546,7 @@ def validate_local_contract_oracle(oracle: dict[str, Any]) -> None:
             "nested_declaration_slots": nested_declaration_slots,
             "qualified_prompt_slots": qualified_prompts,
             "object_order_invariant": order_a == order_b,
+            "path_batch_order_invariant": path_batch_order_invariant,
         }
         or len(set(qualified_prompts)) != 2
         or len(set(large_pair_slots)) != 2
