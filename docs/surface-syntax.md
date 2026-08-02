@@ -476,7 +476,9 @@ Importer对 Effect-kind substitution在 family position解包 nominal V2 legacy 
 contract-binder row中的每个 `TailV1`都必须引用当前 Row binder。Identity
 substitution还必须把 target identity binder的已实例化 family与 caller live
 identity declaration逐一比较，并用 caller identity/handler-contract table重查
-instantiated public row中的每个 selector。
+instantiated public row中的每个 selector。Handler oracle的外层 declaration
+binders就是 handler contract的 caller scope；同一 scope还递归约束 handled entry、
+residual row与 handler application实例化后的 public row。
 
 TR₀ 当前 wire只可为 associated EffectRow携带 `Lacks[e]`：generic hidden
 `RowBinderV1`继承该 evidence，concrete explicit/default row必须证明它。Appendix A

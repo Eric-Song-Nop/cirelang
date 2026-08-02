@@ -3660,31 +3660,62 @@ def validate_handler_contract(
     imports: ImportScope | None = None,
     local_functions: LocalFunctionScope | None = None,
     nearest_outer_prompt_slot: int | None = None,
+    type_parameter_kinds: dict[int, str] | None = None,
+    row_binders: dict[int, dict[str, Any]] | None = None,
+    contract_binders: dict[int, dict[str, Any]] | None = None,
+    identity_binders: dict[int, dict[str, Any]] | None = None,
+    handler_contract_binders: set[int] | None = None,
 ) -> None:
     validate_wire_u32_fields(contract)
     validate_source_origins(contract)
     imports = imports or ImportScope()
     local_functions = local_functions or {}
+    type_parameter_kinds = type_parameter_kinds or {}
+    row_binders = row_binders or {}
+    contract_binders = contract_binders or {}
+    identity_binders = identity_binders or {}
+    handler_contract_binders = handler_contract_binders or set()
     exact_fields(contract, {"handled_entry", "prompt_slot", "residual_row", "attributed_demand", "suspension", "semantic_summary", "required_phase", "handler_environment", "applications", "return_computation", "clause_computations"}, "HandlerContractV2")
     validate_kinded_type_parameter_scope(
         contract,
-        {},
+        type_parameter_kinds,
         imports=imports,
+        contract_binders=contract_binders,
         local_functions=local_functions,
     )
     validate_u32(contract["prompt_slot"], "HandlerContractV2 prompt_slot")
-    validate_effect_entry_selector(contract["handled_entry"])
+    validate_effect_entry_selector(
+        contract["handled_entry"],
+        type_parameter_kinds,
+        identity_binders=identity_binders,
+        handler_contract_binders=handler_contract_binders,
+    )
+    validate_row_expr(contract["residual_row"])
+    validate_row_selector_scope(
+        contract["residual_row"],
+        type_parameter_kinds=type_parameter_kinds,
+        identity_binders=identity_binders,
+        handler_contract_binders=handler_contract_binders,
+    )
     for binding in contract["handler_environment"]:
-        validate_environment_binding(binding, {})
+        validate_environment_binding(
+            binding, {}, imports=imports, contract_binders=contract_binders,
+            local_functions=local_functions,
+        )
     validate_summary_normal_form(contract["semantic_summary"])
     validate_phase_requirement(contract["required_phase"])
     applications = validate_application_ledger(
         contract["applications"], returns={}, imports=imports,
-        contract_binders={}, local_functions=local_functions,
+        contract_binders=contract_binders, local_functions=local_functions,
+        row_binders=row_binders,
+        type_parameter_kinds=type_parameter_kinds,
+        identity_binders=identity_binders,
+        handler_contract_binders=handler_contract_binders,
     )
     validate_computation(
         contract["return_computation"], applications, context="handler_return",
-        imports=imports, local_functions=local_functions,
+        imports=imports, contract_binders=contract_binders,
+        local_functions=local_functions, row_binders=row_binders,
     )
     seen_operations: set[str] = set()
     for clause in contract["clause_computations"]:
@@ -3702,15 +3733,38 @@ def validate_handler_contract(
         exact_fields(disposition, {"slot", "site_slot", "type"}, "ClauseDispositionBinderV2")
         validate_u32(disposition["slot"], "ClauseDispositionBinderV2 slot")
         validate_u32(disposition["site_slot"], "ClauseDispositionBinderV2 site_slot")
-        validate_type_v2(disposition["type"], imports=imports, local_functions=local_functions)
+        validate_type_v2(
+            disposition["type"], imports=imports,
+            contract_binders=contract_binders, local_functions=local_functions,
+        )
         require(disposition["type"].get("kind") == "ResumeTypeRefV2", "ClauseDispositionBinderV2 type")
         validate_computation(
             clause["computation"], applications, context="handler_clause", imports=imports,
-            local_functions=local_functions, disposition_binder=disposition,
+            contract_binders=contract_binders, local_functions=local_functions,
+            row_binders=row_binders, disposition_binder=disposition,
             clause_operation=clause["operation"], handled_entry=contract["handled_entry"],
             handler_prompt_slot=contract["prompt_slot"],
             nearest_outer_prompt_slot=nearest_outer_prompt_slot,
         )
+    validate_lexical_application_instantiations(
+        contract,
+        imports=imports,
+        contract_binders=contract_binders,
+        local_functions=local_functions,
+        type_parameter_kinds=type_parameter_kinds,
+        identity_binders=identity_binders,
+        handler_contract_binders=handler_contract_binders,
+    )
+    for node in walk(contract["residual_row"]):
+        if (
+            isinstance(node, dict)
+            and set(node) == {"namespace", "slot"}
+            and node["namespace"] == "Row"
+        ):
+            reject(
+                node["slot"] not in row_binders,
+                "contract-projection-escapes-scope",
+            )
     handler_slot_types = {
         (binding["slot"]["namespace"], binding["slot"]["slot"]): binding["type"]
         for binding in contract["handler_environment"]
@@ -5545,8 +5599,27 @@ def validate_flow_oracle(oracle: dict[str, Any]) -> None:
 def validate_handler_oracle(oracle: dict[str, Any], directory: Path) -> None:
     exact_fields(oracle, {"artifact", "profile", "schema_version", "subject", "binders", "imports", "handler_contract", "outward_function_contract", "expectation"}, "CireHandlerContractOracleV2")
     require(oracle["profile"] == PROFILE and oracle["schema_version"] == 2, "wrong handler oracle profile")
-    validate_declaration_binders(oracle["binders"], [])
-    prompt_slots = [binder["prompt_slot"] for binder in oracle["binders"]["prompt_binders"]]
+    binders = oracle["binders"]
+    validate_declaration_binders(binders, [])
+    type_parameter_kinds = {
+        binder["slot"]: binder["kind"] for binder in binders["type_binders"]
+    }
+    row_binders = {
+        binder["slot"]: binder for binder in binders["row_binders"]
+    }
+    contract_binders = {
+        binder["slot"]: binder for binder in binders["contract_binders"]
+    }
+    identity_binders = {
+        binder["identity_slot"]: binder
+        for binder in binders["identity_binders"]
+    }
+    handler_contract_binders = {
+        binder["slot"]
+        for binder in binders["contract_binders"]
+        if binder.get("kind") == "HandlerContractBinderV2"
+    }
+    prompt_slots = [binder["prompt_slot"] for binder in binders["prompt_binders"]]
     require(len(prompt_slots) == len(set(prompt_slots)) and {0, 1} <= set(prompt_slots), "handler oracle prompt scope")
     imported = resolve_imports(oracle, directory)
     current_prompt = oracle["handler_contract"]["prompt_slot"]
@@ -5555,6 +5628,11 @@ def validate_handler_oracle(oracle: dict[str, Any], directory: Path) -> None:
     validate_handler_contract(
         oracle["handler_contract"], imports=imported,
         nearest_outer_prompt_slot=nearest_outer_prompt,
+        type_parameter_kinds=type_parameter_kinds,
+        row_binders=row_binders,
+        contract_binders=contract_binders,
+        identity_binders=identity_binders,
+        handler_contract_binders=handler_contract_binders,
     )
     validate_function_contract(oracle["outward_function_contract"])
     applications = oracle["handler_contract"]["applications"]
@@ -5790,14 +5868,40 @@ def decode_named(decoder: str, target: dict[str, Any], document: dict[str, Any],
     elif decoder == "HandlerContractV2":
         imported = resolve_imports(document, directory) if document.get("artifact") == "CireHandlerContractOracleV2" else {}
         nearest_outer_prompt = None
+        handler_scope: dict[str, Any] = {}
         if document.get("artifact") == "CireHandlerContractOracleV2":
-            prompt_slots = [binder["prompt_slot"] for binder in document["binders"]["prompt_binders"]]
+            binders = document["binders"]
+            prompt_slots = [binder["prompt_slot"] for binder in binders["prompt_binders"]]
             current_index = prompt_slots.index(target["prompt_slot"])
             if current_index + 1 < len(prompt_slots):
                 nearest_outer_prompt = prompt_slots[current_index + 1]
+            handler_scope = {
+                "type_parameter_kinds": {
+                    binder["slot"]: binder["kind"]
+                    for binder in binders["type_binders"]
+                },
+                "row_binders": {
+                    binder["slot"]: binder
+                    for binder in binders["row_binders"]
+                },
+                "contract_binders": {
+                    binder["slot"]: binder
+                    for binder in binders["contract_binders"]
+                },
+                "identity_binders": {
+                    binder["identity_slot"]: binder
+                    for binder in binders["identity_binders"]
+                },
+                "handler_contract_binders": {
+                    binder["slot"]
+                    for binder in binders["contract_binders"]
+                    if binder.get("kind") == "HandlerContractBinderV2"
+                },
+            }
         validate_handler_contract(
             target, imports=imported,
             nearest_outer_prompt_slot=nearest_outer_prompt,
+            **handler_scope,
         )
     else:
         raise AssertionError(f"unknown mutation decoder: {decoder}")
@@ -8161,7 +8265,7 @@ def main() -> int:
         task46_result.returncode == 0,
         "task-46 complete-root regressions failed:\n" + task46_result.stdout,
     )
-    task46_probe_count = 21
+    task46_probe_count = 24
     validate_normative_producer_alignment()
     print(
         f"PASS: {len(interface_paths)} interface artifacts, "

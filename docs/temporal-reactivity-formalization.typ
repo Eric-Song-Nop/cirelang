@@ -2641,7 +2641,12 @@ exact world transition、provenance与 capture。两类失败统一产生
 computations共享的原子 application ledger，application slot在整个 handler
 contract内唯一。`InvokeV2` 必须在该 ledger解析；clause disposition binder
 只扩展其所属 `ClauseComputationV2.computation` 的 lexical context，不扩展
-handler return或其他 clause。V2 serializer/importer不得把其中任何一段降级成
+handler return或其他 clause。位于 `CireHandlerContractOracleV2` 时，oracle
+`binders` 是整个 handler contract的 caller declaration environment：type/row/
+contract/identity table必须传入 applications与 computation ContractWF；
+`handled_entry`、`residual_row`以及每个 instantiated target public row都用同一
+identity/handler-contract table递归检查 selector scope与 family。V2
+serializer/importer不得把其中任何一段降级成
 `ClauseFlowSetV1`、`SuffixContractV1` 或从旧 flow字段重建。
 
 Normative V2 import is context-sensitive and exhaustive:

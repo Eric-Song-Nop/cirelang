@@ -468,6 +468,117 @@ def imported_identity_substitution_roots() -> None:
     )
 
 
+def handler_identity_target() -> dict[str, Any]:
+    target = load("choose-once-function-contract.json")
+    target["binders"]["owner_binders"].append(
+        {
+            "slot": 999,
+            "source": {"namespace": "Parameter", "slot": 0},
+        }
+    )
+    target["binders"]["identity_binders"].append(
+        {
+            "binder": "FreshCap",
+            "family": nominal_effect("Choice"),
+            "identity_slot": 999,
+            "owner": {"namespace": "Owner", "slot": 999},
+        }
+    )
+    target["declaration_kind"]["visible_row"]["entries"].append(
+        {
+            "family": nominal_effect("Choice"),
+            "identity": {"namespace": "Identity", "slot": 999},
+            "kind": "NamedV1",
+        }
+    )
+    target["declaration_kind"]["visible_row"]["entries"].sort(key=v.jcs)
+    v.validate_function_contract(target)
+    return target
+
+
+def handler_identity_oracle(
+    target: dict[str, Any],
+    caller_family: str,
+) -> dict[str, Any]:
+    oracle = load("handler-forward-contract.json")
+    old_hash = oracle["imports"][0]["artifact_hash"]
+    oracle = replace_scalar(oracle, old_hash, v.canonical_hash(target))
+    oracle["binders"]["identity_binders"].append(
+        {
+            "binder": "FreshCap",
+            "family": nominal_effect(caller_family),
+            "identity_slot": 999,
+            "owner": {"namespace": "Owner", "slot": 0},
+        }
+    )
+    substitution = oracle["handler_contract"]["applications"][0][
+        "substitution"
+    ]
+    substitution["owner_arguments"].append(
+        {
+            "binder_slot": 999,
+            "value": {"namespace": "Owner", "slot": 0},
+        }
+    )
+    substitution["identity_arguments"].append(
+        {
+            "binder_slot": 999,
+            "value": {"namespace": "Identity", "slot": 999},
+        }
+    )
+    return oracle
+
+
+def validate_handler_identity_oracle(
+    oracle: dict[str, Any],
+    target: dict[str, Any],
+) -> None:
+    with tempfile.TemporaryDirectory(prefix="cire-task46-handler-scope.") as name:
+        directory = Path(name)
+        (directory / "choose-once-function-contract.json").write_text(
+            v.jcs(target) + "\n", encoding="utf-8"
+        )
+        v.validate_handler_oracle(oracle, directory)
+
+
+def handler_caller_scope_roots() -> None:
+    target = handler_identity_target()
+    same_family = handler_identity_oracle(target, "Choice")
+    validate_handler_identity_oracle(same_family, target)
+
+    wrong_family = handler_identity_oracle(target, "IoFailure")
+    expect_diagnostic(
+        "handler caller imported identity family mismatch",
+        "contract-component-kind-mismatch",
+        lambda: validate_handler_identity_oracle(wrong_family, target),
+    )
+
+    residual = load("handler-forward-contract.json")
+    residual["binders"]["identity_binders"].append(
+        {
+            "binder": "FreshCap",
+            "family": nominal_effect("Choice"),
+            "identity_slot": 999,
+            "owner": {"namespace": "Owner", "slot": 0},
+        }
+    )
+    residual["handler_contract"]["residual_row"] = {
+        "kind": "ClosedV1",
+        "entries": [
+            {
+                "family": nominal_effect("IoFailure"),
+                "identity": {"namespace": "Identity", "slot": 999},
+                "kind": "NamedV1",
+            }
+        ],
+    }
+    expect_diagnostic(
+        "handler residual row Named identity family mismatch",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_handler_oracle(residual, INTERFACES),
+    )
+
+
 catalog_roots()
 row_scope_roots()
 handler_entry_lacks_roots()
@@ -475,4 +586,5 @@ named_lacks_roots()
 public_selector_scope_roots()
 used_nominal_effect_roots()
 imported_identity_substitution_roots()
-print("PASS: 21 task-46 exact-schema/scope/substitution complete-root probes")
+handler_caller_scope_roots()
+print("PASS: 24 task-46 exact-schema/scope/substitution complete-root probes")
