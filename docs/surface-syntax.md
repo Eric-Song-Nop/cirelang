@@ -357,17 +357,19 @@ def[A, B, C]![..E1, ..E2] compose(
 }
 ```
 
-Effect row constraint 的工作形式：
+Effect row constraint 的 profile 形式：
 
 ```moonbit
 def![
-  ..E : Has[Log] + Lacks[Blocking] + All[Replayable],
+  ..E : Lacks[Blocking],
 ] schedule(task : () -> Unit ! E) -> Task ! E {
   ...
 }
 ```
 
-`Has`、`Lacks`、`All` 是 row predicate，不是可调用 operation 的 ability。
+`Lacks` 是本 profile 唯一冻结的 row predicate；它不是可调用 operation 的
+ability。`Has`、`All` 与 `Only` 只有 grammar-reserved CST，没有 TR₀
+solver/schema 语义，见 §4.6。
 
 显式调用也使用双列表：
 
@@ -377,12 +379,131 @@ consume[Int]![State[Int], {Log}](app, log_value)
 
 普通类型实参和 effect/row 实参不会再依靠位置上的 kind marker 混合解释。
 
-Ability 的 associated type/effect/row、higher-kinded binder、`fresh` function
-type 与 Core 展开由本文和 temporal formalization共同定义。
+Ability 的 associated type/effect/row 与 Core 展开由本文和 temporal
+formalization共同定义。Higher-kinded effect constructor只有 Appendix A 已冻结的
+`F[_]` binder shape；一般 `fresh`/one-call function type仍在 §11 的 profile
+boundary registry 中，不属于 TR₀。
 
 完整 binder、argument 与 `RowExpr` grammar 见 Appendix A.3。表面的两个形参列表
 是不同 kind domain 的参数绑定；只有 elaboration/generalization 明确引入
 Core binder 时才讨论量词。
+
+### 4.4 Associated Type、Effect 与 EffectRow
+
+**Profile baseline**
+
+Ability 可以声明三种不同 kind 的 associated item；声明关键字就是 kind
+判别器，resolver不得根据右侧拼写猜 kind：
+
+```moonbit
+pub(open) ability Store {
+  type Key
+  type Value
+  effect Fail : Raise[StoreError]
+  effects Extra : Lacks[Blocking] = {}
+
+  fun get(key : Key) -> Value ! {Fail}
+  fun put(key : Key, value : Value) -> Unit ! {Fail}
+}
+```
+
+| declaration | associated kind | projection position |
+|---|---|---|
+| `type Key` | `Type` | ordinary type, such as `S::Key` |
+| `effect Fail` | `Effect` | atomic row entry, such as `{S::Fail}` |
+| `effects Extra` | `EffectRow` | row/tail, such as `..S::Extra` or `S::Extra` |
+
+Ability constraint和 effect header使用具名 associated argument；左侧必须是
+该 ability恰好一个已声明 item，右侧按声明 kind检查：
+
+```moonbit
+pub(open) effect FileStore
+  : Store[
+      Key = Path,
+      Value = Bytes,
+      Fail = IoFailure,
+      Extra = {Async},
+    ] {}
+
+def[A]![S : Store[Value = A]] load_as(
+  store : cap S,
+  key : S::Key,
+) -> A ! ({store, S::Fail} | S::Extra) {
+  store.get(key)
+}
+```
+
+Elaboration先按 ability declaration解析 named argument，再产生
+`AssocEq(S,item,value,kind)` evidence；不能把 `Fail = IoFailure` 当普通
+positional type argument，也不能在三个 kind间互换 projection。每个 required
+item必须恰好绑定一次，或使用声明处的同-kind default；unknown、duplicate、
+missing-without-default和 kind mismatch 都拒绝。Projection只有在对应 ability
+evidence可见时成立，且 replacement保持 declaration identity，不只比较短名字。
+这四种 failure统一在 Kind阶段稳定报告 `associated-contract-mismatch`；不能
+fall through成普通 positional generic或 unknown member诊断。
+
+Interface lowering不新增第二个 `AssociatedProjection` wire tag。对每个带 ability
+evidence的 generic Effect binder，exporter按 `(effect-binder slot, ability
+declaration identity, associated declaration ordinal)` 排序，一次性在现有 namespace
+分配 hidden binder：associated Type/Effect进入 `TypeBinderV1` 且保留各自 kind，
+associated EffectRow进入 `RowBinderV1`。Projection分别改写成现有
+`TypeParameterV2`、Effect-kind family reference或 `TailV1`；named equality/default
+进入同一 `ContractSubstitutionV2` 的 type/row argument。Concrete effect header则在
+export前直接 substitution。这样 import hash、alpha qualification与 scope沿用现有
+wire contract，不会因 source projection增加未版本化 variant；所有 hidden binder的
+origin仍指回原 projection/ability declaration。
+
+TR₀ 没有 `where` clause、递归 associated equality或 higher-ranked associated
+item；Appendix A 不识别这些候选拼写，未来 profile不得由实现私自扩展。
+
+### 4.5 Effect-header ability conformance 与独立 `impl`
+
+**Profile baseline：只冻结 effect header conformance**
+
+```moonbit
+effect State[A] : Reader[A] + Writer[A] {}
+```
+
+这个 header 在 effect定义 package内产生 local ability witness。每个 ability
+只可在同一 header出现一次；associated argument按 §4.4 exact检查；ability的
+每个 operation经 substitution后必须与 effect自身或已继承 operation具有相同
+参数/结果、secondary contract与 resumption mode。两个 ability若导出同名
+operation，只有完整 substituted signature和 mode相同才可合并为同一 operation；
+否则 conformance拒绝。Result visibility不能超过 effect与 ability两者中较窄的
+一方，因此 header不能绕过 `pub` / `pub(open)` sealing。Duplicate ability、
+signature/mode conflict或 visibility widening统一稳定报告
+`effect-header-conformance-mismatch`。
+
+Appendix A 仍为 ordinary trait实现保留 `impl` declaration，并能构造
+ability-target `ImplDecl` CST；但 **独立 ability `impl` 不属于 TR₀**。Resolver
+一旦确认 `impl` 左侧是 ability，必须稳定拒绝
+`independent-ability-impl-not-in-profile`。因此 orphan/coherence、overlap、
+specialization、operation adapter、associated binding uniqueness、mode
+compatibility和跨 package visibility没有“先实现再决定”的隐含规则；它们必须在
+新 profile一起冻结后，独立 ability `impl` 才能成为 accepted form。普通 trait
+target仍可形成 `ImplDecl` CST，但不能产生 ability evidence；其 ordinary
+non-effect语义属于 formalization明确声明的 out-of-semantic-scope fragment，不能
+被用来绕过这条 effect-profile边界。
+
+### 4.6 Row algebra 与 predicate status
+
+**Profile baseline**
+
+Row是 identity-aware finite set加 rigid row-variable summand。`|` 是唯一
+surface union；normalization flatten union、删除已知重复 entry、按 stable
+identity排序，并保留 rigid summand。`Anon(F)` 与 `Named(app,F)` 是不同 entry，
+同 family不自动合并。
+
+`Lacks[Elt]` 是唯一冻结的显式 row predicate。`..E : Lacks[X]` 给 constraint
+environment加入 `Lacks(E,X)` evidence；literal extension `{X, ..E}` 必须从该
+environment或已知 closed-row normalization证明同一 obligation，不能对未知 tail
+静默去重。Union本身不制造 `Lacks` evidence；intersection、difference与 raw
+family subtraction不属于本 profile。
+
+Appendix A 为 profile evolution保留通用 `RowPredicate` CST，但显式
+`Has[...]`、`All[...]`、`Only[...]` 在 TR₀ 一律由 RowWF稳定拒绝
+`row-predicate-not-in-profile`。它们没有 builtin-name特判、solver、wire schema或
+隐含 diagnostic contract；未来若加入，必须以新 profile同时定义上述四项。
 
 ## 5. Operation 调用
 
@@ -918,6 +1039,34 @@ def user_pane(user : Source[User]) -> View ! {Observe} {
 - operation declaration 可以携带 closed secondary effect 与 temporal
   contract；`TR₀` 不接受 open secondary row tail。
 
+## 11. Explicit profile-boundary registry
+
+这一节是 `Cire-TR₀/2026-08-01` 的唯一 surface open-boundary registry。它合并
+了旧 surface document 与旧 standalone grammar 的两份清单。下列项目没有
+“implementation-defined”含义；除明确写成当前 profile baseline者外，parser、
+resolver与 typechecker都不得接受候选拼写或自行选择语义。
+
+| Boundary | TR₀ status |
+|---|---|
+| `ability` / `cap` keyword choice | 本 profile 的 canonical spelling；只有新 profile 可以改名，当前实现不得接受 alias。 |
+| `val` as zero-parameter `fun` sugar | Excluded；grammar 没有 `VAL` token/production。 |
+| explicit forwarding / masking | Surface spelling open；只有 Kernel `forward` 与现有 automatic forwarding contract，用户语法不得猜测。 |
+| public completion-source/port API | Open；TR₀ 只暴露 sealed `park` / PackedNext路径与 formalization中的 trusted constructors，不提供可自行构造的 library surface。 |
+| multi-shot local mutation | 没有 snapshot/clone/share 的额外语义；不能满足既有 replayability/capture premise 的 mutable local 必须拒绝。任何更宽语义需要新 profile。 |
+| general one-call/many-call function marker | Excluded；first-class closure按 many-call检查，one-call只存在于 sealed completion/resumption machinery。 |
+| stable lexical-site identity across edits | Artifact内使用 alpha-normalized lexical slot；跨编辑、重构或 incremental rebuild 的持久 identity仍开放，不能由路径/offset偶然定义。 |
+| typed `discontinue` | Excluded；`k.discontinue(e)` 以既有 stable reject处理。新 profile必须一起定义 payload、world、cleanup与terminal flow。 |
+| shallow handlers | Excluded；grammar与elaboration只有当前 deep handler。 |
+| user-defined operators | Excluded；Appendix A 的 precedence/operator set封闭。 |
+| wildcard imports | Excluded；package-qualified resolution不允许文件内 wildcard改变环境。 |
+| explicit `Has` / `All` / `Only` row predicates | Grammar-reserved but profile-rejected，精确规则与 diagnostic见 §§4.6/A.3。 |
+| independent ability `impl` | Grammar-reserved but profile-rejected；effect-header conformance是唯一冻结形态，见 §4.5。 |
+
+这些 boundary 中的“open”只表示未来设计空间，不表示当前程序可依靠某种行为。
+候选若要变成 accepted surface，必须改变 profile id，并同时补齐 grammar、
+elaboration、Core rule、wire/schema（若可序列化）、stable diagnostics 与 conformance
+case。实现不能因为 parser能够恢复出 CST 就把它当作当前语言。
+
 ## Appendix A — Cire-TR₀ complete grammar
 
 
@@ -1157,6 +1306,12 @@ Package identity and dependency selection belong to the package manifest. 源文
 `@package::name` 和 `Type::member` 使用 package-qualified name；本 profile
 不增加会在文件内改变解析环境的 wildcard import。
 
+`ImplDecl` 是 ordinary trait与 ability target共享的 lossless CST shape。
+Resolver若把左侧 `Type` 解析为 ability，TR₀ 必须在进入 body typechecking前拒绝
+`independent-ability-impl-not-in-profile`；只有 §4.5 的 effect-header
+`EffectConformance` 产生 ability evidence。Parser recovery或 ordinary trait
+target不能改变这个 kind-directed profile boundary。
+
 ### A.3 形参、实参与约束
 
 表面的 `[...]` / `![...]` 是**形参绑定列表**，不是量词语法：
@@ -1186,7 +1341,9 @@ PredicateArg         <- Type / RowExpr
 
 TypeArgs             <- LBRACKET TypeArg
                         (COMMA TypeArg)* COMMA? RBRACKET
-TypeArg              <- Type / LowerIdent
+TypeArg              <- AssociatedArgument / Type / LowerIdent
+AssociatedArgument   <- UpperIdent EQUAL AssociatedArgumentValue
+AssociatedArgumentValue <- Type / RowExpr
 EffectArgs           <- BANG LBRACKET EffectArg
                         (COMMA EffectArg)* COMMA? RBRACKET
 EffectArg            <- RowExpr / Type
@@ -1194,7 +1351,14 @@ EffectArg            <- RowExpr / Type
 
 `F`、`F[_]`、`..E` 分别绑定 `Effect`、effect constructor、`EffectRow`；
 这由 binder shape 唯一决定。`app : cap F` 是 term binder，不进入 generic
-list。
+list。`AssociatedArgument` 的 `UpperIdent =` lookahead先于 positional `Type`；
+resolver按 ability declaration把右侧重分类到 `Type`、`Effect` 或
+`EffectRow`，并按 §4.4拒绝 non-ability target、unknown、duplicate、missing或
+kind mismatch。
+
+`RowPredicate` 的通用 CST只为明确 profile boundary而保留。本 profile在 RowWF
+只接受名称 `Lacks`、恰好一个可解析 row entry argument；`Has`、`All`、`Only`
+以及其它名称统一拒绝 `row-predicate-not-in-profile`，不能由库中同名类型绕过。
 
 ### A.4 类型与 effect-row 表达式
 
@@ -1635,13 +1799,15 @@ checker 中完成：
 
 - identifier kind、visibility 适用范围和 duplicate declaration；
 - type/effect/row binder domain 与 kind；
-- ability conformance、associated binding 和 row predicate；
+- ability conformance、associated binding/kind/default exactness；
+- only-`Lacks` row predicate profile check，以及 ability-target independent
+  `impl` profile check；
 - pattern binder exactness、or-pattern binder equality、match exhaustiveness；
 - assignment place、label matching、default parameter 和 generic arity；
 - operation contract、mode refinement、handler clause exactness；
 - named capability identity、row removal、capture/escape；
 - one-shot disposition、multi-shot replay/fork 和 Owner transfer；
-- temporal clock identity、phase authority 和 storage boundary。
+- temporal clock identity、phase authority 和 storage boundary；
 - PackedNext sealed origin、shared lease state、完整 path nonescape/release；
 
 Parser recovery 可以插入 missing token 或 error node，但恢复结果不能成为语言

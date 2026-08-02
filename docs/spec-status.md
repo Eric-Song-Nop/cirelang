@@ -27,6 +27,7 @@ and no compiler/runtime implementation.
 
 ### Keep
 
+- `.gitignore` — repository hygiene; non-normative.
 - `README.md` — project entry point; non-normative.
 - `docs/spec-status.md` — this sole authority/status manifest.
 - `docs/surface-syntax.md` — surface grammar plus Appendix A PEG/elaboration.
@@ -44,10 +45,26 @@ and no compiler/runtime implementation.
 ### Merge
 
 - `docs/surface-grammar.md` -> `docs/surface-syntax.md` Appendix A. The
-  source file is deleted after the merge.
-- Normative fragments formerly repeated across the domain/design notes below
-  are already represented in the temporal formalization or surface source.
-  No independent rule survives only in a deleted file.
+  source file is deleted after the merge. Its PEG, syntax-validation boundary,
+  and open-profile registry all survive in that sole surface source.
+- The former `docs/surface-syntax.md` open registry and the distinct registry
+  from `docs/surface-grammar.md` are consolidated in
+  `docs/surface-syntax.md` §11. Every entry is either excluded from this
+  profile or retained there as an explicit new-profile question.
+- The associated Type/Effect/EffectRow, effect-header ability conformance, and
+  row-predicate contracts formerly in `docs/polymorphism-design.md` are split
+  by authority: spelling/elaboration/status live in `docs/surface-syntax.md`
+  §§4.4–4.6, and the kinding/coherence judgments live in the temporal
+  formalization's non-temporal static-contract section. Independent ability
+  `impl` plus explicit `Has`/`All`/`Only` remain grammar-reserved but have
+  stable profile-rejection diagnostics rather than accidental semantics.
+- This is an authority selection, not a claim that every paragraph of every
+  deleted note was copied. Only rules now stated in the two normative sources
+  belong to this profile. A deleted-file-only proposal that was not migrated
+  above is excluded/unfrozen, cannot supply semantics to a surviving grammar
+  construct, and cannot be resurrected by an implementation. Every surviving
+  construct is therefore governed by a current rule, the §11 boundary
+  registry, or a stable profile reject—not by a deleted document.
 
 ### Delete
 
@@ -91,10 +108,12 @@ become a stale second specification.
 
 ## Closure and release gate
 
-A replacement candidate must have zero references to every deleted path, pass
-Markdown link/fence closure over all surviving Markdown, compile the Typst
-formalization, validate all JSON/JCS/import hashes, pass the reference decoder
-and task-29/30/31/33/34/35 runners, validate PEG definitions, corpus metadata,
-diagnostic registry, runtime traces, Python compilation/Ruff, and
-`git diff --check`. The handoff records the exact commit/parent/tree, archive
-hash, surviving file inventory, and gate outputs.
+A replacement candidate must have zero live links, imports, or dependencies on
+every deleted path outside this manifest. The Merge/Delete inventory above
+intentionally names those paths and is excluded from that reference gate. The
+candidate must pass Markdown link/fence closure over all surviving Markdown,
+compile the Typst formalization, validate all JSON/JCS/import hashes, pass the
+reference decoder and task-29/30/31/33/34/35 runners, validate PEG definitions,
+corpus metadata, diagnostic registry, runtime traces, Python compilation/Ruff,
+and `git diff --check`. The handoff records the exact commit/parent/tree,
+archive hash, surviving file inventory, and gate outputs.

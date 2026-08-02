@@ -127,7 +127,12 @@
 - 当前所有 MoonBit 风格表达式的完整语言规范。
 
 普通 Cire 语法仅形式化到本 calculus 所需的 fragment。未列出的 ADT、
-pattern、trait、method resolution 等构造按现有语言设计正交组合。
+pattern、ordinary trait与 method-resolution细节在本文中是明确的
+out-of-semantic-scope surface nodes；本 profile不能引用已删除文档或所谓“现有语言
+设计”给它们补规则，也不对未写出的 behavior作 acceptance claim。需要这些规则的
+compiler-complete profile必须另行冻结并改变 profile id。本文实际使用的 nominal
+type/member facts必须作为 $K$ 中已解析的 opaque declaration-identity evidence输入，
+且不能产生本节未定义的 effect、ability或 temporal judgment。
 
 == 参数化的开放选择
 
@@ -548,6 +553,139 @@ $
 `CapId(FrameClock,ρ)` 连同 canonical sealed `FrameClock` family witness 的
 refinement；普通 effect、同名用户类型或裸 `clock_refinement` 都不够。
 普通 term 不能出现在 type 中。
+
+== Associated-item 与 ability conformance 静态契约
+
+这一节冻结普通 temporal judgment 使用之前所需的 non-temporal static
+contract；它不是把已删除设计文档作为隐含前提。令
+`AbilitySignature(B)` 保存 declaration identity、visibility、associated-item
+map 与 operation map。每个 associated item恰有一个 declared kind：
+
+$
+  "AssocDecl"(B,x) = (kappa_x,d_x?)
+  quad
+  kappa_x in {"Type","Effect","EffectRow"}
+$
+
+`type`、`effect`、`effects` 分别且唯一引入上述三个 kind。Default $d_x$ 若
+存在，必须在 declaration scope满足 $K ⊢ d_x:kappa_x$。Named associated
+argument elaboration产生
+`AssocEq(F,B,x,W,kappa_x)`；它必须满足：$x$ 属于同一个 declaration-identity
+$B$、每个 $x$ 至多出现一次、$K ⊢ W:kappa_x$，且每个没有 default 的 item
+都由 argument提供。Unknown、duplicate、missing-without-default或 cross-kind
+value都不是 recoverable equality，并在 Kind阶段稳定返回
+`associated-contract-mismatch`。
+
+令 `AbilityEvidence(K,F,B,theta)` 表示 substitution $theta$ 对 $B$ 的全部
+associated item exact/total，并把 ability operation signature中的 item projection
+同时替换。Projection formation是 kind-preserving的：
+
+#irule(
+  [K-Assoc-Projection],
+  (
+    [$"AbilityEvidence"(K,F,B,theta)$],
+    [$"AssocDecl"(B,x)=(kappa_x,d_x?)$],
+    [$theta(x)=W$],
+    [$K ⊢ W:kappa_x$],
+  ),
+  [$K ⊢ F::x:kappa_x$],
+)
+
+所以 `S::Key`、`S::Fail` 与 `S::Extra` 分别只能进入 Type、atomic Effect
+entry 与 EffectRow位置；相同 short name或相同 wire object不能跨 kind充当
+evidence。Constraint `S : B[Value = A]` 把相应 `AssocEq` 加入 $K$，不把它
+降为 positional type argument。
+
+Interface normalization不增加 `AssociatedProjection` variant。对每个带
+`AbilityEvidence` 的 Effect-kind declaration binder，先按
+`(effect-binder slot, ability declaration identity, associated ordinal)` 全批次排序；
+Type/Effect associated item各分配现有 `TypeBinderV1` slot并保留 declared kind，
+EffectRow item分配现有 `RowBinderV1` slot。随后：
+
+```text
+F::TypeItem   -> TypeParameterV2(hidden Type slot)
+F::EffectItem -> TypeParameterV2(hidden Effect slot), used as Anon family
+F::RowItem    -> TailV1(hidden Row slot)
+```
+
+Named equality/default成为同一 `ContractSubstitutionV2` 的 type/row argument；
+concrete effect header在 export前直接 substitution。现有 bounded fresh-u32 allocator
+对整批 hidden slots做 collision/exhaustion检查，importer继续按 declaration kind与
+substitution arity exact-check。因此这个 static contract不改变 wire schema version，
+也不允许 exporter把 source projection作为 nominal sentinel泄漏。
+
+TR₀ 只接受 effect declaration header产生的 local conformance witness：
+
+$
+  "HeaderImpl"(D,B,theta)
+  "iff"
+  "LocalDefinition"(D) and "AbilityEvidence"(K,D,B,theta)
+$
+
+同一 header不得重复 $B$。$B$ 的每个 operation经 $theta$ substitution后，必须
+与 $D$ 中同名 operation在 parameter/result、secondary contract与 resumption
+mode上 exact相等；从多个 ability继承的同名 operation也只能在这四项 exact
+相等时合并。Witness visibility取 $D$ 与 $B$ visibility的 meet，不能扩大
+sealing。这给 effect-header sugar一个 local、non-overlapping、无 adapter 的
+coherent meaning。Duplicate ability、signature/mode conflict或 visibility
+widening稳定返回 `effect-header-conformance-mismatch`。
+
+Independent ability-target `impl` 在本 profile没有 orphan、overlap、
+specialization、adapter或跨 package visibility规则；因此它不是一个带任意实现
+选择的 judgment。Resolver识别 ability target后必须在 body checking前返回
+`independent-ability-impl-not-in-profile`。普通 trait `impl` 是
+out-of-semantic-scope CST fragment，不产生 `AbilityEvidence`，也不从
+已删除authority导入静态规则。未来 profile若启用独立 ability `impl`，必须一次性
+定义上述五项以及 associated uniqueness和 mode compatibility。
+
+== Row normal form 与冻结 predicate
+
+Row entry identity是 `Anon(F)` 或 `Named(i,F)`；二者即使 family相同也不相等。
+令 $"RowNF"(epsilon)$ flatten $|$、删除已知重复 entry、按 stable identity排序，
+并保留每个 rigid row-variable summand。TR₀ 没有 intersection、difference或
+raw family subtraction。
+
+#irule(
+  [K-Row-Union],
+  (
+    [$K ⊢ epsilon_1:"EffectRow"$],
+    [$K ⊢ epsilon_2:"EffectRow"$],
+  ),
+  [$K ⊢ "RowNF"(epsilon_1 | epsilon_2):"EffectRow"$],
+)
+
+#irule(
+  [K-Lacks-Closed],
+  (
+    [$K ⊢ epsilon:"EffectRow"$],
+    [$K ⊢ e:"RowEntry"$],
+    [$e in.not "RowNF"(epsilon)$],
+    [$"closed"(epsilon)$],
+  ),
+  [$K ⊢ "Lacks"(epsilon,e):"Evidence"$],
+)
+
+#irule(
+  [K-Lacks-Rigid],
+  ([$"Lacks"(E,e) in K$],),
+  [$K ⊢ "Lacks"(E,e):"Evidence"$],
+)
+
+#irule(
+  [K-Row-Extend],
+  (
+    [$K ⊢ epsilon:"EffectRow"$],
+    [$K ⊢ e:"RowEntry"$],
+    [$K ⊢ "Lacks"(epsilon,e):"Evidence"$],
+  ),
+  [$K ⊢ "RowNF"(lr("{", e, dots epsilon, "}")):"EffectRow"$],
+)
+
+`Lacks` 是唯一冻结的显式 row predicate；extension对 rigid tail产生/消费同一
+obligation，union不凭空制造 evidence。通用 surface `RowPredicate` CST中的
+`Has`、`All`、`Only` 或其它名称没有 TR₀ solver/schema judgment，必须稳定返回
+`row-predicate-not-in-profile`。因此它们是显式保留的新-profile空间，不是
+compiler-known builtin或已实现语言功能。
 
 == Core types
 

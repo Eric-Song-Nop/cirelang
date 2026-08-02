@@ -1,0 +1,10 @@
+// profile: Cire-TR₀/2026-08-01
+// expect: reject
+// rule: only Lacks is a frozen explicit TR₀ row predicate
+// oracle: subject=requires_replayable; ambient=rigid EffectRow E/Replayable trait; reject_at=All[Replayable]; diagnostic=row-predicate-not-in-profile
+
+def![..E : All[Replayable]] requires_replayable(
+  body : () -> Unit ! E,
+) -> Unit ! E {
+  body()
+}

@@ -1,0 +1,16 @@
+// profile: Cire-TR₀/2026-08-01
+// expect: reject
+// rule: independent ability impl is grammar-reserved but excluded from TR₀
+// oracle: subject=impl Reader[Int] for LegacyState; ambient=Reader ability/LegacyState effect; reject_at=ability-target ImplDecl; diagnostic=independent-ability-impl-not-in-profile
+
+ability Reader[A] {
+  fun read() -> A
+}
+
+effect LegacyState {}
+
+impl Reader[Int] for LegacyState {
+  def read(self : LegacyState) -> Int {
+    0
+  }
+}

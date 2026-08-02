@@ -1,0 +1,17 @@
+// profile: Cire-TR₀/2026-08-01
+// expect: reject
+// rule: named associated arguments preserve declared Type/Effect/EffectRow kind
+// oracle: subject=BadStore; ambient=Store ability/Async effect; reject_at=Fail={Async}; diagnostic=associated-contract-mismatch
+
+ability Store {
+  type Key
+  effect Fail
+  effects Extra = {}
+}
+
+effect BadStore
+  : Store[
+      Key = Int,
+      Fail = {Async},
+      Extra = {},
+    ] {}

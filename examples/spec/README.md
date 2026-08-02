@@ -36,6 +36,8 @@ evidence artifact，不得只检查 parser 是否接受。
 | `accept/secondary-row.cire` | accept | operation dispatch entry ∪ `SecondaryRow` |
 | `accept/secondary-row-closed-forms.cire` | accept | `! {}` 与多 entry closed secondary |
 | `accept/named-cap-lexical-scope.cire` | accept | named cap binder 的 scoped lexical visibility |
+| `accept/associated-ability.cire` | accept | associated三 kind与 local effect-header conformance |
+| `accept/row-predicate-lacks.cire` | accept | sole frozen `Lacks` evidence与row extension |
 | `reject/two-row-tails.cire` | reject | literal 最多一个 open tail |
 | `reject/positional-after-label.cire` | reject | labelled-call grammar |
 | `reject/discontinue.cire` | reject | TR₀ 没有 discontinue primitive |
@@ -49,6 +51,11 @@ evidence artifact，不得只检查 parser 是否接受。
 | `reject/packed-next-shadowed-intrinsic.cire` | reject | 同名用户函数不能获得 privileged lowering |
 | `reject/open-secondary-row.cire` | reject | TR₀ operation secondary row 必须 closed |
 | `reject/bare-open-secondary-row.cire` | reject | bare `! E` 经 recovery CST 到 closed-only WF |
+| `reject/associated-effect-kind-mismatch.cire` | reject | associated argument跨 Type/Effect/EffectRow kind |
+| `reject/independent-ability-impl.cire` | reject | independent ability `impl` 尚不属于 TR₀ |
+| `reject/row-predicate-has.cire` | reject | explicit `Has` 没有冻结 solver/schema |
+| `reject/row-predicate-all.cire` | reject | explicit `All` 没有冻结 solver/schema |
+| `reject/row-predicate-only.cire` | reject | explicit `Only` 没有冻结 solver/schema |
 
 `interfaces/choose-once-function-contract.json` 是可独立导入的
 `FunctionContractV2`，实际含 nonempty Q与 `LatentSiteV2`；
