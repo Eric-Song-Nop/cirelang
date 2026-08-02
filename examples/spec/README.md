@@ -263,7 +263,7 @@ family、malformed Lacks container/entry以及未在 declaration environment解�
 Effect的普通 nominal Type，所有负例只返回 registered stable
 diagnostic。主 validator也以独立进程运行本 gate。
 
-`task46-regressions.py` 提交 43 个 schema-relative complete-root probes：catalog exact
+`task46-regressions.py` 提交 71 个 schema-relative complete-root probes：catalog exact
 shape一个正例与missing/extra-field两个稳定负例；public bound/unbound
 Row tail、contract-binder bound/unbound row与 nested-Union unbound tail；
 ordinary/handler-binder scope中的 `HandlerEntryParameterV1`；unbound/
@@ -278,8 +278,15 @@ Identity/handler-contract scope贯穿 return/clause path、latent receiver、nes
 suffix cleanup、top-level与 suffix application row substitution，并以同族/异族/
 unbound selector、bound/unbound Row tail及 residual Union分别作对照；另有完整
 FunctionContract root把 caller-scoped inline `HandlerContractV2`置于 closure type，
-证明普通 nested type继承 caller scope而 inline FunctionContract仍自建 scope。主
-validator同样以独立进程运行本 gate。
+证明普通 nested type继承 caller scope而 inline FunctionContract仍自建 scope。
+量化补充逐一解码 Identity/Contract/Owner/Clock-package binder、paired Clock与
+summary scope，并覆盖 Capability identity closure/family一致性；application补充
+Owner/Identity/Clock caller substitution closure及其 formal Owner/Identity pairing，
+handler environment补充 Parameter
+provenance/capture closure。最后用 caller-scoped capability/contract parameter贯穿
+evaluated clause二次校验，并用同 slot的 nested FunctionContract Return binder证明
+Return扫描既 tag-safe又在 fresh Function/Handler declaration处停止。主 validator
+同样以独立进程运行本 gate。
 
 `diagnostics-v2.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；
 新增或重命名 id需要新 registry version，不能让 parser recovery改变同一

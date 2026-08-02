@@ -82,6 +82,7 @@ def handler_with_nested_return_projection(*, use_local_return: bool) -> None:
         oracle["imports"][0]["function_name"],
     )
     local_functions = {0: local_source}
+    declaration_scope = v.declaration_scope_from_binders(oracle["binders"])
 
     handler = oracle["handler_contract"]
     clause = handler["clause_computations"][0]
@@ -149,6 +150,19 @@ def handler_with_nested_return_projection(*, use_local_return: bool) -> None:
         imports=imports,
         local_functions=local_functions,
         nearest_outer_prompt_slot=1,
+        type_parameter_kinds=declaration_scope.type_parameter_kinds,
+        row_binders=declaration_scope.row_binders,
+        contract_binders=declaration_scope.contract_binders,
+        identity_binders=declaration_scope.identity_binders,
+        handler_contract_binders=(
+            declaration_scope.handler_contract_binders
+        ),
+        owner_binders=declaration_scope.owner_binders,
+        clock_binders=declaration_scope.clock_binders,
+        parameter_binders=declaration_scope.parameter_binders,
+        closure_capture_binders=(
+            declaration_scope.closure_capture_binders
+        ),
     )
 
 
@@ -339,6 +353,7 @@ def nested_return_usage_undercount() -> None:
 
     document = load("handler-forward-contract.json")
     imports = v.resolve_imports(document, SPEC / "interfaces")
+    declaration_scope = v.declaration_scope_from_binders(document["binders"])
     contract = document["handler_contract"]
     clause = contract["clause_computations"][0]
     outer = clause["computation"]
@@ -369,7 +384,22 @@ def nested_return_usage_undercount() -> None:
         "terminal_policy": "PreserveTerminalV2",
     }
     v.validate_handler_contract(
-        contract, imports=imports, nearest_outer_prompt_slot=1
+        contract,
+        imports=imports,
+        nearest_outer_prompt_slot=1,
+        type_parameter_kinds=declaration_scope.type_parameter_kinds,
+        row_binders=declaration_scope.row_binders,
+        contract_binders=declaration_scope.contract_binders,
+        identity_binders=declaration_scope.identity_binders,
+        handler_contract_binders=(
+            declaration_scope.handler_contract_binders
+        ),
+        owner_binders=declaration_scope.owner_binders,
+        clock_binders=declaration_scope.clock_binders,
+        parameter_binders=declaration_scope.parameter_binders,
+        closure_capture_binders=(
+            declaration_scope.closure_capture_binders
+        ),
     )
     evaluated = v.evaluate_contract_computation(
         {

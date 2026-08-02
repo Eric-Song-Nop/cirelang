@@ -40,6 +40,33 @@ def nominal_effect(name: str) -> dict[str, Any]:
     }
 
 
+def legacy_type(value: dict[str, Any]) -> dict[str, Any]:
+    return {"kind": "LegacyTypeRefV2", "value": copy.deepcopy(value)}
+
+
+def int_type() -> dict[str, Any]:
+    return legacy_type({"kind": "BuiltinTypeV1", "name": "Int"})
+
+
+def later_contract() -> dict[str, Any]:
+    return {
+        "capture": {
+            "kind": "LegacyCaptureExprV2",
+            "value": {"kind": "NoCaptureV1"},
+        },
+        "provenance": {
+            "kind": "LegacyProvenanceExprV2",
+            "value": {"kind": "StableV1"},
+        },
+        "required_phase": {
+            "allowed_phases": ["Pure", "Compute", "Action", "Commit"],
+            "current_owner": None,
+            "required_authorities": [],
+        },
+        "semantic_summary": {"kind": "PureV1"},
+    }
+
+
 def expect_diagnostic(
     label: str,
     diagnostic_id: str,
@@ -74,6 +101,235 @@ def catalog_roots() -> None:
         "catalog unknown field",
         "contract-component-kind-mismatch",
         lambda: v.validate_effect_family_declarations(extra),
+    )
+
+
+def with_result(type_ref: dict[str, Any]) -> dict[str, Any]:
+    contract = load("apply-later-function-contract.json")
+    contract["declaration_kind"]["result_type"] = copy.deepcopy(type_ref)
+    return contract
+
+
+def quantified_and_capability_roots() -> None:
+    for label, type_ref in (
+        (
+            "empty QuantifiedIdentityBinderV2",
+            {
+                "kind": "ForAllIdentityTypeV2",
+                "binder": {},
+                "body": int_type(),
+            },
+        ),
+        (
+            "empty QuantifiedContractBinderV2",
+            {
+                "kind": "ForAllContractTypeV2",
+                "binder": {},
+                "body": int_type(),
+            },
+        ),
+        (
+            "empty QuantifiedOwnerBinderV1",
+            {
+                "kind": "ForAllOwnerTypeV2",
+                "binder": {},
+                "body": int_type(),
+            },
+        ),
+        (
+            "empty quantified clock and summary binders",
+            {
+                "kind": "ExistsClockPackageTypeV2",
+                "clock_binder": {},
+                "summary_binder": {},
+                "body": int_type(),
+            },
+        ),
+    ):
+        expect_diagnostic(
+            label,
+            "contract-component-kind-mismatch",
+            lambda type_ref=type_ref: v.validate_function_contract(
+                with_result(type_ref)
+            ),
+        )
+
+    choice = legacy_type(nominal_effect("Choice"))
+    quantified_identity = {
+        "kind": "ForAllIdentityTypeV2",
+        "binder": {
+            "identity_slot": 777,
+            "clock_refinement": None,
+            "family": copy.deepcopy(choice),
+            "owner": {"namespace": "Owner", "slot": 0},
+        },
+        "body": {
+            "kind": "CapabilityTypeV2",
+            "identity": {"namespace": "Identity", "slot": 777},
+            "family": copy.deepcopy(choice),
+        },
+    }
+    v.validate_function_contract(with_result(quantified_identity))
+
+    unbound_quantified_identity = copy.deepcopy(quantified_identity)
+    unbound_quantified_identity["body"]["identity"]["slot"] = 4242
+    expect_diagnostic(
+        "quantified Identity body reference is unbound",
+        "contract-projection-escapes-scope",
+        lambda: v.validate_function_contract(
+            with_result(unbound_quantified_identity)
+        ),
+    )
+
+    frame = legacy_type(frame_clock_family())
+    quantified_clock_identity = {
+        "kind": "ForAllIdentityTypeV2",
+        "binder": {
+            "identity_slot": 777,
+            "clock_refinement": {
+                "clock_slot": 778,
+                "identity": {"namespace": "Identity", "slot": 777},
+            },
+            "family": copy.deepcopy(frame),
+            "owner": {"namespace": "Owner", "slot": 0},
+        },
+        "body": {
+            "kind": "NextTypeV2",
+            "clock": {"namespace": "Clock", "slot": 778},
+            "payload": int_type(),
+            "later_contract": later_contract(),
+        },
+    }
+    v.validate_function_contract(with_result(quantified_clock_identity))
+
+    unbound_quantified_clock = copy.deepcopy(quantified_clock_identity)
+    unbound_quantified_clock["body"]["clock"]["slot"] = 4242
+    expect_diagnostic(
+        "quantified Clock body reference is unbound",
+        "contract-projection-escapes-scope",
+        lambda: v.validate_function_contract(
+            with_result(unbound_quantified_clock)
+        ),
+    )
+
+    function_kind = {
+        "kind": "FunctionContractKindV2",
+        "parameter_type": int_type(),
+        "result_type": int_type(),
+        "visible_row": {"kind": "EmptyV1"},
+    }
+    quantified_contract = {
+        "kind": "ForAllContractTypeV2",
+        "binder": {
+            "contract_slot": 777,
+            "kind": copy.deepcopy(function_kind),
+        },
+        "body": {
+            "kind": "FunctionTypeV2",
+            "parameter": int_type(),
+            "result": int_type(),
+            "contract": {"slot": 777, "kind": copy.deepcopy(function_kind)},
+        },
+    }
+    v.validate_function_contract(with_result(quantified_contract))
+
+    unbound_quantified_contract = copy.deepcopy(quantified_contract)
+    unbound_quantified_contract["body"]["contract"]["slot"] = 4242
+    expect_diagnostic(
+        "quantified Contract body reference is unbound",
+        "contract-projection-escapes-scope",
+        lambda: v.validate_function_contract(
+            with_result(unbound_quantified_contract)
+        ),
+    )
+
+    quantified_owner = {
+        "kind": "ForAllOwnerTypeV2",
+        "binder": {"owner_slot": 777},
+        "body": {
+            "kind": "OwnerTypeV2",
+            "owner": {"namespace": "Owner", "slot": 777},
+        },
+    }
+    v.validate_function_contract(with_result(quantified_owner))
+
+    unbound_quantified_owner = copy.deepcopy(quantified_owner)
+    unbound_quantified_owner["body"]["owner"]["slot"] = 4242
+    expect_diagnostic(
+        "quantified Owner body reference is unbound",
+        "contract-projection-escapes-scope",
+        lambda: v.validate_function_contract(
+            with_result(unbound_quantified_owner)
+        ),
+    )
+
+    quantified_next = {
+        "kind": "NextTypeV2",
+        "clock": {"namespace": "Clock", "slot": 778},
+        "payload": int_type(),
+        "later_contract": later_contract(),
+    }
+    clock_package = {
+        "kind": "ExistsClockPackageTypeV2",
+        "clock_binder": {
+            "identity_slot": 777,
+            "clock_refinement": {
+                "clock_slot": 778,
+                "identity": {"namespace": "Identity", "slot": 777},
+            },
+            "family_witness": {
+                "kind": "CanonicalFrameClockV2",
+                "module": ["cire", "temporal"],
+                "name": "FrameClock",
+                "sealed_origin": "cire.temporal:FrameClock",
+            },
+            "owner": {"namespace": "Owner", "slot": 0},
+        },
+        "summary_binder": {
+            "contract_slot": 779,
+            "kind": {
+                "kind": "ClockPackageSummaryKindV2",
+                "clock": {"namespace": "Clock", "slot": 778},
+                "payload_type": copy.deepcopy(quantified_next),
+            },
+        },
+        "body": copy.deepcopy(quantified_next),
+    }
+    v.validate_function_contract(with_result(clock_package))
+
+    unbound_package_summary_clock = copy.deepcopy(clock_package)
+    unbound_package_summary_clock["summary_binder"]["kind"]["clock"][
+        "slot"
+    ] = 4242
+    expect_diagnostic(
+        "clock-package summary references an unbound Clock",
+        "contract-projection-escapes-scope",
+        lambda: v.validate_function_contract(
+            with_result(unbound_package_summary_clock)
+        ),
+    )
+
+    matching_capability = {
+        "kind": "CapabilityTypeV2",
+        "identity": {"namespace": "Identity", "slot": 0},
+        "family": copy.deepcopy(frame),
+    }
+    v.validate_function_contract(with_result(matching_capability))
+
+    unbound_capability = copy.deepcopy(matching_capability)
+    unbound_capability["identity"]["slot"] = 4242
+    expect_diagnostic(
+        "unbound CapabilityTypeV2 Identity",
+        "contract-projection-escapes-scope",
+        lambda: v.validate_function_contract(with_result(unbound_capability)),
+    )
+
+    wrong_capability = copy.deepcopy(matching_capability)
+    wrong_capability["family"] = legacy_type(nominal_effect("IoFailure"))
+    expect_diagnostic(
+        "CapabilityTypeV2 Identity family mismatch",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_function_contract(with_result(wrong_capability)),
     )
 
 
@@ -579,6 +835,387 @@ def handler_caller_scope_roots() -> None:
     )
 
 
+def owner_clock_substitution_roots() -> None:
+    owner_target = load("choose-once-function-contract.json")
+    owner_target["binders"]["owner_binders"].append(
+        {
+            "slot": 999,
+            "source": {"namespace": "Parameter", "slot": 0},
+        }
+    )
+    v.validate_function_contract(owner_target)
+    owner_oracle = load("handler-forward-contract.json")
+    owner_oracle = replace_scalar(
+        owner_oracle,
+        owner_oracle["imports"][0]["artifact_hash"],
+        v.canonical_hash(owner_target),
+    )
+    owner_oracle["handler_contract"]["applications"][0]["substitution"][
+        "owner_arguments"
+    ] = [
+        {
+            "binder_slot": 999,
+            "value": {"namespace": "Owner", "slot": 0},
+        }
+    ]
+    validate_handler_identity_oracle(owner_oracle, owner_target)
+
+    unbound_owner = copy.deepcopy(owner_oracle)
+    unbound_owner["handler_contract"]["applications"][0]["substitution"][
+        "owner_arguments"
+    ][0]["value"]["slot"] = 4242
+    expect_diagnostic(
+        "unbound caller Owner substitution",
+        "contract-projection-escapes-scope",
+        lambda: validate_handler_identity_oracle(
+            unbound_owner, owner_target
+        ),
+    )
+
+    clock_target = load("choose-once-function-contract.json")
+    clock_target["binders"]["owner_binders"].append(
+        {
+            "slot": 999,
+            "source": {"namespace": "Parameter", "slot": 0},
+        }
+    )
+    clock_target["binders"]["identity_binders"].append(
+        {
+            "binder": "FreshCap",
+            "family": frame_clock_family(),
+            "identity_slot": 999,
+            "owner": {"namespace": "Owner", "slot": 999},
+        }
+    )
+    clock_target["binders"]["clock_binders"].append(
+        {
+            "identity": {"namespace": "Identity", "slot": 999},
+            "owner": {"namespace": "Owner", "slot": 999},
+            "slot": 999,
+        }
+    )
+    v.validate_function_contract(clock_target)
+    clock_oracle = load("handler-forward-contract.json")
+    clock_oracle = replace_scalar(
+        clock_oracle,
+        clock_oracle["imports"][0]["artifact_hash"],
+        v.canonical_hash(clock_target),
+    )
+    clock_oracle["binders"]["identity_binders"].append(
+        {
+            "binder": "FreshCap",
+            "family": frame_clock_family(),
+            "identity_slot": 999,
+            "owner": {"namespace": "Owner", "slot": 0},
+        }
+    )
+    clock_oracle["binders"]["clock_binders"].append(
+        {
+            "identity": {"namespace": "Identity", "slot": 999},
+            "owner": {"namespace": "Owner", "slot": 0},
+            "slot": 999,
+        }
+    )
+    clock_substitution = clock_oracle["handler_contract"]["applications"][0][
+        "substitution"
+    ]
+    clock_substitution["owner_arguments"] = [
+        {
+            "binder_slot": 999,
+            "value": {"namespace": "Owner", "slot": 0},
+        }
+    ]
+    clock_substitution["identity_arguments"] = [
+        {
+            "binder_slot": 999,
+            "value": {"namespace": "Identity", "slot": 999},
+        }
+    ]
+    clock_substitution["clock_arguments"] = [
+        {
+            "binder_slot": 999,
+            "value": {"namespace": "Clock", "slot": 999},
+        }
+    ]
+    validate_handler_identity_oracle(clock_oracle, clock_target)
+
+    unbound_clock = copy.deepcopy(clock_oracle)
+    unbound_clock["handler_contract"]["applications"][0]["substitution"][
+        "clock_arguments"
+    ][0]["value"]["slot"] = 4242
+    expect_diagnostic(
+        "unbound caller Clock substitution",
+        "contract-projection-escapes-scope",
+        lambda: validate_handler_identity_oracle(
+            unbound_clock, clock_target
+        ),
+    )
+
+    mismatched_identity_owner = copy.deepcopy(clock_oracle)
+    mismatched_identity_owner["binders"]["owner_binders"].append(
+        {
+            "slot": 998,
+            "source": {"namespace": "Parameter", "slot": 0},
+        }
+    )
+    mismatched_identity_owner["binders"]["identity_binders"].append(
+        {
+            "binder": "OtherOwnerCap",
+            "family": frame_clock_family(),
+            "identity_slot": 998,
+            "owner": {"namespace": "Owner", "slot": 998},
+        }
+    )
+    mismatched_identity_owner["binders"]["clock_binders"].append(
+        {
+            "identity": {"namespace": "Identity", "slot": 998},
+            "owner": {"namespace": "Owner", "slot": 998},
+            "slot": 998,
+        }
+    )
+    mismatch_substitution = mismatched_identity_owner["handler_contract"][
+        "applications"
+    ][0]["substitution"]
+    mismatch_substitution["identity_arguments"][0]["value"]["slot"] = 998
+    mismatch_substitution["clock_arguments"][0]["value"]["slot"] = 998
+    expect_diagnostic(
+        "caller Identity substitution violates formal Owner pairing",
+        "contract-component-kind-mismatch",
+        lambda: validate_handler_identity_oracle(
+            mismatched_identity_owner, clock_target
+        ),
+    )
+
+    mismatched_clock = copy.deepcopy(clock_oracle)
+    mismatched_clock["binders"]["identity_binders"].append(
+        {
+            "binder": "OtherClockCap",
+            "family": frame_clock_family(),
+            "identity_slot": 998,
+            "owner": {"namespace": "Owner", "slot": 0},
+        }
+    )
+    mismatched_clock["binders"]["clock_binders"].append(
+        {
+            "identity": {"namespace": "Identity", "slot": 998},
+            "owner": {"namespace": "Owner", "slot": 0},
+            "slot": 998,
+        }
+    )
+    mismatched_clock["handler_contract"]["applications"][0]["substitution"][
+        "clock_arguments"
+    ][0]["value"]["slot"] = 998
+    expect_diagnostic(
+        "caller Clock substitution violates formal Identity pairing",
+        "contract-component-kind-mismatch",
+        lambda: validate_handler_identity_oracle(
+            mismatched_clock, clock_target
+        ),
+    )
+
+
+def handler_environment_parameter_roots() -> None:
+    binding = {
+        "slot": {"namespace": "Parameter", "slot": 0},
+        "type": int_type(),
+        "provenance": {
+            "kind": "LegacyProvenanceExprV2",
+            "value": {
+                "kind": "ArgumentV1",
+                "argument": {"namespace": "Parameter", "slot": 0},
+            },
+        },
+        "capture": {
+            "kind": "LegacyCaptureExprV2",
+            "value": {
+                "kind": "ArgumentCaptureV1",
+                "argument": {"namespace": "Parameter", "slot": 0},
+            },
+        },
+    }
+    bound = load("handler-forward-contract.json")
+    bound["handler_contract"]["handler_environment"] = [
+        copy.deepcopy(binding)
+    ]
+    validate_handler_scope_root(bound)
+
+    unbound_provenance = copy.deepcopy(bound)
+    unbound_provenance["handler_contract"]["handler_environment"][0][
+        "provenance"
+    ]["value"]["argument"]["slot"] = 4242
+    expect_diagnostic(
+        "handler environment provenance has unbound Parameter",
+        "contract-projection-escapes-scope",
+        lambda: validate_handler_scope_root(unbound_provenance),
+    )
+
+    unbound_capture = copy.deepcopy(bound)
+    unbound_capture["handler_contract"]["handler_environment"][0][
+        "capture"
+    ]["value"]["argument"]["slot"] = 4242
+    expect_diagnostic(
+        "handler environment capture has unbound Parameter",
+        "contract-projection-escapes-scope",
+        lambda: validate_handler_scope_root(unbound_capture),
+    )
+
+
+def replace_resume_answers(
+    value: Any, answer_type: dict[str, Any]
+) -> None:
+    for node in list(v.walk(value)):
+        if (
+            isinstance(node, dict)
+            and node.get("kind") == "ResumeTypeRefV2"
+        ):
+            node["value"]["answer"] = copy.deepcopy(answer_type)
+            node["value"]["continuation"]["answer_type"] = copy.deepcopy(
+                answer_type
+            )
+        elif (
+            isinstance(node, dict)
+            and "actual_argument_summaries" in node
+            and isinstance(node.get("continuation"), dict)
+        ):
+            node["continuation"]["answer_type"] = copy.deepcopy(answer_type)
+
+
+def evaluated_clause_and_return_boundary_roots() -> None:
+    caller_scoped = load("handler-forward-contract.json")
+    caller_scoped["binders"]["type_binders"].append(
+        {"slot": 999, "kind": "Effect"}
+    )
+    caller_scoped["binders"]["identity_binders"].append(
+        {
+            "binder": "FreshCap",
+            "family": {"kind": "TypeParameterV2", "slot": 999},
+            "identity_slot": 999,
+            "owner": {"namespace": "Owner", "slot": 0},
+        }
+    )
+    capability = {
+        "kind": "CapabilityTypeV2",
+        "identity": {"namespace": "Identity", "slot": 999},
+        "family": {"kind": "TypeParameterV2", "slot": 999},
+    }
+    callback_kind = {
+        "kind": "FunctionContractKindV2",
+        "parameter_type": copy.deepcopy(capability),
+        "result_type": copy.deepcopy(capability),
+        "visible_row": {"kind": "EmptyV1"},
+    }
+    caller_scoped["binders"]["contract_binders"].append(
+        {
+            "kind": "FunctionContractBinderV2",
+            "slot": 998,
+            "parameter_type": copy.deepcopy(capability),
+            "result_type": copy.deepcopy(capability),
+            "visible_row": {"kind": "EmptyV1"},
+        }
+    )
+    caller_function_type = {
+        "kind": "FunctionTypeV2",
+        "parameter": copy.deepcopy(capability),
+        "result": copy.deepcopy(capability),
+        "contract": {"slot": 998, "kind": copy.deepcopy(callback_kind)},
+    }
+    replace_resume_answers(
+        caller_scoped["handler_contract"], caller_function_type
+    )
+    validate_handler_scope_root(caller_scoped)
+
+    fresh_boundary = load("handler-forward-contract.json")
+    fresh_boundary["binders"]["identity_binders"].append(
+        {
+            "binder": "FreshCap",
+            "family": frame_clock_family(),
+            "identity_slot": 0,
+            "owner": {"namespace": "Owner", "slot": 0},
+        }
+    )
+    fresh_boundary["binders"]["clock_binders"].append(
+        {
+            "identity": {"namespace": "Identity", "slot": 0},
+            "owner": {"namespace": "Owner", "slot": 0},
+            "slot": 0,
+        }
+    )
+    nested = load("mixed-next-callback-function-contract.json")
+    for node in v.walk(nested):
+        if not isinstance(node, dict):
+            continue
+        if (
+            "return_binder" in node
+            and node["return_binder"].get("slot") == 0
+        ):
+            node["return_binder"]["slot"] = 10
+        if (
+            isinstance(node.get("kind"), str)
+            and node["kind"] in v.RETURN_KINDS
+            and node.get("return_slot") == 0
+        ):
+            node["return_slot"] = 10
+    v.validate_function_contract(nested)
+    nested_function_type = {
+        "kind": "FunctionTypeV2",
+        "parameter": copy.deepcopy(
+            nested["declaration_kind"]["parameter_type"]
+        ),
+        "result": copy.deepcopy(
+            nested["declaration_kind"]["result_type"]
+        ),
+        "contract": nested,
+    }
+    replace_resume_answers(
+        fresh_boundary["handler_contract"], nested_function_type
+    )
+    validate_handler_scope_root(fresh_boundary)
+
+    fresh_handler_boundary = load("handler-forward-contract.json")
+    nested_handler = copy.deepcopy(
+        fresh_handler_boundary["handler_contract"]
+    )
+    nested_handler["applications"] = []
+    nested_handler["return_computation"] = copy.deepcopy(
+        nested_handler["return_computation"]["continuation"]
+    )
+    nested_clause = nested_handler["clause_computations"][0]
+    nested_clause["computation"]["continuation"] = (
+        v.pure_return_continuation(
+            copy.deepcopy(nested_handler["return_computation"]["paths"][0]),
+            10,
+        )
+    )
+    nested_handler_type = {
+        "kind": "HandlerTemplateTypeV2",
+        "family": legacy_type(
+            copy.deepcopy(nested_handler["handled_entry"]["family"])
+        ),
+        "owner": {"namespace": "Owner", "slot": 0},
+        "input": int_type(),
+        "answer": int_type(),
+        "residual_row": {"kind": "EmptyV1"},
+        "contract": nested_handler,
+        "policy": {"kind": "PureV1"},
+    }
+    handler_scope = v.declaration_scope_from_binders(
+        fresh_handler_boundary["binders"]
+    )
+    v.validate_handler_contract(
+        nested_handler,
+        type_parameter_kinds=handler_scope.type_parameter_kinds,
+        row_binders=handler_scope.row_binders,
+        contract_binders=handler_scope.contract_binders,
+        identity_binders=handler_scope.identity_binders,
+        handler_contract_binders=handler_scope.handler_contract_binders,
+        owner_binders=handler_scope.owner_binders,
+        clock_binders=handler_scope.clock_binders,
+        parameter_binders=handler_scope.parameter_binders,
+        closure_capture_binders=handler_scope.closure_capture_binders,
+    )
+    assert not v.contains_return_ref(nested_handler_type, 10)
+
+
 def handler_scope_family(name: str) -> dict[str, Any]:
     return {
         "arguments": [],
@@ -692,6 +1329,19 @@ def validate_embedded_handler_function_root() -> None:
             binder["slot"]
             for binder in binders["contract_binders"]
             if binder.get("kind") == "HandlerContractBinderV2"
+        },
+        owner_binders={
+            binder["slot"]: binder for binder in binders["owner_binders"]
+        },
+        clock_binders={
+            binder["slot"]: binder for binder in binders["clock_binders"]
+        },
+        parameter_binders={
+            binder["slot"] for binder in binders["parameter_binders"]
+        },
+        closure_capture_binders={
+            binding["slot"]["slot"]
+            for binding in function["closure_environment"]
         },
     )
     v.validate_function_contract(function, imports=imports)
@@ -996,6 +1646,7 @@ def handler_recursive_descendant_scope_roots() -> None:
 
 
 catalog_roots()
+quantified_and_capability_roots()
 row_scope_roots()
 handler_entry_lacks_roots()
 named_lacks_roots()
@@ -1003,7 +1654,10 @@ public_selector_scope_roots()
 used_nominal_effect_roots()
 imported_identity_substitution_roots()
 handler_caller_scope_roots()
+owner_clock_substitution_roots()
+handler_environment_parameter_roots()
+evaluated_clause_and_return_boundary_roots()
 handler_computation_scope_roots()
 handler_recursive_descendant_scope_roots()
 validate_inline_function_fresh_scope_root()
-print("PASS: 43 task-46 exact-schema/scope/substitution complete-root probes")
+print("PASS: 71 task-46 exact-schema/scope/substitution complete-root probes")
