@@ -29,6 +29,7 @@ RUNTIME = ROOT / "runtime" / "packed-next-lease-runtime.json"
 DIAGNOSTICS = ROOT / "diagnostics-v2.json"
 TASK35_REGRESSIONS = ROOT / "task35-regressions.py"
 TASK45_REGRESSIONS = ROOT / "task45-regressions.py"
+TASK46_REGRESSIONS = ROOT / "task46-regressions.py"
 EFFECT_FAMILY_DECLARATIONS = INTERFACES / "effect-family-declarations.json"
 FORMALIZATION = ROOT.parent.parent / "docs" / "temporal-reactivity-formalization.typ"
 PROFILE = "Cire-TR₀/2026-08-01"
@@ -510,6 +511,9 @@ def validate_effect_family_declarations(
 def validate_effect_entry_selector(
     entry: Any,
     type_parameter_kinds: dict[int, str] | None = None,
+    *,
+    identity_binders: dict[int, dict[str, Any]] | None = None,
+    handler_contract_binders: set[int] | None = None,
 ) -> None:
     entry = validate_contract_object(entry)
     kind = entry.get("kind")
@@ -521,10 +525,25 @@ def validate_effect_entry_selector(
     elif kind == "HandlerEntryParameterV1":
         exact_fields(entry, {"kind", "contract_slot"}, kind)
         validate_u32(entry["contract_slot"], "handler entry contract slot")
+        if handler_contract_binders is not None:
+            reject(
+                entry["contract_slot"] not in handler_contract_binders,
+                "contract-projection-escapes-scope",
+            )
     else:
         raise Diagnostic("contract-component-kind-mismatch")
     if "family" in entry:
         validate_effect_family_ref(entry["family"], type_parameter_kinds)
+    if kind == "NamedV1" and identity_binders is not None:
+        identity_slot = entry["identity"]["slot"]
+        reject(
+            identity_slot not in identity_binders,
+            "contract-projection-escapes-scope",
+        )
+        reject(
+            identity_binders[identity_slot]["family"] != entry["family"],
+            "contract-component-kind-mismatch",
+        )
 
 
 def validate_operation_selector(operation: Any) -> None:
@@ -635,6 +654,77 @@ def validate_row_expr(row: Any) -> None:
             validate_row_expr(member)
     else:
         raise Diagnostic("contract-parameter-inconsistent-instantiation")
+
+
+def validate_row_selector_scope(
+    row: Any,
+    *,
+    type_parameter_kinds: dict[int, str],
+    identity_binders: dict[int, dict[str, Any]],
+    handler_contract_binders: set[int],
+) -> None:
+    """Resolve every selector in a decoded row against its lexical declarations."""
+
+    row = validate_contract_object(row)
+    kind = row.get("kind")
+    if kind == "ClosedV1":
+        for entry in validate_contract_list(row["entries"]):
+            validate_effect_entry_selector(
+                entry,
+                type_parameter_kinds,
+                identity_binders=identity_binders,
+                handler_contract_binders=handler_contract_binders,
+            )
+    elif kind == "UnionV1":
+        for member in validate_contract_list(row["members"]):
+            validate_row_selector_scope(
+                member,
+                type_parameter_kinds=type_parameter_kinds,
+                identity_binders=identity_binders,
+                handler_contract_binders=handler_contract_binders,
+            )
+
+
+def validate_lexical_effect_selector_scope(
+    value: Any,
+    *,
+    type_parameter_kinds: dict[int, str],
+    identity_binders: dict[int, dict[str, Any]],
+    handler_contract_binders: set[int],
+) -> None:
+    """Resolve every entry selector serialized in the current declaration scope."""
+
+    if isinstance(value, list):
+        for member in value:
+            validate_lexical_effect_selector_scope(
+                member,
+                type_parameter_kinds=type_parameter_kinds,
+                identity_binders=identity_binders,
+                handler_contract_binders=handler_contract_binders,
+            )
+        return
+    if not isinstance(value, dict):
+        return
+    if value.get("artifact") == "FunctionContractV2":
+        return
+    tag = value.get("kind")
+    if isinstance(tag, str) and tag in {
+        "AnonV1", "NamedV1", "HandlerEntryParameterV1",
+    }:
+        validate_effect_entry_selector(
+            value,
+            type_parameter_kinds,
+            identity_binders=identity_binders,
+            handler_contract_binders=handler_contract_binders,
+        )
+        return
+    for member in value.values():
+        validate_lexical_effect_selector_scope(
+            member,
+            type_parameter_kinds=type_parameter_kinds,
+            identity_binders=identity_binders,
+            handler_contract_binders=handler_contract_binders,
+        )
 
 
 def validate_transition(transition: dict[str, Any]) -> None:
@@ -2467,7 +2557,10 @@ def validate_computation(
 
 
 def binder_kind(binder: dict[str, Any]) -> dict[str, Any]:
-    require(binder.get("kind") == "FunctionContractBinderV2", "expected a FunctionContractBinderV2")
+    reject(
+        binder.get("kind") != "FunctionContractBinderV2",
+        "contract-component-kind-mismatch",
+    )
     return {
         "kind": "FunctionContractKindV2",
         "parameter_type": binder["parameter_type"],
@@ -2503,11 +2596,6 @@ def validate_declaration_binders(binders: dict[str, Any], closure_environment: l
     type_parameter_kinds = {
         binder["slot"]: binder["kind"] for binder in binders["type_binders"]
     }
-    for row in binders["row_binders"]:
-        row = validate_contract_object(row)
-        exact_fields(row, {"slot", "lacks"}, "RowBinderV1")
-        for entry in validate_contract_list(row["lacks"]):
-            validate_effect_entry_selector(entry, type_parameter_kinds)
     for number in [*parameters, *types, *rows, *contracts, *owners, *identities, *clocks, *prompts]:
         validate_u32(number, "declaration binder slot")
     closure_slots = {binding["slot"]["slot"] for binding in closure_environment if binding["slot"]["namespace"] == "ClosureCapture"}
@@ -2532,6 +2620,21 @@ def validate_declaration_binders(binders: dict[str, Any], closure_environment: l
         )
         require(identity["owner"] == slot("Owner", identity["owner"]["slot"]) and identity["owner"]["slot"] in owners, "Identity Owner is out of scope")
     identity_by_slot = {binding["identity_slot"]: binding for binding in binders["identity_binders"]}
+    handler_contract_binders = {
+        binding["slot"]
+        for binding in binders["contract_binders"]
+        if binding.get("kind") == "HandlerContractBinderV2"
+    }
+    for row in binders["row_binders"]:
+        row = validate_contract_object(row)
+        exact_fields(row, {"slot", "lacks"}, "RowBinderV1")
+        for entry in validate_contract_list(row["lacks"]):
+            validate_effect_entry_selector(
+                entry,
+                type_parameter_kinds,
+                identity_binders=identity_by_slot,
+                handler_contract_binders=handler_contract_binders,
+            )
     for clock in binders["clock_binders"]:
         identity_ref = clock["identity"]
         require(identity_ref["namespace"] == "Identity" and identity_ref["slot"] in identities, "Clock identity is out of scope")
@@ -3039,13 +3142,16 @@ def substitute_contract_kind(kind: dict[str, Any], substitution: dict[str, Any])
     contract_arguments = {entry["binder_slot"]: entry["contract"] for entry in substitution["contract_arguments"]}
     row_arguments = {entry["binder_slot"]: entry["value"] for entry in substitution["row_arguments"]}
 
-    def replace(value: Any) -> Any:
+    def replace(value: Any, *, expected_kind: str = "Type") -> Any:
         if isinstance(value, list):
-            return [replace(member) for member in value]
+            return [replace(member, expected_kind=expected_kind) for member in value]
         if not isinstance(value, dict):
             return value
         if value.get("kind") == "TypeParameterV2" and value.get("slot") in type_arguments:
-            return copy.deepcopy(type_arguments[value["slot"]])
+            argument = copy.deepcopy(type_arguments[value["slot"]])
+            if expected_kind == "Effect" and argument.get("kind") == "LegacyTypeRefV2":
+                return copy.deepcopy(argument["value"])
+            return argument
         if value.get("kind") == "TailV1":
             row_slot = value.get("row_slot", {})
             if row_slot.get("namespace") == "Row" and row_slot.get("slot") in row_arguments:
@@ -3060,7 +3166,13 @@ def substitute_contract_kind(kind: dict[str, Any], substitution: dict[str, Any])
             parameter = value.get("parameter", {})
             if parameter.get("slot") in contract_arguments:
                 return copy.deepcopy(contract_arguments[parameter["slot"]])
-        return {key: replace(member) for key, member in value.items()}
+        return {
+            key: replace(
+                member,
+                expected_kind="Effect" if key == "family" else "Type",
+            )
+            for key, member in value.items()
+        }
 
     return replace(kind)
 
@@ -3195,6 +3307,27 @@ def validate_application_instantiation(
         )
 
     instantiated = substitute_contract_kind(kind, substitution)
+    reject(
+        instantiated.get("kind") != "FunctionContractKindV2"
+        or set(instantiated)
+        != {"kind", "parameter_type", "result_type", "visible_row"},
+        "contract-component-kind-mismatch",
+    )
+    validate_type_v2(
+        instantiated["parameter_type"],
+        returns=returns,
+        imports=imports,
+        contract_binders=contract_binders,
+        local_functions=local_functions,
+    )
+    validate_type_v2(
+        instantiated["result_type"],
+        returns=returns,
+        imports=imports,
+        contract_binders=contract_binders,
+        local_functions=local_functions,
+    )
+    validate_row_expr(instantiated["visible_row"])
     expected_callee_type = {
         "contract": application["contract"],
         "kind": "FunctionTypeV2",
@@ -3238,6 +3371,15 @@ def validate_function_contract(
     binders = contract["binders"]
     validate_declaration_binders(binders, closure_environment)
     contract_binders = {binder["slot"]: binder for binder in binders.get("contract_binders", [])}
+    identity_binders = {
+        binder["identity_slot"]: binder
+        for binder in binders["identity_binders"]
+    }
+    handler_contract_binders = {
+        binder["slot"]
+        for binder in binders["contract_binders"]
+        if binder.get("kind") == "HandlerContractBinderV2"
+    }
     ambient_type_parameters = {
         binder["slot"]: binder["kind"]
         for binder in binders["type_binders"]
@@ -3266,6 +3408,12 @@ def validate_function_contract(
             "contract-component-kind-mismatch",
         )
         validate_row_expr(declaration_kind["visible_row"])
+        validate_row_selector_scope(
+            declaration_kind["visible_row"],
+            type_parameter_kinds=ambient_type_parameters,
+            identity_binders=identity_binders,
+            handler_contract_binders=handler_contract_binders,
+        )
         validate_type_v2(declaration_kind["parameter_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
         validate_type_v2(declaration_kind["result_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
         reject(
@@ -3274,18 +3422,36 @@ def validate_function_contract(
             "contract-component-kind-mismatch",
         )
     for binder in contract_binders.values():
-        reject(
-            binder.get("kind") != "FunctionContractBinderV2",
-            "contract-component-kind-mismatch",
-        )
-        reject(
-            set(binder)
-            != {"kind", "slot", "parameter_type", "result_type", "visible_row"},
-            "contract-component-kind-mismatch",
-        )
-        validate_row_expr(binder["visible_row"])
-        validate_type_v2(binder["parameter_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
-        validate_type_v2(binder["result_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+        binder_tag = binder.get("kind")
+        if binder_tag == "FunctionContractBinderV2":
+            reject(
+                set(binder)
+                != {"kind", "slot", "parameter_type", "result_type", "visible_row"},
+                "contract-component-kind-mismatch",
+            )
+            validate_row_expr(binder["visible_row"])
+            validate_row_selector_scope(
+                binder["visible_row"],
+                type_parameter_kinds=ambient_type_parameters,
+                identity_binders=identity_binders,
+                handler_contract_binders=handler_contract_binders,
+            )
+            validate_type_v2(binder["parameter_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+            validate_type_v2(binder["result_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+        elif binder_tag == "HandlerContractBinderV2":
+            reject(
+                set(binder)
+                != {"kind", "slot", "family", "input_type", "answer_type"},
+                "contract-component-kind-mismatch",
+            )
+            family = validate_contract_object(binder["family"])
+            if family.get("kind") == "LegacyTypeRefV2":
+                family = family["value"]
+            validate_effect_family_ref(family, ambient_type_parameters)
+            validate_type_v2(binder["input_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+            validate_type_v2(binder["answer_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+        else:
+            raise Diagnostic("contract-component-kind-mismatch")
     for parameter in binders.get("parameter_binders", []):
         validate_type_v2(parameter["type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
     for binding in closure_environment:
@@ -3313,6 +3479,17 @@ def validate_function_contract(
     row_binders = {
         binder["slot"]: binder for binder in binders["row_binders"]
     }
+    validate_lexical_effect_selector_scope(
+        [
+            contract["declaration_kind"], binders["parameter_binders"],
+            binders["row_binders"], binders["contract_binders"],
+            contract["closure_environment"], contract["applications"],
+            contract["computation"],
+        ],
+        type_parameter_kinds=ambient_type_parameters,
+        identity_binders=identity_binders,
+        handler_contract_binders=handler_contract_binders,
+    )
     applications = validate_application_ledger(
         contract["applications"], returns={}, imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
@@ -3324,8 +3501,9 @@ def validate_function_contract(
         row_binders=row_binders,
     )
     for node in walk([
-        contract["closure_environment"], contract["applications"],
-        contract["computation"],
+        contract["declaration_kind"], binders["parameter_binders"],
+        binders["contract_binders"], contract["closure_environment"],
+        contract["applications"], contract["computation"],
     ]):
         if not isinstance(node, dict) or set(node) != {"namespace", "slot"}:
             continue
@@ -7833,6 +8011,19 @@ def main() -> int:
         "task-45 complete-root regressions failed:\n" + task45_result.stdout,
     )
     task45_probe_count = 21
+    task46_result = subprocess.run(
+        [sys.executable, str(TASK46_REGRESSIONS), str(ROOT.parent.parent)],
+        check=False,
+        cwd=ROOT.parent.parent,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    require(
+        task46_result.returncode == 0,
+        "task-46 complete-root regressions failed:\n" + task46_result.stdout,
+    )
+    task46_probe_count = 19
     validate_normative_producer_alignment()
     print(
         f"PASS: {len(interface_paths)} interface artifacts, "
@@ -7845,7 +8036,8 @@ def main() -> int:
         f"{task33_probe_count} task-33 full-root probes, "
         f"{task34_probe_count} task-34 full-root probes, "
         f"{task35_probe_count} task-35 full-root probes, "
-        f"{task45_probe_count} task-45 full-root probes"
+        f"{task45_probe_count} task-45 full-root probes, "
+        f"{task46_probe_count} task-46 full-root probes"
     )
     return 0
 

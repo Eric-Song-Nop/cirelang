@@ -36,6 +36,7 @@ and no compiler/runtime implementation.
 - `examples/spec/validate-oracles.py` — reference decoder/evaluator/gate.
 - `examples/spec/task35-regressions.py` — 13 complete-root adjacent regressions.
 - `examples/spec/task45-regressions.py` — 21 associated-evidence/kind complete-root regressions.
+- `examples/spec/task46-regressions.py` — 19 catalog/Row-scope/substitution complete-root regressions.
 - `examples/spec/diagnostics-v2.json`.
 - `examples/spec/mutations/v1-rejects-v2-tags.json`.
 - `examples/spec/runtime/packed-next-lease-runtime.json`.
@@ -121,7 +122,7 @@ every deleted path outside this manifest. The Merge/Delete inventory above
 intentionally names those paths and is excluded from that reference gate. The
 candidate must pass Markdown link/fence closure over all surviving Markdown,
 compile the Typst formalization, validate all JSON/JCS/import hashes, pass the
-reference decoder and task-29/30/31/33/34/35/45 runners, validate PEG definitions,
+reference decoder and task-29/30/31/33/34/35/45/46 runners, validate PEG definitions,
 corpus metadata, diagnostic registry, runtime traces, Python compilation/Ruff,
 and `git diff --check`. The handoff records the exact commit/parent/tree,
 archive hash, surviving file inventory, and gate outputs.

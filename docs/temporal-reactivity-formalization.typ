@@ -868,7 +868,12 @@ ClockSubstitutionV2 { binder_slot: u32, value: SlotRefV1 }
 `type_arguments` 覆盖 `TypeBinderV1` 的 Type与Effect两个 value-carrying domain，
 但 importer必须先由 target binder map取 declared kind，再按 position解码 `value`：
 Type binder只接受 TypeRefV2，Effect binder只接受 `EffectFamilyRefV2` 的 V2
-encoding；两个 domain不得按相同 object shape互换。OwnerRegion binder不由
+encoding；若 nominal Effect在 `TypeSubstitutionV2.value`中以
+`LegacyTypeRefV2(NominalTypeV1)` 承载，只在 Effect-family position取其内层
+`NominalTypeV1`，Type position则保留 wrapper。两个 domain不得按相同
+object shape互换。替换后 importer必须对完整 instantiated
+`FunctionContractKindV2`（包括 `visible_row`）重跑 exact/kind/row WF，不能只比较
+parameter/result。OwnerRegion binder不由
 `type_arguments` 实例化。Substitution domain exactness之后仍须检查 caller lexical
 scope；unbound projection稳定拒绝，wrong-kind value稳定
 `contract-component-kind-mismatch`。
@@ -1764,6 +1769,7 @@ EffectFamilyRefV2 =
   | TypeParameterV2 whose slot has kind Effect
 
 EffectFamilyDeclarationsV1 {
+  artifact: "EffectFamilyDeclarationsV1",
   profile: "Cire-TR₀/2026-08-01",
   schema_version: 1,
   families: [{ module: [IdentifierV1], name: IdentifierV1, arity: u32 }]
@@ -2227,10 +2233,14 @@ TypeRef shape稳定拒绝 `contract-component-kind-mismatch`（unbound projectio
 `contract-projection-escapes-scope`）。`RowBinderV1.lacks` 先 exact-decode list与
 entry，再走同一个 family scope/kind check；malformed container/entry不得泄漏 host
 exception。
+Declaration的 `visible_row`与每个 `FunctionContractBinderV2.visible_row`也必须在
+同一 declaration Row-binder environment中递归关闭；unbound `TailV1`稳定拒绝
+`contract-projection-escapes-scope`。对 `RowBinderV1.lacks`，selector shape解码后还必须
+用当前 identity/contract-binder table解析 lexical meaning：
 `NamedV1.identity` 必须引用
 `binders.identity_binders` 中同 family
 的 live generative binder。`HandlerEntryParameterV1` 只可出现在
-`HandlerContractBinderV1` 的 lexical scope，并在 actual installation
+`HandlerContractBinderV1/V2` 的 lexical scope，并在 actual installation
 替换为同 family的 `AnonV1` 或 `NamedV1`；普通 function contract不能使用。
 任何显式 prompt selector都必须引用
 `binders.prompt_binders` 中 scope包含该 site的 declaration。
