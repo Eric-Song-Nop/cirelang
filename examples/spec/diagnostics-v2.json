@@ -7,6 +7,8 @@
     { "id": "application-argument-type-mismatch", "stage": "ContractWF" },
     { "id": "application-arity-mismatch", "stage": "ContractWF" },
     { "id": "associated-contract-mismatch", "stage": "Kind" },
+    { "id": "associated-declaration-constraint-not-in-profile", "stage": "Kind" },
+    { "id": "associated-parameterization-not-in-profile", "stage": "Kind" },
     { "id": "call-obligation-unsatisfied", "stage": "ContractWF" },
     { "id": "clock-package-family-not-clock-indexing", "stage": "Kind" },
     { "id": "clock-package-path-observer-mismatch", "stage": "ContractWF" },

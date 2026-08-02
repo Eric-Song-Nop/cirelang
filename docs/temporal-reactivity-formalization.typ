@@ -562,29 +562,56 @@ contract；它不是把已删除设计文档作为隐含前提。令
 map 与 operation map。每个 associated item恰有一个 declared kind：
 
 $
-  "AssocDecl"(B,x) = (kappa_x,d_x?)
+  "AssocDecl"(B,x) = (kappa_x,c_x,a_x,d_x?)
   quad
   kappa_x in {"Type","Effect","EffectRow"}
 $
 
-`type`、`effect`、`effects` 分别且唯一引入上述三个 kind。Default $d_x$ 若
-存在，必须在 declaration scope满足 $K ⊢ d_x:kappa_x$。Named associated
-argument elaboration产生
-`AssocEq(F,B,x,W,kappa_x)`；它必须满足：$x$ 属于同一个 declaration-identity
-$B$、每个 $x$ 至多出现一次、$K ⊢ W:kappa_x$，且每个没有 default 的 item
-都由 argument提供。Unknown、duplicate、missing-without-default或 cross-kind
-value都不是 recoverable equality，并在 Kind阶段稳定返回
-`associated-contract-mismatch`。
+`type`、`effect`、`effects` 分别且唯一引入上述三个 kind；$c_x$ 是 declaration
+constraint，$a_x$ 是 parameter arity。Default $d_x$ 若存在，必须在 declaration
+scope满足 $K ⊢ d_x:kappa_x$。TR₀ 要求 $a_x=0$；nonzero arity稳定拒绝
+`associated-parameterization-not-in-profile`。本 profile只为
+$kappa_x="EffectRow"$ 编码 finite `Lacks[e]` constraint到 `RowBinderV1.lacks`；
+associated Type constraint或 associated Effect ability constraint稳定拒绝
+`associated-declaration-constraint-not-in-profile`，不能丢弃证据后继续。
 
-令 `AbilityEvidence(K,F,B,theta)` 表示 substitution $theta$ 对 $B$ 的全部
-associated item exact/total，并把 ability operation signature中的 item projection
-同时替换。Projection formation是 kind-preserving的：
+Named associated argument先形成一个 declaration-indexed partial map $P$。
+Unknown、duplicate或 $K ⊬ P(x):kappa_x$ 在 Kind阶段稳定返回
+`associated-contract-mismatch`。Completion明确分成两个 judgment：
+
+$
+  "GenericAbility"(K,F,B,P)
+  => "AbilityEvidence"(K,F,B,theta_g) + "Eq"(P)
+$
+
+Exporter按 `(effect-binder slot, ability declaration identity, associated ordinal)`
+为每个 `AssocDecl(B,x)` 分配 deterministic hidden binder $H(F,B,x)$，令
+$theta_g(x)=H(F,B,x)$，所以 $theta_g$ 是 total symbolic vector。若 $x=W$ 显式
+出现，`Eq(P)` 加入 $H(F,B,x)=W$；omitted item保持 symbolic，即使声明有 default
+也不得把 default加入 generic equality。
+
+$
+  "HeaderImpl"(K,D,B,P)
+  => "AbilityEvidence"(K,D,B,theta_h)
+$
+
+Concrete header逐 item选择唯一 explicit same-kind value，否则选择 declaration
+default，否则 `associated-contract-mismatch`；row value还必须证明 $c_x$ 中每个
+`Lacks`。因此 $theta_h$ 在 operation substitution与header export前 total且
+concrete。Generic application用 $theta_h$ 的完整 vector实例化 $theta_g$，再在
+ordinary type/row substitution后逐条证明 `Eq(P)`；例如 `Value=A` 对
+`Value=Bytes` 要求 $A="Bytes"$。同 binder的两个 ability evidence若导出同 short
+name而 surface没有 ability qualifier，projection不唯一并同样拒绝。
+
+`AbilityEvidence(K,F,B,theta)` 始终表示 $theta$ 对 $B$ 的全部 associated item
+exact/total；generic evidence的值可以是上述 hidden symbolic binder，header
+evidence则必须 concrete。Projection formation是 kind-preserving的：
 
 #irule(
   [K-Assoc-Projection],
   (
     [$"AbilityEvidence"(K,F,B,theta)$],
-    [$"AssocDecl"(B,x)=(kappa_x,d_x?)$],
+    [$"AssocDecl"(B,x)=(kappa_x,c_x,a_x,d_x?)$],
     [$theta(x)=W$],
     [$K ⊢ W:kappa_x$],
   ),
@@ -593,8 +620,9 @@ associated item exact/total，并把 ability operation signature中的 item proj
 
 所以 `S::Key`、`S::Fail` 与 `S::Extra` 分别只能进入 Type、atomic Effect
 entry 与 EffectRow位置；相同 short name或相同 wire object不能跨 kind充当
-evidence。Constraint `S : B[Value = A]` 把相应 `AssocEq` 加入 $K$，不把它
-降为 positional type argument。
+evidence。Constraint `S : B[Value = A]` 只把相应 hidden-binder equality加入
+$K$，不要求 generic site提供 omitted `Key/Fail/Extra`，也不把它降为 positional
+type argument。
 
 Interface normalization不增加 `AssociatedProjection` variant。对每个带
 `AbilityEvidence` 的 Effect-kind declaration binder，先按
@@ -608,21 +636,19 @@ F::EffectItem -> TypeParameterV2(hidden Effect slot), used as Anon family
 F::RowItem    -> TailV1(hidden Row slot)
 ```
 
-Named equality/default成为同一 `ContractSubstitutionV2` 的 type/row argument；
-concrete effect header在 export前直接 substitution。现有 bounded fresh-u32 allocator
+Named equality与 application witness成为同一 `ContractSubstitutionV2` 的 type/row
+argument；generic omitted item仍有 hidden slot，concrete effect header的 explicit/
+default vector在 export前直接 substitution。Associated EffectRow hidden binder把
+声明处 `Lacks` evidence复制到自己的 `RowBinderV1.lacks`，concrete row必须先证明
+同一 predicate。现有 bounded fresh-u32 allocator
 对整批 hidden slots做 collision/exhaustion检查，importer继续按 declaration kind与
 substitution arity exact-check。因此这个 static contract不改变 wire schema version，
 也不允许 exporter把 source projection作为 nominal sentinel泄漏。
 
-TR₀ 只接受 effect declaration header产生的 local conformance witness：
+TR₀ 只接受 local effect declaration header产生的上述 concrete witness；也就是
+`HeaderImpl(K,D,B,P)` 另有 premise `LocalDefinition(D)`。
 
-$
-  "HeaderImpl"(D,B,theta)
-  "iff"
-  "LocalDefinition"(D) and "AbilityEvidence"(K,D,B,theta)
-$
-
-同一 header不得重复 $B$。$B$ 的每个 operation经 $theta$ substitution后，必须
+同一 header不得重复 $B$。$B$ 的每个 operation经 $theta_h$ substitution后，必须
 与 $D$ 中同名 operation在 parameter/result、secondary contract与 resumption
 mode上 exact相等；从多个 ability继承的同名 operation也只能在这四项 exact
 相等时合并。Witness visibility取 $D$ 与 $B$ visibility的 meet，不能扩大
@@ -838,6 +864,14 @@ ContractSubstitutionEntryV2 { binder_slot: u32, contract: ContractRefV2 }
 OwnerSubstitutionV2 { binder_slot: u32, value: SlotRefV1 }
 IdentitySubstitutionV2 { binder_slot: u32, value: SlotRefV1 }
 ClockSubstitutionV2 { binder_slot: u32, value: SlotRefV1 }
+
+`type_arguments` 覆盖 `TypeBinderV1` 的 Type与Effect两个 value-carrying domain，
+但 importer必须先由 target binder map取 declared kind，再按 position解码 `value`：
+Type binder只接受 TypeRefV2，Effect binder只接受 `EffectFamilyRefV2` 的 V2
+encoding；两个 domain不得按相同 object shape互换。OwnerRegion binder不由
+`type_arguments` 实例化。Substitution domain exactness之后仍须检查 caller lexical
+scope；unbound projection稳定拒绝，wrong-kind value稳定
+`contract-component-kind-mismatch`。
 
 ValueSummaryExprV2 {
   source: SlotRefV2 | null
@@ -1719,18 +1753,32 @@ PromptSlotDeclV1 {
 
 IdentitySlotDeclV1 {
   identity_slot: u32
-  family: TypeRefV1
+  family: EffectFamilyRefV2
   owner: SlotRefV1                       // Owner namespace
   binder: FreshCap | NamedHandler
 }
 
+EffectFamilyRefV2 =
+    NominalTypeV1 resolved as an Effect declaration
+  | TypeParameterV1 whose slot has kind Effect
+  | TypeParameterV2 whose slot has kind Effect
+
+EffectFamilyDeclarationsV1 {
+  profile: "Cire-TR₀/2026-08-01",
+  schema_version: 1,
+  families: [{ module: [IdentifierV1], name: IdentifierV1, arity: u32 }]
+}
+
+Catalog是 exact object；`families`按整个 declaration的 JCS encoding递增且
+module-qualified identity唯一，`module`非空，`arity`在 wire-u32 domain。
+
 EffectEntrySelectorV1 =
     AnonV1 {
-      family: TypeRefV1
+      family: EffectFamilyRefV2
     }
   | NamedV1 {
       identity: SlotRefV1,       // Identity namespace
-      family: TypeRefV1
+      family: EffectFamilyRefV2
     }
   | HandlerEntryParameterV1 {
       contract_slot: u32         // Handler contract binder
@@ -1738,7 +1786,7 @@ EffectEntrySelectorV1 =
 
 OperationSelectorV1 =
     ExactOperationV1 {
-      family: TypeRefV1,
+      family: EffectFamilyRefV2,
       name: IdentifierV1
     }
   | AnyOperationOfEntry
@@ -2169,6 +2217,16 @@ importer把这些 ids 与本 site的 actual summaries/entry world一起解析成
 call-discharge evidence，后者保留 exact instantiation key到 `InstallOK`。
 不存在可重新读取的泛化 obligations aggregate字段。
 `EffectEntrySelectorV1` 与 `OperationSelectorV1` 只接受上列 tagged variants；
+所有 `family` field都以 Effect position解码：nominal reference必须由 producer/import
+declaration environment按 module-qualified identity解析为 Effect且 argument arity exact，
+不能仅根据 `NominalTypeV1` object shape推测。Repository complete roots把该
+environment冻结为上述 `EffectFamilyDeclarationsV1`；真实 importer的同一 obligation由
+已解析 declaration table提供。`TypeParameterV1/V2`必须引用当前 lexical
+kind environment中的 Effect slot。Type slot、builtin Type、unbound slot或普通
+TypeRef shape稳定拒绝 `contract-component-kind-mismatch`（unbound projection用
+`contract-projection-escapes-scope`）。`RowBinderV1.lacks` 先 exact-decode list与
+entry，再走同一个 family scope/kind check；malformed container/entry不得泄漏 host
+exception。
 `NamedV1.identity` 必须引用
 `binders.identity_binders` 中同 family
 的 live generative binder。`HandlerEntryParameterV1` 只可出现在

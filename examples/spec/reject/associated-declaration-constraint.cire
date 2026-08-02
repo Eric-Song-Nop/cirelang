@@ -1,0 +1,8 @@
+// profile: Cire-TR₀/2026-08-01
+// expect: reject
+// rule: associated Type/Effect declaration constraints have no retained evidence wire in this profile
+// oracle: subject=Unsupported; ambient=Eq trait; reject_at=type Item : Eq; diagnostic=associated-declaration-constraint-not-in-profile
+
+ability Unsupported {
+  type Item : Eq
+}

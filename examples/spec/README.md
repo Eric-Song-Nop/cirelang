@@ -37,6 +37,7 @@ evidence artifact，不得只检查 parser 是否接受。
 | `accept/secondary-row-closed-forms.cire` | accept | `! {}` 与多 entry closed secondary |
 | `accept/named-cap-lexical-scope.cire` | accept | named cap binder 的 scoped lexical visibility |
 | `accept/associated-ability.cire` | accept | associated三 kind与 local effect-header conformance |
+| `accept/associated-generic-evidence.cire` | accept | partial generic equality保留 omitted symbolic projections，不应用 header default |
 | `accept/row-predicate-lacks.cire` | accept | sole frozen `Lacks` evidence与row extension |
 | `reject/two-row-tails.cire` | reject | literal 最多一个 open tail |
 | `reject/positional-after-label.cire` | reject | labelled-call grammar |
@@ -52,11 +53,17 @@ evidence artifact，不得只检查 parser 是否接受。
 | `reject/open-secondary-row.cire` | reject | TR₀ operation secondary row 必须 closed |
 | `reject/bare-open-secondary-row.cire` | reject | bare `! E` 经 recovery CST 到 closed-only WF |
 | `reject/associated-effect-kind-mismatch.cire` | reject | associated argument跨 Type/Effect/EffectRow kind |
+| `reject/associated-declaration-constraint.cire` | reject | associated Type/Effect constraint尚无 retained evidence wire |
+| `reject/associated-parameterization.cire` | reject | parameterized associated item尚无 higher-kinded wire |
 | `reject/independent-ability-impl.cire` | reject | independent ability `impl` 尚不属于 TR₀ |
 | `reject/row-predicate-has.cire` | reject | explicit `Has` 没有冻结 solver/schema |
 | `reject/row-predicate-all.cire` | reject | explicit `All` 没有冻结 solver/schema |
 | `reject/row-predicate-only.cire` | reject | explicit `Only` 没有冻结 solver/schema |
 
+`interfaces/effect-family-declarations.json` 是所有完整 interface roots共用的
+consumable nominal declaration environment；它用 module-qualified identity与 arity区分
+Effect declaration和形状相同的普通 nominal Type，所以 effect-family position不能
+仅凭 `NominalTypeV1` tag猜 kind。
 `interfaces/choose-once-function-contract.json` 是可独立导入的
 `FunctionContractV2`，实际含 nonempty Q与 `LatentSiteV2`；
 `interfaces/q-lambda-call-install.json` 是
@@ -245,6 +252,16 @@ summary进入 projection；Closure/actual live tuple逐字段校验；Return usa
 `DuplicableEnv`稳定拒绝；PackedNext child Owner必须 fresh/nonalias，nested payload/
 Later scalar只产生稳定 diagnostic。主 validator以独立进程运行这组 roots，避免
 共享 mutable fixture状态。
+
+`task45-regressions.py` 提交 21 个 associated-evidence/kind complete-root probes：
+generic `Store[Value=A]` 产生 total symbolic hidden vector但只保留显式 `Value=A`
+等式，omitted `Extra`不误用 declaration default；concrete header分别覆盖 explicit
+override、default、missing、equality mismatch、unknown/duplicate/cross-kind与
+`Lacks`违反。Decoder root同时覆盖 Type/Effect/EffectRow hidden binder、positive
+row Lacks、Type-as-Effect、Effect-as-Type、wrong-kind imported substitution、unbound
+family、malformed Lacks container/entry以及未在 declaration environment解析为
+Effect的普通 nominal Type，所有负例只返回 registered stable
+diagnostic。主 validator也以独立进程运行本 gate。
 
 `diagnostics-v2.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；
 新增或重命名 id需要新 registry version，不能让 parser recovery改变同一

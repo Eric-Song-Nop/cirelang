@@ -5,7 +5,7 @@ This is the executable reference decoder for the frozen V2 wire profile, not a
 compiler implementation. Its computation/outcome import is exhaustive and
 threads application, return-binder, and Handler-clause disposition scope. It
 also evaluates each mutation through the named decoder and checks the exact
-diagnostic that decoder emits. Task #28-#35 regressions additionally exercise
+diagnostic that decoder emits. Task #28-#35 and #45 regressions additionally exercise
 formal-conformance clusters through complete root contracts.
 """
 
@@ -28,11 +28,13 @@ MUTATIONS = ROOT / "mutations" / "v1-rejects-v2-tags.json"
 RUNTIME = ROOT / "runtime" / "packed-next-lease-runtime.json"
 DIAGNOSTICS = ROOT / "diagnostics-v2.json"
 TASK35_REGRESSIONS = ROOT / "task35-regressions.py"
+TASK45_REGRESSIONS = ROOT / "task45-regressions.py"
+EFFECT_FAMILY_DECLARATIONS = INTERFACES / "effect-family-declarations.json"
 FORMALIZATION = ROOT.parent.parent / "docs" / "temporal-reactivity-formalization.typ"
 PROFILE = "Cire-TR₀/2026-08-01"
 U32_MAX = (1 << 32) - 1
 WIRE_U32_FIELDS = {
-    "application_slot", "binder_site_slot", "binder_slot", "claim_cell_slot",
+    "application_slot", "arity", "binder_site_slot", "binder_slot", "claim_cell_slot",
     "clock_slot", "continuation_site_slot", "contract_slot", "declaration_slot",
     "forward_site_slot", "id", "identity_slot", "local_id", "owner_slot", "park_site_slot",
     "path_index", "port_slot", "prompt_slot", "return_slot", "secondary_slot",
@@ -203,6 +205,7 @@ def validate_phase_requirement(phase: dict[str, Any]) -> None:
             validate_slot_v1(authority["identity"], "Identity")
         elif kind == "AnonymousEffectAuthorityV1":
             exact_fields(authority, {"kind", "family"}, kind)
+            validate_effect_family_ref(authority["family"])
         else:
             raise Diagnostic("contract-component-kind-mismatch")
     if phase["current_owner"] is not None:
@@ -422,7 +425,93 @@ def validate_slot_v1(value: dict[str, Any], namespace: str | None = None) -> Non
         )
 
 
-def validate_effect_entry_selector(entry: dict[str, Any]) -> None:
+def validate_effect_family_ref(
+    family: Any,
+    type_parameter_kinds: dict[int, str] | None = None,
+) -> None:
+    """Decode an Effect-family position without treating arbitrary Type refs as families."""
+
+    family = validate_contract_object(family)
+    kind = family.get("kind")
+    if kind in {"TypeParameterV1", "TypeParameterV2"}:
+        exact_fields(family, {"kind", "slot"}, kind)
+        validate_u32(family["slot"], f"{kind} slot")
+        if type_parameter_kinds is not None:
+            reject(
+                family["slot"] not in type_parameter_kinds,
+                "contract-projection-escapes-scope",
+            )
+            reject(
+                type_parameter_kinds[family["slot"]] != "Effect",
+                "contract-component-kind-mismatch",
+            )
+        return
+    if kind == "NominalTypeV1":
+        validate_type_v1(family)
+        declarations = validate_effect_family_declarations(
+            load_json(EFFECT_FAMILY_DECLARATIONS)
+        )
+        identity = (tuple(family["module"]), family["name"])
+        reject(
+            identity not in declarations
+            or declarations[identity] != len(family["arguments"]),
+            "contract-component-kind-mismatch",
+        )
+        return
+    raise Diagnostic("contract-component-kind-mismatch")
+
+
+def validate_effect_family_declarations(
+    document: Any,
+) -> dict[tuple[tuple[str, ...], str], int]:
+    """Decode the consumable nominal declaration environment for interface roots."""
+
+    document = validate_contract_object(document)
+    exact_fields(
+        document,
+        {"artifact", "families", "profile", "schema_version"},
+        "EffectFamilyDeclarationsV1",
+    )
+    reject(
+        document["artifact"] != "EffectFamilyDeclarationsV1"
+        or document["profile"] != PROFILE
+        or document["schema_version"] != 1,
+        "contract-component-kind-mismatch",
+    )
+    result: dict[tuple[tuple[str, ...], str], int] = {}
+    encodings: list[str] = []
+    for declaration in validate_contract_list(document["families"]):
+        declaration = validate_contract_object(declaration)
+        exact_fields(
+            declaration,
+            {"arity", "module", "name"},
+            "EffectFamilyDeclarationV1",
+        )
+        module = validate_contract_list(declaration["module"])
+        reject(
+            not module
+            or not all(isinstance(part, str) and part for part in module)
+            or not isinstance(declaration["name"], str)
+            or not declaration["name"],
+            "contract-component-kind-mismatch",
+        )
+        validate_u32(declaration["arity"], "effect family arity")
+        identity = (tuple(module), declaration["name"])
+        reject(identity in result, "contract-component-kind-mismatch")
+        result[identity] = declaration["arity"]
+        encodings.append(jcs(declaration))
+    reject(
+        encodings != sorted(encodings),
+        "contract-component-kind-mismatch",
+    )
+    return result
+
+
+def validate_effect_entry_selector(
+    entry: Any,
+    type_parameter_kinds: dict[int, str] | None = None,
+) -> None:
+    entry = validate_contract_object(entry)
     kind = entry.get("kind")
     if kind == "AnonV1":
         exact_fields(entry, {"kind", "family"}, kind)
@@ -435,14 +524,16 @@ def validate_effect_entry_selector(entry: dict[str, Any]) -> None:
     else:
         raise Diagnostic("contract-component-kind-mismatch")
     if "family" in entry:
-        require(isinstance(entry["family"], dict) and isinstance(entry["family"].get("kind"), str), "effect entry family")
+        validate_effect_family_ref(entry["family"], type_parameter_kinds)
 
 
-def validate_operation_selector(operation: dict[str, Any]) -> None:
+def validate_operation_selector(operation: Any) -> None:
+    operation = validate_contract_object(operation)
     kind = operation.get("kind")
     if kind == "ExactOperationV1":
         exact_fields(operation, {"kind", "family", "name"}, kind)
-        require(isinstance(operation["family"], dict) and isinstance(operation["name"], str), "exact operation selector")
+        validate_effect_family_ref(operation["family"])
+        require(isinstance(operation["name"], str), "exact operation selector")
     elif kind == "AnyOperationOfEntry":
         exact_fields(operation, {"kind"}, kind)
     else:
@@ -519,23 +610,27 @@ def validate_demand(demand: Any) -> None:
         validate_u32(role["secondary_slot"], "DemandV1 secondary_slot")
 
 
-def validate_row_expr(row: dict[str, Any]) -> None:
+def validate_row_expr(row: Any) -> None:
+    row = validate_contract_object(row)
     kind = row.get("kind")
     if kind == "EmptyV1":
         exact_fields(row, {"kind"}, kind)
     elif kind == "ClosedV1":
         exact_fields(row, {"kind", "entries"}, kind)
-        for entry in row["entries"]:
+        entries = validate_contract_list(row["entries"])
+        for entry in entries:
             validate_effect_entry_selector(entry)
-        reject(row["entries"] != sorted(ordered_unique(row["entries"]), key=jcs), "contract-parameter-inconsistent-instantiation")
+        reject(entries != sorted(ordered_unique(entries), key=jcs), "contract-parameter-inconsistent-instantiation")
     elif kind == "TailV1":
         exact_fields(row, {"kind", "row_slot"}, kind)
         validate_slot_v1(row["row_slot"], "Row")
     elif kind == "UnionV1":
         exact_fields(row, {"kind", "members"}, kind)
-        reject(len(row["members"]) < 2, "contract-parameter-inconsistent-instantiation")
-        reject(row["members"] != sorted(ordered_unique(row["members"]), key=jcs), "contract-parameter-inconsistent-instantiation")
-        for member in row["members"]:
+        members = validate_contract_list(row["members"])
+        reject(len(members) < 2, "contract-parameter-inconsistent-instantiation")
+        reject(members != sorted(ordered_unique(members), key=jcs), "contract-parameter-inconsistent-instantiation")
+        for member in members:
+            member = validate_contract_object(member)
             reject(member.get("kind") == "UnionV1", "contract-parameter-inconsistent-instantiation")
             validate_row_expr(member)
     else:
@@ -649,7 +744,7 @@ def validate_type_v1(type_ref: Any) -> None:
         reject(not isinstance(type_ref["contract"], dict), "contract-component-kind-mismatch")
     elif kind == "CapabilityTypeV1":
         validate_slot_v1(type_ref["identity"], "Identity")
-        validate_type_v1(type_ref["family"])
+        validate_effect_family_ref(type_ref["family"])
     elif kind == "NextTypeV1":
         validate_slot_v1(type_ref["clock"], "Clock")
         validate_type_v1(type_ref["payload"])
@@ -673,7 +768,8 @@ def validate_type_v1(type_ref: Any) -> None:
         validate_capture_v1(type_ref["live_capture"])
         validate_slot_v1(type_ref["owner"], "Owner")
     elif kind == "HandlerTemplateTypeV1":
-        for key in ("family", "input", "answer"):
+        validate_effect_family_ref(type_ref["family"])
+        for key in ("input", "answer"):
             validate_type_v1(type_ref[key])
         validate_slot_v1(type_ref["owner"], "Owner")
         validate_row_expr(type_ref["residual_row"])
@@ -895,9 +991,14 @@ def validate_contract_kind(kind: dict[str, Any], returns: ReturnScope) -> None:
     }
     require(tag in fields, f"unknown ContractKindV2: {tag!r}")
     exact_fields(kind, fields[tag], tag)
-    for key in ("parameter_type", "result_type", "payload_type", "argument_type", "answer_type", "family", "input_type"):
+    for key in ("parameter_type", "result_type", "payload_type", "argument_type", "answer_type", "input_type"):
         if key in kind:
             validate_type_v2(kind[key], returns=returns)
+    if "family" in kind:
+        family = validate_contract_object(kind["family"])
+        if family.get("kind") == "LegacyTypeRefV2":
+            family = family["value"]
+        validate_effect_family_ref(family)
     if "clock" in kind:
         validate_slot_v1(kind["clock"], "Clock")
     if tag == "FunctionContractKindV2":
@@ -1041,7 +1142,10 @@ def validate_type_v2(
         )
     elif kind == "CapabilityTypeV2":
         validate_slot_v1(type_ref["identity"], "Identity")
-        validate_type_v2(type_ref["family"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+        family = validate_contract_object(type_ref["family"])
+        if family.get("kind") == "LegacyTypeRefV2":
+            family = family["value"]
+        validate_effect_family_ref(family)
     elif kind == "NextTypeV2":
         validate_slot_v1(type_ref["clock"], "Clock")
         validate_type_v2(type_ref["payload"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
@@ -1068,7 +1172,11 @@ def validate_type_v2(
     elif kind == "ResumeTypeRefV2":
         validate_resume(type_ref["value"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
     elif kind == "HandlerTemplateTypeV2":
-        for key in ("family", "input", "answer"):
+        family = validate_contract_object(type_ref["family"])
+        if family.get("kind") == "LegacyTypeRefV2":
+            family = family["value"]
+        validate_effect_family_ref(family)
+        for key in ("input", "answer"):
             validate_type_v2(type_ref[key], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
         validate_slot_v1(type_ref["owner"], "Owner")
         contract = type_ref["contract"]
@@ -2392,10 +2500,14 @@ def validate_declaration_binders(binders: dict[str, Any], closure_environment: l
         exact_fields(parameter, {"slot", "type"}, "ParameterBinderV2")
     for binder in binders["type_binders"]:
         validate_type_binder(binder)
+    type_parameter_kinds = {
+        binder["slot"]: binder["kind"] for binder in binders["type_binders"]
+    }
     for row in binders["row_binders"]:
+        row = validate_contract_object(row)
         exact_fields(row, {"slot", "lacks"}, "RowBinderV1")
-        for entry in row["lacks"]:
-            validate_effect_entry_selector(entry)
+        for entry in validate_contract_list(row["lacks"]):
+            validate_effect_entry_selector(entry, type_parameter_kinds)
     for number in [*parameters, *types, *rows, *contracts, *owners, *identities, *clocks, *prompts]:
         validate_u32(number, "declaration binder slot")
     closure_slots = {binding["slot"]["slot"] for binding in closure_environment if binding["slot"]["namespace"] == "ClosureCapture"}
@@ -2407,6 +2519,17 @@ def validate_declaration_binders(binders: dict[str, Any], closure_environment: l
             "Owner binder source is out of scope",
         )
     for identity in binders["identity_binders"]:
+        identity = validate_contract_object(identity)
+        exact_fields(
+            identity,
+            {"identity_slot", "family", "owner", "binder"},
+            "IdentitySlotDeclV1",
+        )
+        validate_effect_family_ref(identity["family"], type_parameter_kinds)
+        reject(
+            identity["binder"] not in {"FreshCap", "NamedHandler"},
+            "contract-component-kind-mismatch",
+        )
         require(identity["owner"] == slot("Owner", identity["owner"]["slot"]) and identity["owner"]["slot"] in owners, "Identity Owner is out of scope")
     identity_by_slot = {binding["identity_slot"]: binding for binding in binders["identity_binders"]}
     for clock in binders["clock_binders"]:
@@ -2417,13 +2540,29 @@ def validate_declaration_binders(binders: dict[str, Any], closure_environment: l
 
 def validate_kinded_type_parameter_scope(
     value: Any,
-    ambient_type_parameters: set[int],
+    ambient_type_parameters: dict[int, str],
+    *,
+    expected_kind: str = "Type",
+    imports: ImportScope | None = None,
+    contract_binders: dict[int, dict[str, Any]] | None = None,
+    local_functions: LocalFunctionScope | None = None,
 ) -> None:
-    """Check every accepted TypeParameter encoding against the innermost kind scope."""
+    """Check Type/Effect positions against the innermost complete kind scope."""
+
+    imports = imports or ImportScope()
+    contract_binders = contract_binders or {}
+    local_functions = local_functions or {}
 
     if isinstance(value, list):
         for member in value:
-            validate_kinded_type_parameter_scope(member, ambient_type_parameters)
+            validate_kinded_type_parameter_scope(
+                member,
+                ambient_type_parameters,
+                expected_kind=expected_kind,
+                imports=imports,
+                contract_binders=contract_binders,
+                local_functions=local_functions,
+            )
         return
     if not isinstance(value, dict):
         return
@@ -2434,33 +2573,142 @@ def validate_kinded_type_parameter_scope(
     if isinstance(value.get("kind"), str) and value.get("kind") in {
         "TypeParameterV1", "TypeParameterV2",
     }:
-        reject(
-            value.get("slot") not in ambient_type_parameters,
-            "contract-projection-escapes-scope",
-        )
+        slot_number = value.get("slot")
+        if expected_kind == "Effect":
+            reject(
+                slot_number not in ambient_type_parameters,
+                "contract-projection-escapes-scope",
+            )
+            reject(
+                ambient_type_parameters[slot_number] != "Effect",
+                "contract-component-kind-mismatch",
+            )
+        else:
+            # Preserve the established Type-position diagnostic: an Effect
+            # binder is not in the Type projection namespace.
+            reject(
+                slot_number not in ambient_type_parameters
+                or ambient_type_parameters[slot_number] != "Type",
+                "contract-projection-escapes-scope",
+            )
         return
+    if expected_kind == "Effect":
+        if value.get("kind") == "LegacyTypeRefV2":
+            validate_kinded_type_parameter_scope(
+                value.get("value"),
+                ambient_type_parameters,
+                expected_kind="Effect",
+                imports=imports,
+                contract_binders=contract_binders,
+                local_functions=local_functions,
+            )
+            return
+        if value.get("kind") == "NominalTypeV1":
+            validate_effect_family_ref(value, ambient_type_parameters)
+            for argument in value.get("arguments", []):
+                validate_kinded_type_parameter_scope(
+                    argument,
+                    ambient_type_parameters,
+                    expected_kind="Type",
+                    imports=imports,
+                    contract_binders=contract_binders,
+                    local_functions=local_functions,
+                )
+            return
+        raise Diagnostic("contract-component-kind-mismatch")
     signature_fields = {
         "type_binders", "parameters", "result", "mode", "transition",
         "suspension", "result_transformer", "required_phase",
         "obligation_ids", "secondary_sites",
     }
     if signature_fields <= set(value):
-        local_type_parameters: set[int] = set()
-        local_binder_slots: set[int] = set()
+        local_type_parameters: dict[int, str] = {}
         for binder in validate_contract_list(value["type_binders"]):
             validate_type_binder(binder)
-            local_binder_slots.add(binder["slot"])
-            if binder["kind"] == "Type":
-                local_type_parameters.add(binder["slot"])
-        signature_scope = (
-            ambient_type_parameters - local_binder_slots
-        ) | local_type_parameters
+            local_type_parameters[binder["slot"]] = binder["kind"]
+        signature_scope = dict(ambient_type_parameters)
+        for slot_number in local_type_parameters:
+            signature_scope.pop(slot_number, None)
+        signature_scope.update(local_type_parameters)
         for key, member in value.items():
             if key != "type_binders":
-                validate_kinded_type_parameter_scope(member, signature_scope)
+                validate_kinded_type_parameter_scope(
+                    member,
+                    signature_scope,
+                    imports=imports,
+                    contract_binders=contract_binders,
+                    local_functions=local_functions,
+                )
         return
-    for member in value.values():
-        validate_kinded_type_parameter_scope(member, ambient_type_parameters)
+    application_fields = {
+        "application_slot", "contract", "callee_summary", "actual_arguments",
+        "substitution", "entry_world", "origin",
+    }
+    if application_fields == set(value):
+        _, target = resolve_contract_target(
+            value["contract"], imports, contract_binders, local_functions,
+        )
+        target_kinds = (
+            {
+                binder["slot"]: binder["kind"]
+                for binder in target["binders"]["type_binders"]
+            }
+            if target is not None
+            else {}
+        )
+        substitution = validate_contract_object(value["substitution"])
+        type_arguments = validate_contract_list(
+            substitution.get("type_arguments")
+        )
+        for argument in type_arguments:
+            argument = validate_contract_object(argument)
+            binder_slot = argument.get("binder_slot")
+            if binder_slot not in target_kinds:
+                # Domain equality is diagnosed by the application decoder.
+                continue
+            binder_kind_name = target_kinds[binder_slot]
+            reject(
+                binder_kind_name not in {"Type", "Effect"},
+                "contract-component-kind-mismatch",
+            )
+            validate_kinded_type_parameter_scope(
+                argument.get("value"),
+                ambient_type_parameters,
+                expected_kind=binder_kind_name,
+                imports=imports,
+                contract_binders=contract_binders,
+                local_functions=local_functions,
+            )
+        for key, member in value.items():
+            if key == "substitution":
+                for field, entries in substitution.items():
+                    if field == "type_arguments":
+                        continue
+                    validate_kinded_type_parameter_scope(
+                        entries,
+                        ambient_type_parameters,
+                        imports=imports,
+                        contract_binders=contract_binders,
+                        local_functions=local_functions,
+                    )
+                continue
+            validate_kinded_type_parameter_scope(
+                member,
+                ambient_type_parameters,
+                imports=imports,
+                contract_binders=contract_binders,
+                local_functions=local_functions,
+            )
+        return
+    for key, member in value.items():
+        validate_kinded_type_parameter_scope(
+            member,
+            ambient_type_parameters,
+            expected_kind="Effect" if key == "family" else "Type",
+            imports=imports,
+            contract_binders=contract_binders,
+            local_functions=local_functions,
+        )
 
 
 def is_authority_bearing_type(type_ref: Any) -> bool:
@@ -2991,9 +3239,8 @@ def validate_function_contract(
     validate_declaration_binders(binders, closure_environment)
     contract_binders = {binder["slot"]: binder for binder in binders.get("contract_binders", [])}
     ambient_type_parameters = {
-        binder["slot"]
+        binder["slot"]: binder["kind"]
         for binder in binders["type_binders"]
-        if binder["kind"] == "Type"
     }
     validate_kinded_type_parameter_scope(
         [
@@ -3002,6 +3249,9 @@ def validate_function_contract(
             contract["applications"], contract["computation"],
         ],
         ambient_type_parameters,
+        imports=imports,
+        contract_binders=contract_binders,
+        local_functions=local_functions,
     )
     declaration_kind = contract["declaration_kind"]
     if declaration_kind is not None:
@@ -3100,6 +3350,12 @@ def validate_handler_contract(
     imports = imports or ImportScope()
     local_functions = local_functions or {}
     exact_fields(contract, {"handled_entry", "prompt_slot", "residual_row", "attributed_demand", "suspension", "semantic_summary", "required_phase", "handler_environment", "applications", "return_computation", "clause_computations"}, "HandlerContractV2")
+    validate_kinded_type_parameter_scope(
+        contract,
+        {},
+        imports=imports,
+        local_functions=local_functions,
+    )
     validate_u32(contract["prompt_slot"], "HandlerContractV2 prompt_slot")
     validate_effect_entry_selector(contract["handled_entry"])
     for binding in contract["handler_environment"]:
@@ -5177,6 +5433,8 @@ def validate_document(document: dict[str, Any], directory: Path) -> None:
         validate_handler_oracle(document, directory)
     elif artifact == "CireLocalContractOracleV2":
         validate_local_contract_oracle(document)
+    elif artifact == "EffectFamilyDeclarationsV1":
+        validate_effect_family_declarations(document)
     else:
         raise AssertionError(f"unknown interface artifact: {artifact}")
 
@@ -7562,6 +7820,19 @@ def main() -> int:
         "task-35 complete-root regressions failed:\n" + task35_result.stdout,
     )
     task35_probe_count = 13
+    task45_result = subprocess.run(
+        [sys.executable, str(TASK45_REGRESSIONS), str(ROOT.parent.parent)],
+        check=False,
+        cwd=ROOT.parent.parent,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    require(
+        task45_result.returncode == 0,
+        "task-45 complete-root regressions failed:\n" + task45_result.stdout,
+    )
+    task45_probe_count = 21
     validate_normative_producer_alignment()
     print(
         f"PASS: {len(interface_paths)} interface artifacts, "
@@ -7573,7 +7844,8 @@ def main() -> int:
         f"{task31_probe_count} task-31 full-root probes, "
         f"{task33_probe_count} task-33 full-root probes, "
         f"{task34_probe_count} task-34 full-root probes, "
-        f"{task35_probe_count} task-35 full-root probes"
+        f"{task35_probe_count} task-35 full-root probes, "
+        f"{task45_probe_count} task-45 full-root probes"
     )
     return 0
 

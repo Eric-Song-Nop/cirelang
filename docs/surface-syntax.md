@@ -399,7 +399,7 @@ Ability 可以声明三种不同 kind 的 associated item；声明关键字就�
 pub(open) ability Store {
   type Key
   type Value
-  effect Fail : Raise[StoreError]
+  effect Fail
   effects Extra : Lacks[Blocking] = {}
 
   fun get(key : Key) -> Value ! {Fail}
@@ -435,26 +435,51 @@ def[A]![S : Store[Value = A]] load_as(
 
 Elaboration先按 ability declaration解析 named argument，再产生
 `AssocEq(S,item,value,kind)` evidence；不能把 `Fail = IoFailure` 当普通
-positional type argument，也不能在三个 kind间互换 projection。每个 required
-item必须恰好绑定一次，或使用声明处的同-kind default；unknown、duplicate、
-missing-without-default和 kind mismatch 都拒绝。Projection只有在对应 ability
-evidence可见时成立，且 replacement保持 declaration identity，不只比较短名字。
-这四种 failure统一在 Kind阶段稳定报告 `associated-contract-mismatch`；不能
-fall through成普通 positional generic或 unknown member诊断。
+positional type argument，也不能在三个 kind间互换 projection。这里有两个不同、
+不可混用的 completion context：
 
-Interface lowering不新增第二个 `AssociatedProjection` wire tag。对每个带 ability
-evidence的 generic Effect binder，exporter按 `(effect-binder slot, ability
+- generic constraint `S : Store[Value = A]` 的 named map是 **partial**。Resolver
+  按全部 associated declaration一次性给 `S::Key/Value/Fail/Extra` 分配确定 hidden
+  binder；显式 `Value=A` 只增加对应等式，未写出的 item保持 symbolic且仍可投影。
+  Generic omission **不应用 declaration default**；否则 `Extra={}` 会错误禁止合法
+  concrete witness覆写该 default；
+- concrete effect header的 map是 **total**。每个 item必须显式给出一次，或取声明处
+  same-kind default；missing-without-default稳定拒绝。完成后才可生成 total header
+  evidence并 substitute operation signature；
+- generic application用 concrete header的 total vector实例化全部 hidden binder，再在
+  ordinary type/row substitution之后验证 generic显式等式。因此 `Store[Value=A]`
+  applied to `FileStore[Value=Bytes]` 要求 `A=Bytes`。
+
+Unknown、duplicate与 kind mismatch在两个 context都拒绝；missing只对 concrete
+header拒绝。Projection只有在同 declaration-identity 的 generic或header evidence
+可见时成立，不只比较短名字；同一 binder从两个 ability得到同名 item且 surface无
+ability qualifier时也拒绝。这些 failure统一在 Kind阶段稳定报告
+`associated-contract-mismatch`，不能 fall through成普通 positional generic或
+unknown member诊断。
+
+Interface lowering不新增第二个 `AssociatedProjection` wire tag。对每个带 generic
+ability evidence的 Effect binder，exporter按 `(effect-binder slot, ability
 declaration identity, associated declaration ordinal)` 排序，一次性在现有 namespace
 分配 hidden binder：associated Type/Effect进入 `TypeBinderV1` 且保留各自 kind，
 associated EffectRow进入 `RowBinderV1`。Projection分别改写成现有
 `TypeParameterV2`、Effect-kind family reference或 `TailV1`；named equality/default
-进入同一 `ContractSubstitutionV2` 的 type/row argument。Concrete effect header则在
-export前直接 substitution。这样 import hash、alpha qualification与 scope沿用现有
+进入同一 `ContractSubstitutionV2` 的 type/row argument；generic omission仍产生
+symbolic slot，不产生 default equality。Concrete effect header则在 export前完成
+explicit/default total substitution。这样 import hash、alpha qualification与 scope沿用现有
 wire contract，不会因 source projection增加未版本化 variant；所有 hidden binder的
-origin仍指回原 projection/ability declaration。
+origin仍指回原 projection/ability declaration。Effect-family position中的
+nominal reference还必须由 producer/import declaration environment按 module-qualified
+identity解析为 Effect且 arity exact，不能仅凭 `NominalTypeV1` shape猜 kind；
+repository complete roots以可消费的 `EffectFamilyDeclarationsV1`冻结该环境。
 
-TR₀ 没有 `where` clause、递归 associated equality或 higher-ranked associated
-item；Appendix A 不识别这些候选拼写，未来 profile不得由实现私自扩展。
+TR₀ 当前 wire只可为 associated EffectRow携带 `Lacks[e]`：generic hidden
+`RowBinderV1`继承该 evidence，concrete explicit/default row必须证明它。Appendix A
+为了稳定 recovery仍识别 associated Type constraint、associated Effect ability
+constraint与 nonempty associated `TypeParams`，但这些 evidence/arity尚无 retained
+wire表示，必须在 body/default检查前分别稳定拒绝
+`associated-declaration-constraint-not-in-profile` 与
+`associated-parameterization-not-in-profile`。TR₀ 也没有 `where` clause、递归
+associated equality或 higher-ranked associated item；未来 profile不得由实现私自扩展。
 
 ### 4.5 Effect-header ability conformance 与独立 `impl`
 
@@ -1353,8 +1378,11 @@ EffectArg            <- RowExpr / Type
 这由 binder shape 唯一决定。`app : cap F` 是 term binder，不进入 generic
 list。`AssociatedArgument` 的 `UpperIdent =` lookahead先于 positional `Type`；
 resolver按 ability declaration把右侧重分类到 `Type`、`Effect` 或
-`EffectRow`，并按 §4.4拒绝 non-ability target、unknown、duplicate、missing或
-kind mismatch。
+`EffectRow`，并按 §4.4区分 partial generic constraint与 total concrete header；
+两者都拒绝 non-ability target、unknown、duplicate与 kind mismatch，只有 concrete
+header拒绝 missing-without-default。Associated Type/Effect declaration constraint与
+任意 nonempty associated `TypeParams` 虽有 recovery CST，分别在 Kind阶段走本
+profile的 registered stable reject。
 
 `RowPredicate` 的通用 CST只为明确 profile boundary而保留。本 profile在 RowWF
 只接受名称 `Lacks`、恰好一个可解析 row entry argument；`Has`、`All`、`Only`
