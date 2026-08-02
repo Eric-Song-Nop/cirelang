@@ -332,6 +332,25 @@ ApplicationScope = dict[int, dict[str, Any]]
 LocalFunctionScope = dict[int, dict[str, Any]]
 
 
+class DeclarationScope:
+    """The complete lexical declaration tables inherited by inline handlers."""
+
+    def __init__(
+        self,
+        *,
+        type_parameter_kinds: dict[int, str],
+        row_binders: dict[int, dict[str, Any]],
+        contract_binders: dict[int, dict[str, Any]],
+        identity_binders: dict[int, dict[str, Any]],
+        handler_contract_binders: set[int],
+    ) -> None:
+        self.type_parameter_kinds = type_parameter_kinds
+        self.row_binders = row_binders
+        self.contract_binders = contract_binders
+        self.identity_binders = identity_binders
+        self.handler_contract_binders = handler_contract_binders
+
+
 class ImportScope(dict[str, dict[str, Any]]):
     """Hash-indexed imported contracts plus their exact exported identities."""
 
@@ -727,6 +746,58 @@ def validate_lexical_effect_selector_scope(
         )
 
 
+def validate_lexical_row_scope(
+    value: Any,
+    *,
+    row_binders: dict[int, dict[str, Any]],
+) -> None:
+    """Resolve Row references without crossing an inline function declaration."""
+
+    if isinstance(value, list):
+        for member in value:
+            validate_lexical_row_scope(member, row_binders=row_binders)
+        return
+    if not isinstance(value, dict):
+        return
+    if value.get("artifact") == "FunctionContractV2":
+        return
+    if set(value) == {"namespace", "slot"} and value.get("namespace") == "Row":
+        reject(
+            value.get("slot") not in row_binders,
+            "contract-projection-escapes-scope",
+        )
+        return
+    for member in value.values():
+        validate_lexical_row_scope(member, row_binders=row_binders)
+
+
+def validate_lexical_slot_scope(
+    value: Any,
+    *,
+    slot_scopes: dict[str, set[int]],
+) -> None:
+    """Close ordinary slot references at the current declaration boundary."""
+
+    if isinstance(value, list):
+        for member in value:
+            validate_lexical_slot_scope(member, slot_scopes=slot_scopes)
+        return
+    if not isinstance(value, dict):
+        return
+    if value.get("artifact") == "FunctionContractV2":
+        return
+    if set(value) == {"namespace", "slot"}:
+        namespace = value.get("namespace")
+        if namespace in slot_scopes:
+            reject(
+                value.get("slot") not in slot_scopes[namespace],
+                "contract-projection-escapes-scope",
+            )
+        return
+    for member in value.values():
+        validate_lexical_slot_scope(member, slot_scopes=slot_scopes)
+
+
 def validate_transition(transition: dict[str, Any]) -> None:
     kind = transition.get("kind")
     if kind in {"BottomTransitionV1", "SameWorldV1"}:
@@ -1070,7 +1141,12 @@ def validate_scoped_slot_v2(
         )
 
 
-def validate_contract_kind(kind: dict[str, Any], returns: ReturnScope) -> None:
+def validate_contract_kind(
+    kind: dict[str, Any],
+    returns: ReturnScope,
+    *,
+    declaration_scope: DeclarationScope | None = None,
+) -> None:
     tag = kind.get("kind")
     fields = {
         "FunctionContractKindV2": {"kind", "parameter_type", "result_type", "visible_row"},
@@ -1083,22 +1159,37 @@ def validate_contract_kind(kind: dict[str, Any], returns: ReturnScope) -> None:
     exact_fields(kind, fields[tag], tag)
     for key in ("parameter_type", "result_type", "payload_type", "argument_type", "answer_type", "input_type"):
         if key in kind:
-            validate_type_v2(kind[key], returns=returns)
+            validate_type_v2(
+                kind[key], returns=returns,
+                declaration_scope=declaration_scope,
+            )
     if "family" in kind:
         family = validate_contract_object(kind["family"])
         if family.get("kind") == "LegacyTypeRefV2":
             family = family["value"]
-        validate_effect_family_ref(family)
+        validate_effect_family_ref(
+            family,
+            declaration_scope.type_parameter_kinds
+            if declaration_scope is not None
+            else None,
+        )
     if "clock" in kind:
         validate_slot_v1(kind["clock"], "Clock")
     if tag == "FunctionContractKindV2":
         validate_row_expr(kind["visible_row"])
 
 
-def validate_contract_parameter(parameter: dict[str, Any], returns: ReturnScope) -> None:
+def validate_contract_parameter(
+    parameter: dict[str, Any],
+    returns: ReturnScope,
+    *,
+    declaration_scope: DeclarationScope | None = None,
+) -> None:
     exact_fields(parameter, {"slot", "kind"}, "ContractParameterV2")
     validate_u32(parameter["slot"], "ContractParameterV2 slot")
-    validate_contract_kind(parameter["kind"], returns)
+    validate_contract_kind(
+        parameter["kind"], returns, declaration_scope=declaration_scope,
+    )
 
 
 def validate_contract_ref(
@@ -1108,6 +1199,7 @@ def validate_contract_ref(
     imports: ImportScope,
     contract_binders: dict[int, dict[str, Any]],
     local_functions: LocalFunctionScope,
+    declaration_scope: DeclarationScope | None = None,
 ) -> None:
     tag = reference.get("kind")
     if tag == "ImportedFunctionRefV2":
@@ -1129,7 +1221,10 @@ def validate_contract_ref(
         )
     elif tag == "ContractParameterRefV2":
         exact_fields(reference, {"kind", "parameter"}, tag)
-        validate_contract_parameter(reference["parameter"], returns)
+        validate_contract_parameter(
+            reference["parameter"], returns,
+            declaration_scope=declaration_scope,
+        )
         slot_number = reference["parameter"]["slot"]
         reject(slot_number not in contract_binders, "contract-projection-escapes-scope")
         reject(reference["parameter"]["kind"] != binder_kind(contract_binders[slot_number]), "contract-component-kind-mismatch")
@@ -1137,7 +1232,12 @@ def validate_contract_ref(
         raise Diagnostic("contract-component-kind-mismatch")
 
 
-def validate_later_contract(later: dict[str, Any], returns: ReturnScope) -> None:
+def validate_later_contract(
+    later: dict[str, Any],
+    returns: ReturnScope,
+    *,
+    declaration_scope: DeclarationScope | None = None,
+) -> None:
     later = validate_contract_object(later)
     exact_fields(later, {"provenance", "capture", "semantic_summary", "required_phase"}, "LaterContractV2")
     validate_provenance(later["provenance"], returns)
@@ -1154,6 +1254,7 @@ def validate_type_v2(
     imports: ImportScope | None = None,
     contract_binders: dict[int, dict[str, Any]] | None = None,
     local_functions: LocalFunctionScope | None = None,
+    declaration_scope: DeclarationScope | None = None,
     defer_function_contract_shape: bool = False,
 ) -> None:
     returns = returns or {}
@@ -1161,6 +1262,13 @@ def validate_type_v2(
     imports = imports or ImportScope()
     contract_binders = contract_binders or {}
     local_functions = local_functions or {}
+    declaration_scope = declaration_scope or DeclarationScope(
+        type_parameter_kinds={},
+        row_binders={},
+        contract_binders=contract_binders,
+        identity_binders={},
+        handler_contract_binders=set(),
+    )
     type_ref = validate_contract_object(type_ref)
     kind = type_ref.get("kind")
     schemas = {
@@ -1196,17 +1304,19 @@ def validate_type_v2(
         validate_u32(type_ref["slot"], "TypeParameterV2 slot")
     elif kind in {"NominalTypeV2", "ApplyTypeV2"}:
         for argument in type_ref["arguments"]:
-            validate_type_v2(argument, returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+            validate_type_v2(argument, returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
     elif kind == "FunctionTypeV2":
-        validate_type_v2(type_ref["parameter"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
-        validate_type_v2(type_ref["result"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+        validate_type_v2(type_ref["parameter"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
+        validate_type_v2(type_ref["result"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
         contract = type_ref["contract"]
         if contract.get("artifact") == "FunctionContractV2":
             validate_function_contract(contract, imports=imports, local_functions=local_functions)
             resolved_kind = contract["declaration_kind"]
             check_shape = True
         elif isinstance(contract.get("kind"), dict) and isinstance(contract.get("slot"), int):
-            validate_contract_parameter(contract, returns)
+            validate_contract_parameter(
+                contract, returns, declaration_scope=declaration_scope,
+            )
             reject(contract["slot"] not in contract_binders, "contract-projection-escapes-scope")
             resolved_kind = binder_kind(contract_binders[contract["slot"]])
             reject(contract["kind"] != resolved_kind, "contract-component-kind-mismatch")
@@ -1218,6 +1328,7 @@ def validate_type_v2(
                 imports=imports,
                 contract_binders=contract_binders,
                 local_functions=local_functions,
+                declaration_scope=declaration_scope,
             )
             resolved_kind, _ = resolve_contract_target(contract, imports, contract_binders, local_functions)
             # Only an AppliedContractV2 callee may defer this comparison until
@@ -1235,47 +1346,90 @@ def validate_type_v2(
         family = validate_contract_object(type_ref["family"])
         if family.get("kind") == "LegacyTypeRefV2":
             family = family["value"]
-        validate_effect_family_ref(family)
+        validate_effect_family_ref(
+            family, declaration_scope.type_parameter_kinds,
+        )
     elif kind == "NextTypeV2":
         validate_slot_v1(type_ref["clock"], "Clock")
-        validate_type_v2(type_ref["payload"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+        validate_type_v2(type_ref["payload"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
         later = validate_contract_object(type_ref["later_contract"])
         if isinstance(later.get("kind"), dict):
-            validate_contract_parameter(later, returns)
+            validate_contract_parameter(
+                later, returns, declaration_scope=declaration_scope,
+            )
             reject(later["slot"] not in contract_binders, "contract-projection-escapes-scope")
             reject(later["kind"] != binder_kind(contract_binders[later["slot"]]), "contract-component-kind-mismatch")
         else:
-            validate_later_contract(later, returns)
+            validate_later_contract(
+                later, returns, declaration_scope=declaration_scope,
+            )
     elif kind in {"OwnerTypeV2", "OwnerIndexedTypeV2", "ResourceTypeV2", "PackedNextTypeV2"}:
         validate_slot_v1(type_ref["owner"], "Owner")
         for key in ("payload", "value", "cleanup_result"):
             if type_ref.get(key) is not None:
-                validate_type_v2(type_ref[key], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+                validate_type_v2(type_ref[key], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
         if kind == "OwnerIndexedTypeV2":
             no_payload = type_ref["constructor"] in {"CommitTicket", "CommitGate"}
             require((type_ref["payload"] is None) == no_payload, "OwnerIndexedTypeV2 payload")
     elif kind == "SignalTypeV2":
         validate_slot_v1(type_ref["clock"], "Clock")
-        validate_type_v2(type_ref["payload"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+        validate_type_v2(type_ref["payload"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
     elif kind == "PlanTypeV2":
-        validate_type_v2(type_ref["payload"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+        validate_type_v2(type_ref["payload"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
     elif kind == "ResumeTypeRefV2":
-        validate_resume(type_ref["value"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+        validate_resume(type_ref["value"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
     elif kind == "HandlerTemplateTypeV2":
         family = validate_contract_object(type_ref["family"])
         if family.get("kind") == "LegacyTypeRefV2":
             family = family["value"]
-        validate_effect_family_ref(family)
+        validate_effect_family_ref(
+            family, declaration_scope.type_parameter_kinds,
+        )
         for key in ("input", "answer"):
-            validate_type_v2(type_ref[key], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+            validate_type_v2(type_ref[key], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
         validate_slot_v1(type_ref["owner"], "Owner")
+        validate_row_expr(type_ref["residual_row"])
+        validate_row_selector_scope(
+            type_ref["residual_row"],
+            type_parameter_kinds=declaration_scope.type_parameter_kinds,
+            identity_binders=declaration_scope.identity_binders,
+            handler_contract_binders=declaration_scope.handler_contract_binders,
+        )
+        validate_lexical_row_scope(
+            type_ref["residual_row"],
+            row_binders=declaration_scope.row_binders,
+        )
         contract = type_ref["contract"]
         if isinstance(contract.get("kind"), dict):
-            validate_contract_parameter(contract, returns)
+            validate_contract_parameter(
+                contract, returns, declaration_scope=declaration_scope,
+            )
+            contract_slot = contract["slot"]
+            reject(
+                contract_slot
+                not in declaration_scope.handler_contract_binders,
+                "contract-projection-escapes-scope",
+            )
+            resolved_handler_kind = handler_binder_kind(
+                declaration_scope.contract_binders[contract_slot]
+            )
+            reject(
+                contract["kind"] != resolved_handler_kind,
+                "contract-component-kind-mismatch",
+            )
         else:
-            validate_handler_contract(contract, imports=imports, local_functions=local_functions)
+            validate_handler_contract(
+                contract,
+                imports=imports,
+                local_functions=local_functions,
+                type_parameter_kinds=declaration_scope.type_parameter_kinds,
+                row_binders=declaration_scope.row_binders,
+                contract_binders=declaration_scope.contract_binders,
+                identity_binders=declaration_scope.identity_binders,
+                handler_contract_binders=declaration_scope.handler_contract_binders,
+            )
     elif kind.startswith("ForAll") or kind == "ExistsClockPackageTypeV2":
-        validate_type_v2(type_ref["body"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+        validate_type_v2(type_ref["body"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
 
 
 def validate_world(world: dict[str, Any], returns: ReturnScope) -> None:
@@ -1630,6 +1784,7 @@ def validate_environment_binding(
     imports: ImportScope | None = None,
     contract_binders: dict[int, dict[str, Any]] | None = None,
     local_functions: LocalFunctionScope | None = None,
+    declaration_scope: DeclarationScope | None = None,
 ) -> None:
     binding = validate_contract_object(binding)
     exact_fields(binding, {"slot", "type", "provenance", "capture"}, "EnvironmentBindingV2")
@@ -1638,6 +1793,7 @@ def validate_environment_binding(
         binding["type"], returns=returns, applications=applications,
         imports=imports, contract_binders=contract_binders,
         local_functions=local_functions,
+        declaration_scope=declaration_scope,
     )
     validate_provenance(binding["provenance"], returns, disposition_binder=disposition_binder)
     validate_capture(binding["capture"], returns, disposition_binder=disposition_binder)
@@ -1668,6 +1824,7 @@ def validate_value_summary(
     imports: ImportScope | None = None,
     contract_binders: dict[int, dict[str, Any]] | None = None,
     local_functions: LocalFunctionScope | None = None,
+    declaration_scope: DeclarationScope | None = None,
     disposition_binder: dict[str, Any] | None = None,
     defer_function_contract_shape: bool = False,
 ) -> None:
@@ -1679,6 +1836,7 @@ def validate_value_summary(
         summary["type"], returns=returns, applications=applications,
         imports=imports, contract_binders=contract_binders,
         local_functions=local_functions,
+        declaration_scope=declaration_scope,
         defer_function_contract_shape=defer_function_contract_shape,
     )
     validate_nominal_index(summary["nominal_index"], returns)
@@ -1700,13 +1858,14 @@ def validate_return_binder(
     imports: ImportScope,
     contract_binders: dict[int, dict[str, Any]],
     local_functions: LocalFunctionScope,
+    declaration_scope: DeclarationScope | None = None,
     disposition_binder: dict[str, Any] | None = None,
 ) -> None:
     exact_fields(binder, {"slot", "type", "world", "nominal_index", "provenance", "capture", "usage"}, "ReturnBinderV2")
     validate_u32(binder["slot"], "return binder slot")
     reject(binder["slot"] in returns, "contract-projection-escapes-scope")
     reject(contains_return_ref({key: value for key, value in binder.items() if key != "slot"}, binder["slot"]), "contract-projection-escapes-scope")
-    validate_type_v2(binder["type"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+    validate_type_v2(binder["type"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
     validate_world(binder["world"], returns)
     validate_nominal_index(binder["nominal_index"], returns)
     validate_provenance(binder["provenance"], returns, disposition_binder=disposition_binder)
@@ -1744,6 +1903,7 @@ def validate_application_ledger(
     type_parameter_kinds: dict[int, str] | None = None,
     identity_binders: dict[int, dict[str, Any]] | None = None,
     handler_contract_binders: set[int] | None = None,
+    declaration_scope: DeclarationScope | None = None,
 ) -> ApplicationScope:
     applications: ApplicationScope = {}
     for application in ledger:
@@ -1762,6 +1922,7 @@ def validate_application_ledger(
             type_parameter_kinds=type_parameter_kinds,
             identity_binders=identity_binders,
             handler_contract_binders=handler_contract_binders,
+            declaration_scope=declaration_scope,
         )
     return applications
 
@@ -1775,14 +1936,16 @@ def validate_suffix(
     local_functions: LocalFunctionScope,
     disposition_binder: dict[str, Any] | None = None,
     row_binders: dict[int, dict[str, Any]] | None = None,
+    declaration_scope: DeclarationScope | None = None,
 ) -> None:
     exact_fields(suffix, {"answer_type", "applications", "computation", "cleanup", "live_bindings"}, "SuffixContractV2")
     applications = validate_application_ledger(
         suffix["applications"], returns=returns, imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
         row_binders=row_binders,
+        declaration_scope=declaration_scope,
     )
-    validate_type_v2(suffix["answer_type"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+    validate_type_v2(suffix["answer_type"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
     validate_cleanup(suffix["cleanup"])
     declared_live_keys: set[tuple[str, int]] = set()
     for binding in suffix["live_bindings"]:
@@ -1798,7 +1961,7 @@ def validate_suffix(
                 or binding_slot["value"]["slot"] != disposition_binder["slot"],
                 "handler-disposition-escapes-scope",
             )
-        validate_type_v2(binding["type"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+        validate_type_v2(binding["type"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
         validate_provenance(binding["provenance"], returns, disposition_binder=disposition_binder)
         validate_capture(binding["capture"], returns, disposition_binder=disposition_binder)
         if binding["usage"] is not None:
@@ -1809,6 +1972,7 @@ def validate_suffix(
         contract_binders=contract_binders, local_functions=local_functions,
         disposition_binder=disposition_binder,
         row_binders=row_binders,
+        declaration_scope=declaration_scope,
     )
 
 
@@ -1820,6 +1984,7 @@ def validate_resume(
     contract_binders: dict[int, dict[str, Any]] | None = None,
     local_functions: LocalFunctionScope | None = None,
     row_binders: dict[int, dict[str, Any]] | None = None,
+    declaration_scope: DeclarationScope | None = None,
 ) -> None:
     returns = returns or {}
     imports = imports or ImportScope()
@@ -1827,8 +1992,8 @@ def validate_resume(
     local_functions = local_functions or {}
     exact_fields(resumption, {"usage", "continuation", "argument", "answer", "live_provenance", "live_capture", "owner"}, "ResumeTypeV2")
     require(resumption["usage"] in {"Zero", "Once", "Many"}, "ResumeTypeV2 usage")
-    validate_type_v2(resumption["argument"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
-    validate_type_v2(resumption["answer"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+    validate_type_v2(resumption["argument"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
+    validate_type_v2(resumption["answer"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
     validate_provenance(resumption["live_provenance"], returns)
     validate_capture(resumption["live_capture"], returns)
     validate_slot_v1(resumption["owner"], "Owner")
@@ -1836,6 +2001,7 @@ def validate_resume(
         resumption["continuation"], returns=returns, imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
         row_binders=row_binders,
+        declaration_scope=declaration_scope,
     )
 
 
@@ -1847,6 +2013,7 @@ def validate_park(
     contract_binders: dict[int, dict[str, Any]] | None = None,
     local_functions: LocalFunctionScope | None = None,
     row_binders: dict[int, dict[str, Any]] | None = None,
+    declaration_scope: DeclarationScope | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     validate_wire_u32_fields(park)
     returns = returns or {}
@@ -1920,12 +2087,13 @@ def validate_park(
         },
         "park-required-phase-mismatch",
     )
-    validate_type_v2(source["value_type"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
-    validate_type_v2(port["value_type"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+    validate_type_v2(source["value_type"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
+    validate_type_v2(port["value_type"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
     validate_resume(
         resumption, returns=returns, imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
         row_binders=row_binders,
+        declaration_scope=declaration_scope,
     )
     return owner, resumption["owner"]
 
@@ -2059,7 +2227,12 @@ def validate_obligation(
         validate_effect_entry_selector(obligation["entry"])
 
 
-def validate_operation_signature(signature: dict[str, Any], returns: ReturnScope) -> None:
+def validate_operation_signature(
+    signature: dict[str, Any],
+    returns: ReturnScope,
+    *,
+    declaration_scope: DeclarationScope | None = None,
+) -> None:
     exact_fields(signature, {"type_binders", "parameters", "result", "mode", "transition", "suspension", "result_transformer", "required_phase", "obligation_ids", "secondary_sites"}, "OperationSignatureV2")
     type_binders = validate_contract_list(signature["type_binders"])
     for binder in type_binders:
@@ -2068,9 +2241,31 @@ def validate_operation_signature(signature: dict[str, Any], returns: ReturnScope
         len({binder["slot"] for binder in type_binders}) != len(type_binders),
         "contract-component-kind-mismatch",
     )
+    signature_scope = declaration_scope
+    if declaration_scope is not None:
+        local_type_parameter_kinds = dict(
+            declaration_scope.type_parameter_kinds
+        )
+        local_type_parameter_kinds.update(
+            {binder["slot"]: binder["kind"] for binder in type_binders}
+        )
+        signature_scope = DeclarationScope(
+            type_parameter_kinds=local_type_parameter_kinds,
+            row_binders=declaration_scope.row_binders,
+            contract_binders=declaration_scope.contract_binders,
+            identity_binders=declaration_scope.identity_binders,
+            handler_contract_binders=(
+                declaration_scope.handler_contract_binders
+            ),
+        )
     for parameter in validate_contract_list(signature["parameters"]):
-        validate_type_v2(parameter, returns=returns)
-    validate_type_v2(signature["result"], returns=returns)
+        validate_type_v2(
+            parameter, returns=returns, declaration_scope=signature_scope,
+        )
+    validate_type_v2(
+        signature["result"], returns=returns,
+        declaration_scope=signature_scope,
+    )
     reject(
         not isinstance(signature["mode"], str)
         or signature["mode"] not in {"fun", "once", "ctl", "abort"},
@@ -2109,17 +2304,21 @@ def validate_latent_site(
     local_functions: LocalFunctionScope,
     disposition_binder: dict[str, Any] | None = None,
     row_binders: dict[int, dict[str, Any]] | None = None,
+    declaration_scope: DeclarationScope | None = None,
 ) -> None:
     exact_fields(latent, {"site_slot", "stage", "receiver", "operation", "route", "actual_arguments", "instantiated_signature", "suffix", "secondary_sites", "call_obligation_ids", "install_obligation_ids", "origin"}, "LatentSiteV2")
     validate_u32(latent["site_slot"], "LatentSiteV2 site_slot")
     for local_id in [*latent["call_obligation_ids"], *latent["install_obligation_ids"]]:
         validate_u32(local_id, "LatentSiteV2 obligation id")
     for summary in latent["actual_arguments"]:
-        validate_value_summary(summary, returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, disposition_binder=disposition_binder)
+        validate_value_summary(summary, returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope, disposition_binder=disposition_binder)
     validate_operation_argument_scope(
         latent["actual_arguments"], len(latent["actual_arguments"]),
     )
-    validate_operation_signature(latent["instantiated_signature"], returns)
+    validate_operation_signature(
+        latent["instantiated_signature"], returns,
+        declaration_scope=declaration_scope,
+    )
     require(
         [summary["type"] for summary in latent["actual_arguments"]]
         == latent["instantiated_signature"]["parameters"],
@@ -2129,6 +2328,7 @@ def validate_latent_site(
         latent["suffix"], returns=returns, imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
         disposition_binder=disposition_binder, row_binders=row_binders,
+        declaration_scope=declaration_scope,
     )
 
 
@@ -2146,6 +2346,7 @@ def validate_forward_contract(
     handler_prompt_slot: int,
     nearest_outer_prompt_slot: int | None,
     row_binders: dict[int, dict[str, Any]] | None = None,
+    declaration_scope: DeclarationScope | None = None,
 ) -> None:
     exact_fields(forward, {"site_slot", "route", "entry", "operation", "continuation", "entry_world", "actual_argument_summaries", "instantiated_signature", "call_obligation_ids", "install_obligation_ids", "secondary_sites", "origin"}, "ForwardContractV2")
     validate_u32(forward["site_slot"], "ForwardContractV2 site_slot")
@@ -2178,12 +2379,15 @@ def validate_forward_contract(
         "forward-route-mismatch",
     )
     for summary in forward["actual_argument_summaries"]:
-        validate_value_summary(summary, returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, disposition_binder=disposition_binder)
+        validate_value_summary(summary, returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope, disposition_binder=disposition_binder)
     validate_operation_argument_scope(
         forward["actual_argument_summaries"],
         len(forward["actual_argument_summaries"]),
     )
-    validate_operation_signature(forward["instantiated_signature"], returns)
+    validate_operation_signature(
+        forward["instantiated_signature"], returns,
+        declaration_scope=declaration_scope,
+    )
     reject(
         [summary["type"] for summary in forward["actual_argument_summaries"]]
         != forward["instantiated_signature"]["parameters"],
@@ -2201,6 +2405,7 @@ def validate_forward_contract(
         forward["continuation"], returns=returns, imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
         disposition_binder=disposition_binder, row_binders=row_binders,
+        declaration_scope=declaration_scope,
     )
     resume_type = disposition_binder["type"]
     require(resume_type.get("kind") == "ResumeTypeRefV2", "ClauseDispositionBinderV2 type")
@@ -2232,6 +2437,7 @@ def validate_path(
     handled_entry: dict[str, Any] | None = None,
     handler_prompt_slot: int | None = None,
     nearest_outer_prompt_slot: int | None = None,
+    declaration_scope: DeclarationScope | None = None,
 ) -> None:
     exact_fields(path, {"outcome", "residual_row", "attributed_demand", "suspension", "semantic_summary", "usage", "required_phase", "ParametricObligations", "LatentSites"}, "PathContractV2")
     validate_row_expr(path["residual_row"])
@@ -2257,6 +2463,7 @@ def validate_path(
             latent, returns=returns, imports=imports,
             contract_binders=contract_binders, local_functions=local_functions,
             disposition_binder=disposition_binder, row_binders=row_binders,
+            declaration_scope=declaration_scope,
         )
         for local_id in latent["call_obligation_ids"]:
             reject(("Call", local_id) not in q_keys, "projected-obligation-stage-lost")
@@ -2279,6 +2486,7 @@ def validate_path(
             outcome["park_contract"], returns=returns, imports=imports,
             contract_binders=contract_binders, local_functions=local_functions,
             row_binders=row_binders,
+            declaration_scope=declaration_scope,
         )
         if parked_owner != resumption_owner:
             expected_shorter = {"kind": "LegacySlotRefV2", "value": resumption_owner}
@@ -2331,6 +2539,7 @@ def validate_path(
             handled_entry=handled_entry, handler_prompt_slot=handler_prompt_slot,
             nearest_outer_prompt_slot=nearest_outer_prompt_slot,
             row_binders=row_binders,
+            declaration_scope=declaration_scope,
         )
         inner_disposition = outcome["disposition_evidence"]["inner_disposition"]
         reject(
@@ -2460,6 +2669,7 @@ def validate_computation(
     handler_prompt_slot: int | None = None,
     nearest_outer_prompt_slot: int | None = None,
     allow_current_disposition_paths: bool = False,
+    declaration_scope: DeclarationScope | None = None,
 ) -> None:
     returns = returns or {}
     imports = imports or ImportScope()
@@ -2486,6 +2696,7 @@ def validate_computation(
                 clause_operation=clause_operation, handled_entry=handled_entry,
                 handler_prompt_slot=handler_prompt_slot,
                 nearest_outer_prompt_slot=nearest_outer_prompt_slot,
+                declaration_scope=declaration_scope,
             )
     elif kind == "LiteralPathsV2":
         exact_fields(computation, {"kind", "paths"}, kind)
@@ -2499,6 +2710,7 @@ def validate_computation(
                 clause_operation=clause_operation, handled_entry=handled_entry,
                 handler_prompt_slot=handler_prompt_slot,
                 nearest_outer_prompt_slot=nearest_outer_prompt_slot,
+                declaration_scope=declaration_scope,
             )
     elif kind == "InvokeV2":
         exact_fields(computation, {"kind", "application_slot"}, kind)
@@ -2514,11 +2726,13 @@ def validate_computation(
             handled_entry=handled_entry, handler_prompt_slot=handler_prompt_slot,
             nearest_outer_prompt_slot=nearest_outer_prompt_slot,
             allow_current_disposition_paths=context == "handler_clause",
+            declaration_scope=declaration_scope,
         )
         binder = computation["return_binder"]
         validate_return_binder(
             binder, returns, applications=applications, imports=imports,
             contract_binders=contract_binders, local_functions=local_functions,
+            declaration_scope=declaration_scope,
             disposition_binder=disposition_binder,
         )
         result_types = computation_return_types(
@@ -2544,6 +2758,7 @@ def validate_computation(
             clause_operation=clause_operation, handled_entry=handled_entry,
             handler_prompt_slot=handler_prompt_slot,
             nearest_outer_prompt_slot=nearest_outer_prompt_slot,
+            declaration_scope=declaration_scope,
         )
     elif kind == "JoinV2":
         exact_fields(computation, {"kind", "members"}, kind)
@@ -2557,6 +2772,7 @@ def validate_computation(
                 clause_operation=clause_operation, handled_entry=handled_entry,
                 handler_prompt_slot=handler_prompt_slot,
                 nearest_outer_prompt_slot=nearest_outer_prompt_slot,
+                declaration_scope=declaration_scope,
             )
     else:
         raise Diagnostic("unknown-contract-computation-variant")
@@ -2572,6 +2788,19 @@ def binder_kind(binder: dict[str, Any]) -> dict[str, Any]:
         "parameter_type": binder["parameter_type"],
         "result_type": binder["result_type"],
         "visible_row": binder["visible_row"],
+    }
+
+
+def handler_binder_kind(binder: dict[str, Any]) -> dict[str, Any]:
+    reject(
+        binder.get("kind") != "HandlerContractBinderV2",
+        "contract-component-kind-mismatch",
+    )
+    return {
+        "kind": "HandlerContractKindV2",
+        "family": binder["family"],
+        "input_type": binder["input_type"],
+        "answer_type": binder["answer_type"],
     }
 
 
@@ -3342,6 +3571,7 @@ def validate_application_instantiation(
     type_parameter_kinds: dict[int, str] | None = None,
     identity_binders: dict[int, dict[str, Any]] | None = None,
     handler_contract_binders: set[int] | None = None,
+    declaration_scope: DeclarationScope | None = None,
 ) -> None:
     returns = returns or {}
     applications = applications or {}
@@ -3350,21 +3580,31 @@ def validate_application_instantiation(
     local_functions = local_functions or {}
     row_binders = row_binders or {}
     type_parameter_kinds = type_parameter_kinds or {}
+    declaration_scope = declaration_scope or DeclarationScope(
+        type_parameter_kinds=type_parameter_kinds,
+        row_binders=row_binders,
+        contract_binders=contract_binders,
+        identity_binders=identity_binders or {},
+        handler_contract_binders=handler_contract_binders or set(),
+    )
     exact_fields(application, {"application_slot", "contract", "callee_summary", "actual_arguments", "substitution", "entry_world", "origin"}, "AppliedContractV2")
     validate_u32(application["application_slot"], "AppliedContractV2 application_slot")
     validate_contract_ref(
         application["contract"], returns, imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
+        declaration_scope=declaration_scope,
     )
     validate_value_summary(
         application["callee_summary"], returns, applications=applications,
         imports=imports, contract_binders=contract_binders,
         local_functions=local_functions, defer_function_contract_shape=True,
+        declaration_scope=declaration_scope,
     )
     for summary in application["actual_arguments"]:
         validate_value_summary(
             summary, returns, applications=applications, imports=imports,
             contract_binders=contract_binders, local_functions=local_functions,
+            declaration_scope=declaration_scope,
         )
     validate_operation_argument_scope(
         application["actual_arguments"], len(application["actual_arguments"]),
@@ -3389,11 +3629,22 @@ def validate_application_instantiation(
         for entry in substitution[field]:
             exact_fields(entry, expected_fields, field)
     for entry in substitution["type_arguments"]:
-        validate_type_v2(entry["value"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+        validate_type_v2(entry["value"], returns=returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
     for entry in substitution["row_arguments"]:
         validate_row_expr(entry["value"])
+        validate_row_selector_scope(
+            entry["value"],
+            type_parameter_kinds=declaration_scope.type_parameter_kinds,
+            identity_binders=declaration_scope.identity_binders,
+            handler_contract_binders=(
+                declaration_scope.handler_contract_binders
+            ),
+        )
+        validate_lexical_row_scope(
+            entry["value"], row_binders=declaration_scope.row_binders,
+        )
     for entry in substitution["contract_arguments"]:
-        validate_contract_ref(entry["contract"], returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+        validate_contract_ref(entry["contract"], returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
     for field, namespace in (("owner_arguments", "Owner"), ("identity_arguments", "Identity"), ("clock_arguments", "Clock")):
         for entry in substitution[field]:
             validate_slot_v1(entry["value"], namespace)
@@ -3431,6 +3682,7 @@ def validate_application_instantiation(
         imports=imports,
         contract_binders=contract_binders,
         local_functions=local_functions,
+        declaration_scope=declaration_scope,
     )
     validate_type_v2(
         instantiated["result_type"],
@@ -3438,18 +3690,24 @@ def validate_application_instantiation(
         imports=imports,
         contract_binders=contract_binders,
         local_functions=local_functions,
+        declaration_scope=declaration_scope,
     )
     validate_row_expr(instantiated["visible_row"])
-    if identity_binders is not None:
-        validate_instantiated_selector_scope(
-            application,
-            imports=imports,
-            contract_binders=contract_binders,
-            local_functions=local_functions,
-            type_parameter_kinds=type_parameter_kinds,
-            identity_binders=identity_binders,
-            handler_contract_binders=handler_contract_binders or set(),
-        )
+    validate_instantiated_selector_scope(
+        application,
+        imports=imports,
+        contract_binders=contract_binders,
+        local_functions=local_functions,
+        type_parameter_kinds=declaration_scope.type_parameter_kinds,
+        identity_binders=declaration_scope.identity_binders,
+        handler_contract_binders=(
+            declaration_scope.handler_contract_binders
+        ),
+    )
+    validate_lexical_row_scope(
+        instantiated["visible_row"],
+        row_binders=declaration_scope.row_binders,
+    )
     expected_callee_type = {
         "contract": application["contract"],
         "kind": "FunctionTypeV2",
@@ -3506,6 +3764,16 @@ def validate_function_contract(
         binder["slot"]: binder["kind"]
         for binder in binders["type_binders"]
     }
+    row_binders = {
+        binder["slot"]: binder for binder in binders["row_binders"]
+    }
+    declaration_scope = DeclarationScope(
+        type_parameter_kinds=ambient_type_parameters,
+        row_binders=row_binders,
+        contract_binders=contract_binders,
+        identity_binders=identity_binders,
+        handler_contract_binders=handler_contract_binders,
+    )
     validate_kinded_type_parameter_scope(
         [
             contract["declaration_kind"], binders["parameter_binders"],
@@ -3536,8 +3804,8 @@ def validate_function_contract(
             identity_binders=identity_binders,
             handler_contract_binders=handler_contract_binders,
         )
-        validate_type_v2(declaration_kind["parameter_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
-        validate_type_v2(declaration_kind["result_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+        validate_type_v2(declaration_kind["parameter_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
+        validate_type_v2(declaration_kind["result_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
         reject(
             [parameter["type"] for parameter in binders["parameter_binders"]]
             != application_parameter_types(declaration_kind["parameter_type"]),
@@ -3558,8 +3826,8 @@ def validate_function_contract(
                 identity_binders=identity_binders,
                 handler_contract_binders=handler_contract_binders,
             )
-            validate_type_v2(binder["parameter_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
-            validate_type_v2(binder["result_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+            validate_type_v2(binder["parameter_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
+            validate_type_v2(binder["result_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
         elif binder_tag == "HandlerContractBinderV2":
             reject(
                 set(binder)
@@ -3570,16 +3838,17 @@ def validate_function_contract(
             if family.get("kind") == "LegacyTypeRefV2":
                 family = family["value"]
             validate_effect_family_ref(family, ambient_type_parameters)
-            validate_type_v2(binder["input_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
-            validate_type_v2(binder["answer_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+            validate_type_v2(binder["input_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
+            validate_type_v2(binder["answer_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
         else:
             raise Diagnostic("contract-component-kind-mismatch")
     for parameter in binders.get("parameter_binders", []):
-        validate_type_v2(parameter["type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions)
+        validate_type_v2(parameter["type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
     for binding in closure_environment:
         validate_environment_binding(
             binding, {}, imports=imports, contract_binders=contract_binders,
             local_functions=local_functions,
+            declaration_scope=declaration_scope,
         )
     validate_operation_argument_scope(closure_environment, 0)
     parameter_scope = {binder["slot"] for binder in binders["parameter_binders"]}
@@ -3598,9 +3867,6 @@ def validate_function_contract(
         "Clock": {binder["slot"] for binder in binders["clock_binders"]},
         "Row": {binder["slot"] for binder in binders["row_binders"]},
     }
-    row_binders = {
-        binder["slot"]: binder for binder in binders["row_binders"]
-    }
     validate_lexical_effect_selector_scope(
         [
             contract["declaration_kind"], binders["parameter_binders"],
@@ -3616,6 +3882,7 @@ def validate_function_contract(
         contract["applications"], returns={}, imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
         row_binders=row_binders,
+        declaration_scope=declaration_scope,
         type_parameter_kinds=ambient_type_parameters,
         identity_binders=identity_binders,
         handler_contract_binders=handler_contract_binders,
@@ -3624,6 +3891,7 @@ def validate_function_contract(
         contract["computation"], applications, context="function", imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
         row_binders=row_binders,
+        declaration_scope=declaration_scope,
     )
     validate_lexical_application_instantiations(
         [
@@ -3638,18 +3906,14 @@ def validate_function_contract(
         identity_binders=identity_binders,
         handler_contract_binders=handler_contract_binders,
     )
-    for node in walk([
-        contract["declaration_kind"], binders["parameter_binders"],
-        binders["contract_binders"], contract["closure_environment"],
-        contract["applications"], contract["computation"],
-    ]):
-        if not isinstance(node, dict) or set(node) != {"namespace", "slot"}:
-            continue
-        if node["namespace"] in slot_scopes:
-            reject(
-                node["slot"] not in slot_scopes[node["namespace"]],
-                "contract-projection-escapes-scope",
-            )
+    validate_lexical_slot_scope(
+        [
+            contract["declaration_kind"], binders["parameter_binders"],
+            binders["contract_binders"], contract["closure_environment"],
+            contract["applications"], contract["computation"],
+        ],
+        slot_scopes=slot_scopes,
+    )
     validate_authority_bearing_usages(contract)
     validate_function_suffix_projections(contract)
 
@@ -3675,6 +3939,13 @@ def validate_handler_contract(
     contract_binders = contract_binders or {}
     identity_binders = identity_binders or {}
     handler_contract_binders = handler_contract_binders or set()
+    declaration_scope = DeclarationScope(
+        type_parameter_kinds=type_parameter_kinds,
+        row_binders=row_binders,
+        contract_binders=contract_binders,
+        identity_binders=identity_binders,
+        handler_contract_binders=handler_contract_binders,
+    )
     exact_fields(contract, {"handled_entry", "prompt_slot", "residual_row", "attributed_demand", "suspension", "semantic_summary", "required_phase", "handler_environment", "applications", "return_computation", "clause_computations"}, "HandlerContractV2")
     validate_kinded_type_parameter_scope(
         contract,
@@ -3697,10 +3968,18 @@ def validate_handler_contract(
         identity_binders=identity_binders,
         handler_contract_binders=handler_contract_binders,
     )
+    validate_lexical_effect_selector_scope(
+        contract,
+        type_parameter_kinds=type_parameter_kinds,
+        identity_binders=identity_binders,
+        handler_contract_binders=handler_contract_binders,
+    )
+    validate_lexical_row_scope(contract, row_binders=row_binders)
     for binding in contract["handler_environment"]:
         validate_environment_binding(
             binding, {}, imports=imports, contract_binders=contract_binders,
             local_functions=local_functions,
+            declaration_scope=declaration_scope,
         )
     validate_summary_normal_form(contract["semantic_summary"])
     validate_phase_requirement(contract["required_phase"])
@@ -3711,11 +3990,13 @@ def validate_handler_contract(
         type_parameter_kinds=type_parameter_kinds,
         identity_binders=identity_binders,
         handler_contract_binders=handler_contract_binders,
+        declaration_scope=declaration_scope,
     )
     validate_computation(
         contract["return_computation"], applications, context="handler_return",
         imports=imports, contract_binders=contract_binders,
         local_functions=local_functions, row_binders=row_binders,
+        declaration_scope=declaration_scope,
     )
     seen_operations: set[str] = set()
     for clause in contract["clause_computations"]:
@@ -3736,6 +4017,7 @@ def validate_handler_contract(
         validate_type_v2(
             disposition["type"], imports=imports,
             contract_binders=contract_binders, local_functions=local_functions,
+            declaration_scope=declaration_scope,
         )
         require(disposition["type"].get("kind") == "ResumeTypeRefV2", "ClauseDispositionBinderV2 type")
         validate_computation(
@@ -3745,6 +4027,7 @@ def validate_handler_contract(
             clause_operation=clause["operation"], handled_entry=contract["handled_entry"],
             handler_prompt_slot=contract["prompt_slot"],
             nearest_outer_prompt_slot=nearest_outer_prompt_slot,
+            declaration_scope=declaration_scope,
         )
     validate_lexical_application_instantiations(
         contract,
@@ -3755,16 +4038,6 @@ def validate_handler_contract(
         identity_binders=identity_binders,
         handler_contract_binders=handler_contract_binders,
     )
-    for node in walk(contract["residual_row"]):
-        if (
-            isinstance(node, dict)
-            and set(node) == {"namespace", "slot"}
-            and node["namespace"] == "Row"
-        ):
-            reject(
-                node["slot"] not in row_binders,
-                "contract-projection-escapes-scope",
-            )
     handler_slot_types = {
         (binding["slot"]["namespace"], binding["slot"]["slot"]): binding["type"]
         for binding in contract["handler_environment"]
@@ -8265,7 +8538,7 @@ def main() -> int:
         task46_result.returncode == 0,
         "task-46 complete-root regressions failed:\n" + task46_result.stdout,
     )
-    task46_probe_count = 24
+    task46_probe_count = 43
     validate_normative_producer_alignment()
     print(
         f"PASS: {len(interface_paths)} interface artifacts, "

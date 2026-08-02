@@ -2643,9 +2643,15 @@ contract内唯一。`InvokeV2` 必须在该 ledger解析；clause disposition bi
 只扩展其所属 `ClauseComputationV2.computation` 的 lexical context，不扩展
 handler return或其他 clause。位于 `CireHandlerContractOracleV2` 时，oracle
 `binders` 是整个 handler contract的 caller declaration environment：type/row/
-contract/identity table必须传入 applications与 computation ContractWF；
-`handled_entry`、`residual_row`以及每个 instantiated target public row都用同一
-identity/handler-contract table递归检查 selector scope与 family。V2
+contract/identity/handler-contract table必须传入 applications与 computation
+ContractWF；`handled_entry`、header residual row、return/clause path、latent site、
+nested suffix/cleanup、每层 application substitution及每个 instantiated target
+public row都用同一 table递归检查 kind、Row closure、selector scope与 family。
+普通 nested type中的 inline `HandlerContractV2`继承同一 table；inline
+`FunctionContractV2`则开始自己的 declaration scope。imported/local function
+target同样只按自身 declaration验证，caller scope仅支配 reference、substitution与
+实例化 public row。Return binder与 clause disposition binder仍分别只扩展自己的
+continuation/clause subtree，不得泄入 handler header、return或其他 clause。V2
 serializer/importer不得把其中任何一段降级成
 `ClauseFlowSetV1`、`SuffixContractV1` 或从旧 flow字段重建。
 

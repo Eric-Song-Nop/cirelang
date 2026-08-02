@@ -579,6 +579,422 @@ def handler_caller_scope_roots() -> None:
     )
 
 
+def handler_scope_family(name: str) -> dict[str, Any]:
+    return {
+        "arguments": [],
+        "kind": "NominalTypeV1",
+        "module": ["library"],
+        "name": name,
+    }
+
+
+def handler_scope_named_row(family_name: str) -> dict[str, Any]:
+    return {
+        "entries": [
+            {
+                "family": handler_scope_family(family_name),
+                "identity": {"namespace": "Identity", "slot": 999},
+                "kind": "NamedV1",
+            }
+        ],
+        "kind": "ClosedV1",
+    }
+
+
+def add_handler_scope_identity(
+    document: dict[str, Any],
+    family: dict[str, Any],
+) -> None:
+    document["binders"]["identity_binders"].append(
+        {
+            "binder": "FreshCap",
+            "family": family,
+            "identity_slot": 999,
+            "owner": {"namespace": "Owner", "slot": 0},
+        }
+    )
+
+
+def validate_handler_scope_root(document: dict[str, Any]) -> None:
+    v.validate_handler_oracle(document, INTERFACES)
+
+
+def embedded_handler_function_root() -> tuple[
+    dict[str, Any], dict[str, Any], Any
+]:
+    handler_oracle = load("handler-forward-contract.json")
+    imports = v.resolve_imports(handler_oracle, INTERFACES)
+    handler = copy.deepcopy(handler_oracle["handler_contract"])
+    handler["clause_computations"] = []
+    handler_family = copy.deepcopy(handler["handled_entry"]["family"])
+    handler["handled_entry"] = {
+        "family": handler_family,
+        "identity": {"namespace": "Identity", "slot": 999},
+        "kind": "NamedV1",
+    }
+
+    function = load("apply-later-function-contract.json")
+    add_handler_scope_identity(function, handler_family)
+    function["closure_environment"].append(
+        {
+            "capture": {
+                "kind": "LegacyCaptureExprV2",
+                "value": {"kind": "NoCaptureV1"},
+            },
+            "provenance": {
+                "kind": "LegacyProvenanceExprV2",
+                "value": {"kind": "StableV1"},
+            },
+            "slot": {"namespace": "ClosureCapture", "slot": 999},
+            "type": {
+                "answer": {
+                    "kind": "LegacyTypeRefV2",
+                    "value": {"kind": "BuiltinTypeV1", "name": "Int"},
+                },
+                "contract": handler,
+                "family": handler_family,
+                "input": {
+                    "kind": "LegacyTypeRefV2",
+                    "value": {"kind": "BuiltinTypeV1", "name": "Int"},
+                },
+                "kind": "HandlerTemplateTypeV2",
+                "owner": {"namespace": "Owner", "slot": 0},
+                "policy": "PersistentTemplateV1",
+                "residual_row": {"kind": "EmptyV1"},
+            },
+        }
+    )
+    return function, handler, imports
+
+
+def validate_embedded_handler_function_root() -> None:
+    function, handler, imports = embedded_handler_function_root()
+    binders = function["binders"]
+    v.validate_handler_contract(
+        copy.deepcopy(handler),
+        imports=imports,
+        type_parameter_kinds={
+            binder["slot"]: binder["kind"]
+            for binder in binders["type_binders"]
+        },
+        row_binders={
+            binder["slot"]: binder for binder in binders["row_binders"]
+        },
+        contract_binders={
+            binder["slot"]: binder
+            for binder in binders["contract_binders"]
+        },
+        identity_binders={
+            binder["identity_slot"]: binder
+            for binder in binders["identity_binders"]
+        },
+        handler_contract_binders={
+            binder["slot"]
+            for binder in binders["contract_binders"]
+            if binder.get("kind") == "HandlerContractBinderV2"
+        },
+    )
+    v.validate_function_contract(function, imports=imports)
+
+
+def validate_inline_function_fresh_scope_root() -> None:
+    """An inline function owns its Row table instead of capturing the outer one."""
+
+    function = load("apply-later-function-contract.json")
+    nested = load("apply-later-function-contract.json")
+    nested["binders"]["row_binders"].append({"slot": 999, "lacks": []})
+    nested_row_members = [
+        copy.deepcopy(nested["declaration_kind"]["visible_row"]),
+        recursive_scope_tail(999),
+    ]
+    nested["declaration_kind"]["visible_row"] = {
+        "kind": "UnionV1",
+        "members": sorted(nested_row_members, key=v.jcs),
+    }
+    v.validate_function_contract(nested)
+    function["closure_environment"].append(
+        {
+            "capture": {
+                "kind": "LegacyCaptureExprV2",
+                "value": {"kind": "NoCaptureV1"},
+            },
+            "provenance": {
+                "kind": "LegacyProvenanceExprV2",
+                "value": {"kind": "StableV1"},
+            },
+            "slot": {"namespace": "ClosureCapture", "slot": 999},
+            "type": {
+                "contract": nested,
+                "kind": "FunctionTypeV2",
+                "parameter": copy.deepcopy(
+                    nested["declaration_kind"]["parameter_type"]
+                ),
+                "result": copy.deepcopy(
+                    nested["declaration_kind"]["result_type"]
+                ),
+            },
+        }
+    )
+    v.validate_function_contract(function)
+
+
+def handler_computation_scope_roots() -> None:
+    same_family = load("handler-forward-contract.json")
+    add_handler_scope_identity(same_family, handler_scope_family("Choice"))
+    same_family["handler_contract"]["return_computation"]["continuation"][
+        "paths"
+    ][0]["residual_row"] = handler_scope_named_row("Choice")
+    validate_handler_scope_root(same_family)
+
+    wrong_return_family = copy.deepcopy(same_family)
+    wrong_return_family["handler_contract"]["return_computation"][
+        "continuation"
+    ]["paths"][0]["residual_row"] = handler_scope_named_row("IoFailure")
+    expect_diagnostic(
+        "wrong-family handler return-computation Named selector",
+        "contract-component-kind-mismatch",
+        lambda: validate_handler_scope_root(wrong_return_family),
+    )
+
+    wrong_clause_family = copy.deepcopy(same_family)
+    wrong_clause_family["handler_contract"]["clause_computations"][0][
+        "computation"
+    ]["prefix"]["paths"][0]["residual_row"] = handler_scope_named_row(
+        "IoFailure"
+    )
+    expect_diagnostic(
+        "wrong-family handler clause-computation Named selector",
+        "contract-component-kind-mismatch",
+        lambda: validate_handler_scope_root(wrong_clause_family),
+    )
+
+    unbound_return_tail = load("handler-forward-contract.json")
+    unbound_return_tail["handler_contract"]["return_computation"][
+        "continuation"
+    ]["paths"][0]["residual_row"] = {
+        "kind": "TailV1",
+        "row_slot": {"namespace": "Row", "slot": 4242},
+    }
+    expect_diagnostic(
+        "unbound handler return-computation Row tail",
+        "contract-projection-escapes-scope",
+        lambda: validate_handler_scope_root(unbound_return_tail),
+    )
+
+    validate_embedded_handler_function_root()
+
+
+def recursive_scope_nominal(
+    module: list[str], name: str,
+) -> dict[str, Any]:
+    return {
+        "arguments": [],
+        "kind": "NominalTypeV1",
+        "module": module,
+        "name": name,
+    }
+
+
+def recursive_scope_tail(slot_number: int) -> dict[str, Any]:
+    return {
+        "kind": "TailV1",
+        "row_slot": {"namespace": "Row", "slot": slot_number},
+    }
+
+
+def recursive_scope_union(slot_number: int) -> dict[str, Any]:
+    members = [{"kind": "EmptyV1"}, recursive_scope_tail(slot_number)]
+    return {"kind": "UnionV1", "members": sorted(members, key=v.jcs)}
+
+
+def recursive_scope_receiver(document: dict[str, Any]) -> dict[str, Any]:
+    return document["handler_contract"]["clause_computations"][0][
+        "computation"
+    ]["continuation"]["paths"][0]["LatentSites"][0]
+
+
+def recursive_scope_clause_path(document: dict[str, Any]) -> dict[str, Any]:
+    return document["handler_contract"]["clause_computations"][0][
+        "computation"
+    ]["continuation"]["paths"][0]
+
+
+def recursive_scope_return_path(document: dict[str, Any]) -> dict[str, Any]:
+    return document["handler_contract"]["return_computation"]["continuation"][
+        "paths"
+    ][0]
+
+
+def recursive_scope_row_target() -> tuple[dict[str, Any], dict[str, Any]]:
+    target = load("choose-once-function-contract.json")
+    target["binders"]["row_binders"].append({"slot": 999, "lacks": []})
+    original_row = copy.deepcopy(target["declaration_kind"]["visible_row"])
+    members = [original_row, recursive_scope_tail(999)]
+    target["declaration_kind"]["visible_row"] = {
+        "kind": "UnionV1",
+        "members": sorted(members, key=v.jcs),
+    }
+    v.validate_function_contract(target)
+
+    oracle = load("handler-forward-contract.json")
+    old_hash = oracle["imports"][0]["artifact_hash"]
+    oracle = replace_scalar(oracle, old_hash, v.canonical_hash(target))
+    return target, oracle
+
+
+def validate_recursive_scope_target(
+    oracle: dict[str, Any], target: dict[str, Any]
+) -> None:
+    with tempfile.TemporaryDirectory(prefix="cire-task46-recursive-scope.") as name:
+        directory = Path(name)
+        (directory / "choose-once-function-contract.json").write_text(
+            v.jcs(target) + "\n", encoding="utf-8"
+        )
+        v.validate_handler_oracle(oracle, directory)
+
+
+def handler_recursive_descendant_scope_roots() -> None:
+    baseline = load("handler-forward-contract.json")
+    validate_handler_scope_root(baseline)
+
+    top_bound = load("handler-forward-contract.json")
+    top_bound["binders"]["row_binders"].append({"slot": 999, "lacks": []})
+    top_bound["handler_contract"]["residual_row"] = recursive_scope_union(999)
+    validate_handler_scope_root(top_bound)
+
+    top_unbound = load("handler-forward-contract.json")
+    top_unbound["handler_contract"]["residual_row"] = recursive_scope_union(
+        4242
+    )
+    expect_diagnostic(
+        "top-level handler residual Union has unbound Tail",
+        "contract-projection-escapes-scope",
+        lambda: validate_handler_scope_root(top_unbound),
+    )
+
+    return_bound = load("handler-forward-contract.json")
+    return_bound["binders"]["row_binders"].append(
+        {"slot": 999, "lacks": []}
+    )
+    recursive_scope_return_path(return_bound)["residual_row"] = (
+        recursive_scope_union(999)
+    )
+    validate_handler_scope_root(return_bound)
+
+    return_unbound = load("handler-forward-contract.json")
+    recursive_scope_return_path(return_unbound)["residual_row"] = (
+        recursive_scope_union(4242)
+    )
+    expect_diagnostic(
+        "return computation residual Union has unbound Tail",
+        "contract-projection-escapes-scope",
+        lambda: validate_handler_scope_root(return_unbound),
+    )
+
+    clause_unbound = load("handler-forward-contract.json")
+    recursive_scope_clause_path(clause_unbound)["residual_row"] = (
+        recursive_scope_union(4242)
+    )
+    expect_diagnostic(
+        "clause computation residual Union has unbound Tail",
+        "contract-projection-escapes-scope",
+        lambda: validate_handler_scope_root(clause_unbound),
+    )
+
+    cleanup_unbound = load("handler-forward-contract.json")
+    recursive_scope_receiver(cleanup_unbound)["suffix"]["cleanup"][
+        "residual_row"
+    ] = recursive_scope_tail(4242)
+    expect_diagnostic(
+        "nested suffix cleanup has unbound Row tail",
+        "contract-projection-escapes-scope",
+        lambda: validate_handler_scope_root(cleanup_unbound),
+    )
+
+    receiver_same = load("handler-forward-contract.json")
+    forwarding = recursive_scope_nominal(["fixtures"], "Forwarding")
+    add_handler_scope_identity(receiver_same, forwarding)
+    recursive_scope_receiver(receiver_same)["receiver"] = {
+        "kind": "NamedV1",
+        "identity": {"namespace": "Identity", "slot": 999},
+        "family": forwarding,
+    }
+    validate_handler_scope_root(receiver_same)
+
+    receiver_wrong = load("handler-forward-contract.json")
+    add_handler_scope_identity(
+        receiver_wrong, recursive_scope_nominal(["library"], "IoFailure")
+    )
+    recursive_scope_receiver(receiver_wrong)["receiver"] = {
+        "kind": "NamedV1",
+        "identity": {"namespace": "Identity", "slot": 999},
+        "family": forwarding,
+    }
+    expect_diagnostic(
+        "latent receiver Named identity family mismatch",
+        "contract-component-kind-mismatch",
+        lambda: validate_handler_scope_root(receiver_wrong),
+    )
+
+    receiver_unbound = load("handler-forward-contract.json")
+    recursive_scope_receiver(receiver_unbound)["receiver"] = {
+        "kind": "NamedV1",
+        "identity": {"namespace": "Identity", "slot": 4242},
+        "family": forwarding,
+    }
+    expect_diagnostic(
+        "latent receiver has unbound Identity",
+        "contract-projection-escapes-scope",
+        lambda: validate_handler_scope_root(receiver_unbound),
+    )
+
+    receiver_handler_only = load("handler-forward-contract.json")
+    recursive_scope_receiver(receiver_handler_only)["receiver"] = {
+        "kind": "HandlerEntryParameterV1",
+        "contract_slot": 4242,
+    }
+    expect_diagnostic(
+        "latent receiver has unbound handler selector",
+        "contract-projection-escapes-scope",
+        lambda: validate_handler_scope_root(receiver_handler_only),
+    )
+
+    target, application_unbound = recursive_scope_row_target()
+    application_unbound["handler_contract"]["applications"][0][
+        "substitution"
+    ]["row_arguments"].append(
+        {"binder_slot": 999, "value": recursive_scope_tail(4242)}
+    )
+    expect_diagnostic(
+        "handler application public row receives unbound caller Tail",
+        "contract-projection-escapes-scope",
+        lambda: validate_recursive_scope_target(application_unbound, target),
+    )
+
+    target, nested_unbound = recursive_scope_row_target()
+    top_application = nested_unbound["handler_contract"]["applications"][0]
+    top_application["substitution"]["row_arguments"].append(
+        {"binder_slot": 999, "value": {"kind": "EmptyV1"}}
+    )
+    nested_application = copy.deepcopy(top_application)
+    nested_application["application_slot"] = 777
+    nested_application["entry_world"] = {
+        "kind": "ApplicationEntryWorldV2",
+        "application_slot": 777,
+    }
+    nested_application["substitution"]["row_arguments"] = [
+        {"binder_slot": 999, "value": recursive_scope_tail(4242)}
+    ]
+    recursive_scope_receiver(nested_unbound)["suffix"]["applications"].append(
+        nested_application
+    )
+    expect_diagnostic(
+        "nested suffix application receives unbound caller Tail",
+        "contract-projection-escapes-scope",
+        lambda: validate_recursive_scope_target(nested_unbound, target),
+    )
+
+
 catalog_roots()
 row_scope_roots()
 handler_entry_lacks_roots()
@@ -587,4 +1003,7 @@ public_selector_scope_roots()
 used_nominal_effect_roots()
 imported_identity_substitution_roots()
 handler_caller_scope_roots()
-print("PASS: 24 task-46 exact-schema/scope/substitution complete-root probes")
+handler_computation_scope_roots()
+handler_recursive_descendant_scope_roots()
+validate_inline_function_fresh_scope_root()
+print("PASS: 43 task-46 exact-schema/scope/substitution complete-root probes")
