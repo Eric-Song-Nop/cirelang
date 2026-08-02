@@ -873,7 +873,11 @@ encoding；若 nominal Effect在 `TypeSubstitutionV2.value`中以
 `NominalTypeV1`，Type position则保留 wrapper。两个 domain不得按相同
 object shape互换。替换后 importer必须对完整 instantiated
 `FunctionContractKindV2`（包括 `visible_row`）重跑 exact/kind/row WF，不能只比较
-parameter/result。OwnerRegion binder不由
+parameter/result。每个 `IdentitySubstitutionV2.binder_slot` 先在 target identity
+binder table解析，其 family在同一 type substitution下实例化；`value` 必须引用 caller
+live Identity declaration且 family结构相等，否则稳定
+`contract-component-kind-mismatch`。完整 instantiated `visible_row`随后还必须用 caller
+identity/handler-contract table重跑 selector scope/family WF。OwnerRegion binder不由
 `type_arguments` 实例化。Substitution domain exactness之后仍须检查 caller lexical
 scope；unbound projection稳定拒绝，wrong-kind value稳定
 `contract-component-kind-mismatch`。

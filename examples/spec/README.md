@@ -263,14 +263,15 @@ family、malformed Lacks container/entry以及未在 declaration environment解�
 Effect的普通 nominal Type，所有负例只返回 registered stable
 diagnostic。主 validator也以独立进程运行本 gate。
 
-`task46-regressions.py` 提交 19 个 schema-relative complete-root probes：catalog exact
+`task46-regressions.py` 提交 21 个 schema-relative complete-root probes：catalog exact
 shape一个正例与missing/extra-field两个稳定负例；public bound/unbound
 Row tail、contract-binder bound/unbound row与 nested-Union unbound tail；
 ordinary/handler-binder scope中的 `HandlerEntryParameterV1`；unbound/
 same-family/wrong-family Named Lacks identity，以及 public row的 matching/mismatched
 Named与 handler-only selector；最后是实际出现在 imported
 `visible_row`的 Effect binder用 nominal Effect实例化后，target、完整 handler
-import与完整 instantiated row均保持有效。主 validator同样以独立进程
+import与完整 instantiated row均保持有效；used Named identity substitution的
+same-family caller正例接受、different-family caller负例稳定拒绝。主 validator同样以独立进程
 运行本 gate。
 
 `diagnostics-v2.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；

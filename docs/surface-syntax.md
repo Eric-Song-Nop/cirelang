@@ -473,7 +473,10 @@ identity解析为 Effect且 arity exact，不能仅凭 `NominalTypeV1` shape猜 
 repository complete roots以可消费的 `EffectFamilyDeclarationsV1`冻结该环境。
 Importer对 Effect-kind substitution在 family position解包 nominal V2 legacy envelope，
 并对替换后的完整 function kind（含 public row）重做 WF；public与
-contract-binder row中的每个 `TailV1`都必须引用当前 Row binder。
+contract-binder row中的每个 `TailV1`都必须引用当前 Row binder。Identity
+substitution还必须把 target identity binder的已实例化 family与 caller live
+identity declaration逐一比较，并用 caller identity/handler-contract table重查
+instantiated public row中的每个 selector。
 
 TR₀ 当前 wire只可为 associated EffectRow携带 `Lacks[e]`：generic hidden
 `RowBinderV1`继承该 evidence，concrete explicit/default row必须证明它。Appendix A

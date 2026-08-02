@@ -1741,6 +1741,9 @@ def validate_application_ledger(
     contract_binders: dict[int, dict[str, Any]],
     local_functions: LocalFunctionScope,
     row_binders: dict[int, dict[str, Any]] | None = None,
+    type_parameter_kinds: dict[int, str] | None = None,
+    identity_binders: dict[int, dict[str, Any]] | None = None,
+    handler_contract_binders: set[int] | None = None,
 ) -> ApplicationScope:
     applications: ApplicationScope = {}
     for application in ledger:
@@ -1756,6 +1759,9 @@ def validate_application_ledger(
             contract_binders=contract_binders,
             local_functions=local_functions,
             row_binders=row_binders,
+            type_parameter_kinds=type_parameter_kinds,
+            identity_binders=identity_binders,
+            handler_contract_binders=handler_contract_binders,
         )
     return applications
 
@@ -3205,6 +3211,108 @@ def resolve_contract_target(
     raise Diagnostic("contract-component-kind-mismatch")
 
 
+def validate_instantiated_selector_scope(
+    application: dict[str, Any],
+    *,
+    imports: ImportScope,
+    contract_binders: dict[int, dict[str, Any]],
+    local_functions: LocalFunctionScope,
+    type_parameter_kinds: dict[int, str],
+    identity_binders: dict[int, dict[str, Any]],
+    handler_contract_binders: set[int],
+) -> None:
+    """Resolve an application's substituted identity domain and visible row."""
+
+    kind, target = resolve_contract_target(
+        application["contract"], imports, contract_binders, local_functions,
+    )
+    substitution = application["substitution"]
+    if target is not None:
+        target_identities = {
+            binder["identity_slot"]: binder
+            for binder in target["binders"]["identity_binders"]
+        }
+        for argument in substitution["identity_arguments"]:
+            actual = argument["value"]
+            actual_slot = actual["slot"]
+            reject(
+                actual.get("namespace") != "Identity"
+                or actual_slot not in identity_binders,
+                "contract-projection-escapes-scope",
+            )
+            expected_family = substitute_contract_kind(
+                {"family": target_identities[argument["binder_slot"]]["family"]},
+                substitution,
+            )["family"]
+            validate_effect_family_ref(expected_family, type_parameter_kinds)
+            reject(
+                identity_binders[actual_slot]["family"] != expected_family,
+                "contract-component-kind-mismatch",
+            )
+    instantiated = substitute_contract_kind(kind, substitution)
+    validate_row_selector_scope(
+        instantiated["visible_row"],
+        type_parameter_kinds=type_parameter_kinds,
+        identity_binders=identity_binders,
+        handler_contract_binders=handler_contract_binders,
+    )
+
+
+def validate_lexical_application_instantiations(
+    value: Any,
+    *,
+    imports: ImportScope,
+    contract_binders: dict[int, dict[str, Any]],
+    local_functions: LocalFunctionScope,
+    type_parameter_kinds: dict[int, str],
+    identity_binders: dict[int, dict[str, Any]],
+    handler_contract_binders: set[int],
+) -> None:
+    """Check every nested application under the current declaration scope."""
+
+    if isinstance(value, list):
+        for member in value:
+            validate_lexical_application_instantiations(
+                member,
+                imports=imports,
+                contract_binders=contract_binders,
+                local_functions=local_functions,
+                type_parameter_kinds=type_parameter_kinds,
+                identity_binders=identity_binders,
+                handler_contract_binders=handler_contract_binders,
+            )
+        return
+    if not isinstance(value, dict):
+        return
+    if value.get("artifact") == "FunctionContractV2":
+        return
+    application_fields = {
+        "application_slot", "contract", "callee_summary", "actual_arguments",
+        "substitution", "entry_world", "origin",
+    }
+    if set(value) == application_fields:
+        validate_instantiated_selector_scope(
+            value,
+            imports=imports,
+            contract_binders=contract_binders,
+            local_functions=local_functions,
+            type_parameter_kinds=type_parameter_kinds,
+            identity_binders=identity_binders,
+            handler_contract_binders=handler_contract_binders,
+        )
+        return
+    for member in value.values():
+        validate_lexical_application_instantiations(
+            member,
+            imports=imports,
+            contract_binders=contract_binders,
+            local_functions=local_functions,
+            type_parameter_kinds=type_parameter_kinds,
+            identity_binders=identity_binders,
+            handler_contract_binders=handler_contract_binders,
+        )
+
+
 def application_parameter_types(parameter_type: dict[str, Any]) -> list[dict[str, Any]]:
     constructor = parameter_type.get("constructor", {})
     if (
@@ -3231,6 +3339,9 @@ def validate_application_instantiation(
     contract_binders: dict[int, dict[str, Any]] | None = None,
     local_functions: LocalFunctionScope | None = None,
     row_binders: dict[int, dict[str, Any]] | None = None,
+    type_parameter_kinds: dict[int, str] | None = None,
+    identity_binders: dict[int, dict[str, Any]] | None = None,
+    handler_contract_binders: set[int] | None = None,
 ) -> None:
     returns = returns or {}
     applications = applications or {}
@@ -3238,6 +3349,7 @@ def validate_application_instantiation(
     contract_binders = contract_binders or {}
     local_functions = local_functions or {}
     row_binders = row_binders or {}
+    type_parameter_kinds = type_parameter_kinds or {}
     exact_fields(application, {"application_slot", "contract", "callee_summary", "actual_arguments", "substitution", "entry_world", "origin"}, "AppliedContractV2")
     validate_u32(application["application_slot"], "AppliedContractV2 application_slot")
     validate_contract_ref(
@@ -3328,6 +3440,16 @@ def validate_application_instantiation(
         local_functions=local_functions,
     )
     validate_row_expr(instantiated["visible_row"])
+    if identity_binders is not None:
+        validate_instantiated_selector_scope(
+            application,
+            imports=imports,
+            contract_binders=contract_binders,
+            local_functions=local_functions,
+            type_parameter_kinds=type_parameter_kinds,
+            identity_binders=identity_binders,
+            handler_contract_binders=handler_contract_binders or set(),
+        )
     expected_callee_type = {
         "contract": application["contract"],
         "kind": "FunctionTypeV2",
@@ -3494,11 +3616,27 @@ def validate_function_contract(
         contract["applications"], returns={}, imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
         row_binders=row_binders,
+        type_parameter_kinds=ambient_type_parameters,
+        identity_binders=identity_binders,
+        handler_contract_binders=handler_contract_binders,
     )
     validate_computation(
         contract["computation"], applications, context="function", imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
         row_binders=row_binders,
+    )
+    validate_lexical_application_instantiations(
+        [
+            contract["declaration_kind"], binders["parameter_binders"],
+            binders["contract_binders"], contract["closure_environment"],
+            contract["applications"], contract["computation"],
+        ],
+        imports=imports,
+        contract_binders=contract_binders,
+        local_functions=local_functions,
+        type_parameter_kinds=ambient_type_parameters,
+        identity_binders=identity_binders,
+        handler_contract_binders=handler_contract_binders,
     )
     for node in walk([
         contract["declaration_kind"], binders["parameter_binders"],
@@ -8023,7 +8161,7 @@ def main() -> int:
         task46_result.returncode == 0,
         "task-46 complete-root regressions failed:\n" + task46_result.stdout,
     )
-    task46_probe_count = 19
+    task46_probe_count = 21
     validate_normative_producer_alignment()
     print(
         f"PASS: {len(interface_paths)} interface artifacts, "

@@ -371,10 +371,108 @@ def used_nominal_effect_roots() -> None:
     )
 
 
+def frame_clock_family() -> dict[str, Any]:
+    return {
+        "arguments": [],
+        "kind": "NominalTypeV1",
+        "module": ["cire", "temporal"],
+        "name": "FrameClock",
+    }
+
+
+def imported_identity_target() -> dict[str, Any]:
+    target = load("apply-later-function-contract.json")
+    target["binders"]["identity_binders"].append(
+        {
+            "binder": "FreshCap",
+            "family": frame_clock_family(),
+            "identity_slot": 999,
+            "owner": {"namespace": "Owner", "slot": 0},
+        }
+    )
+    target["declaration_kind"]["visible_row"]["entries"].append(
+        {
+            "family": frame_clock_family(),
+            "identity": {"namespace": "Identity", "slot": 999},
+            "kind": "NamedV1",
+        }
+    )
+    target["declaration_kind"]["visible_row"]["entries"].sort(key=v.jcs)
+    v.validate_function_contract(target)
+    return target
+
+
+def identity_consumer_root(
+    target: dict[str, Any],
+    actual_family: dict[str, Any],
+) -> dict[str, Any]:
+    oracle = load("hof-mixed-later.json")
+    old_hash = next(
+        item["artifact_hash"]
+        for item in oracle["imports"]
+        if item["file"] == "apply-later-function-contract.json"
+    )
+    new_hash = "sha256:" + hashlib.sha256(
+        v.jcs(target).encode("utf-8")
+    ).hexdigest()
+    oracle = replace_scalar(oracle, old_hash, new_hash)
+    consumer = oracle["consumer_contract"]
+    consumer["binders"]["identity_binders"].append(
+        {
+            "binder": "FreshCap",
+            "family": actual_family,
+            "identity_slot": 999,
+            "owner": {"namespace": "Owner", "slot": 0},
+        }
+    )
+    consumer["applications"][0]["substitution"][
+        "identity_arguments"
+    ].append(
+        {
+            "binder_slot": 999,
+            "value": {"namespace": "Identity", "slot": 999},
+        }
+    )
+    return oracle
+
+
+def validate_identity_consumer(
+    oracle: dict[str, Any],
+    target: dict[str, Any],
+) -> None:
+    callback = load("mixed-next-callback-function-contract.json")
+    with tempfile.TemporaryDirectory(prefix="cire-task46-identity-root.") as name:
+        directory = Path(name)
+        (directory / "apply-later-function-contract.json").write_text(
+            v.jcs(target) + "\n", encoding="utf-8"
+        )
+        (directory / "mixed-next-callback-function-contract.json").write_text(
+            v.jcs(callback) + "\n", encoding="utf-8"
+        )
+        imports = v.resolve_imports(oracle, directory)
+        v.validate_function_contract(
+            oracle["consumer_contract"], imports=imports
+        )
+
+
+def imported_identity_substitution_roots() -> None:
+    target = imported_identity_target()
+    same_family = identity_consumer_root(target, frame_clock_family())
+    validate_identity_consumer(same_family, target)
+
+    wrong_family = identity_consumer_root(target, nominal_effect("IoFailure"))
+    expect_diagnostic(
+        "imported Named identity substitution family mismatch",
+        "contract-component-kind-mismatch",
+        lambda: validate_identity_consumer(wrong_family, target),
+    )
+
+
 catalog_roots()
 row_scope_roots()
 handler_entry_lacks_roots()
 named_lacks_roots()
 public_selector_scope_roots()
 used_nominal_effect_roots()
-print("PASS: 19 task-46 exact-schema/scope/substitution complete-root probes")
+imported_identity_substitution_roots()
+print("PASS: 21 task-46 exact-schema/scope/substitution complete-root probes")
