@@ -74,7 +74,7 @@
     其中的 theorem 是陈述或证明义务，不代表已经完成机械化证明。
 
     仓库当前不包含编译器或 runtime。完整 concrete syntax 由
-    `surface-grammar.md` 定义；未来 parser 与 conformance tests必须服从规范，
+    `surface-syntax.md` 的完整 grammar appendix定义；未来 parser 与 conformance tests必须服从规范，
     不能反向定义语言。
   ],
 )
@@ -476,7 +476,7 @@ lookahead还丢弃内部 expectation。
 == Calculus 使用的 canonical grammar import
 
 本 calculus 不复制第二份 PEG。它按 profile id
-`Cire-TR₀/2026-08-01` 导入 `surface-grammar.md` 的 token/rule table，并只对
+`Cire-TR₀/2026-08-01` 导入 `surface-syntax.md` 的 token/rule table，并只对
 下列 canonical rule产生的 CST node定义 elaboration：
 
 ```text
@@ -1642,7 +1642,7 @@ LiveAcrossSiteV2 {
   type: TypeRefV2
   provenance: ProvenanceExprV2
   capture: CaptureExprV2
-  usage: UsageExprV2
+  usage: UsageExprV2?          // null is canonical Zero/non-authority
 }
 
 CleanupContractV1 {
@@ -1989,6 +1989,11 @@ $"Zero" < "Once" < "Many"$并证明 $q_"actual" <= q_"capacity"$，所以
 $0/1/omega$ semiring fold。`DelegatesV2` 的 `Forwarded` transition结构性消耗
 inner disposition一次，因此原始 path必须包含该 key；组合后的 path可因其它
 消耗把总 grade fold成 `Many`，但不能把该结构性 occurrence删除。
+`ReturnUsageV2` 是 lexical alias，不是独立 authority key：checker必须先沿
+`ReturnBinderV2.usage` 递归物化到最终 namespace-qualified key，再建立每条 path
+的唯一 map并做顺序 fold；组合完成后还要重新证明 actual grade不超过该 key的
+Resume/disposition capacity。null projection必须在 decoder边界稳定拒绝，不能留给
+evaluator触发 assertion。
 每个 secondary site有自己的 receiver和 route，
 不能继承 primary route。`SecondarySiteSetV1.kind` 在 V1 只能是 `Closed`；
 没有 open row-slot variant。未知 schema version、variant tag、route selector、
@@ -2010,6 +2015,14 @@ provenance、capture与 usage expression的自由 namespace-qualified slot确定
 `live_bindings` 的 key必须唯一且恰好等于 `LiveSupport(D)`，不能相信序列化的
 空数组，也不能允许遗漏或多报。`cleanup` 的 demand/suspension同样必须通过
 `AttributedOK`。
+`LiveSupport(D)` 使用带 bound-Return set的 lexical traversal：`PathBindV2`
+只把 binder加入 continuation，因而该 continuation里的同号 `Return*V2` 不属于
+外层 suffix的 free support；nested suffix独立重新投影。每个 reachable
+`InvokeV2` 还把同 ledger application的全部 actual summary之
+$Pi/chi/u$ 纳入 support。对 legacy/closure/actual binding，serialized
+`type/provenance/capture/usage` 必须逐字段等于解析出的完整 tuple，不能只比较 key；
+Return live entry则必须保留同号 `ReturnProvenanceV2`/`ReturnCaptureV2`/
+`ReturnUsageV2` lexical alias，递归 type本身仍由 `TypeRefV2` decoder检查。
 `LatentSiteV1`/`LatentSiteV2` 的 instantiated signature、actual arguments与
 selector必须相容；
 call/install id分别只能引用 `ParametricObligations` 中同 stage的 obligation。
@@ -3932,6 +3945,12 @@ capture可满足 `Duplicable`，但它不是 `Shareable(R)` 的结果广播。
 generation boundary约束且不满足 `Shareable`。`CommitTicket` 也只允许交给
 sealed commit runner消费。第一方容器若要声明额外 `Shareable` instance，
 必须给出逐字段 sealed derivation。
+
+`DuplicableEnv` 判定完整 value summary，而不是只看 `capture`：若 type是
+`ResumeTypeRefV2`/legacy Resume，则只有 `usage=Many` 且其 live provenance/
+capture满足 multi-shot premise时才可能通过；`Once` 不能借 `Stable` 与
+`NoCapture` 洗成 duplicable。serialized occurrence usage仍须与该 type quantity
+一起检查。
 
 $
   "Duplicable"(chi)

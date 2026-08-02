@@ -5,7 +5,7 @@ This is the executable reference decoder for the frozen V2 wire profile, not a
 compiler implementation. Its computation/outcome import is exhaustive and
 threads application, return-binder, and Handler-clause disposition scope. It
 also evaluates each mutation through the named decoder and checks the exact
-diagnostic that decoder emits. Task #28-#33 regressions additionally exercise
+diagnostic that decoder emits. Task #28-#35 regressions additionally exercise
 formal-conformance clusters through complete root contracts.
 """
 
@@ -15,6 +15,7 @@ import copy
 import hashlib
 import json
 import re
+import subprocess
 import sys
 import unicodedata
 from pathlib import Path
@@ -26,6 +27,7 @@ INTERFACES = ROOT / "interfaces"
 MUTATIONS = ROOT / "mutations" / "v1-rejects-v2-tags.json"
 RUNTIME = ROOT / "runtime" / "packed-next-lease-runtime.json"
 DIAGNOSTICS = ROOT / "diagnostics-v2.json"
+TASK35_REGRESSIONS = ROOT / "task35-regressions.py"
 FORMALIZATION = ROOT.parent.parent / "docs" / "temporal-reactivity-formalization.typ"
 PROFILE = "Cire-TR₀/2026-08-01"
 U32_MAX = (1 << 32) - 1
@@ -945,6 +947,7 @@ def validate_contract_ref(
 
 
 def validate_later_contract(later: dict[str, Any], returns: ReturnScope) -> None:
+    later = validate_contract_object(later)
     exact_fields(later, {"provenance", "capture", "semantic_summary", "required_phase"}, "LaterContractV2")
     validate_provenance(later["provenance"], returns)
     validate_capture(later["capture"], returns)
@@ -967,7 +970,7 @@ def validate_type_v2(
     imports = imports or ImportScope()
     contract_binders = contract_binders or {}
     local_functions = local_functions or {}
-    require(isinstance(type_ref, dict), "TypeRefV2 must be an object")
+    type_ref = validate_contract_object(type_ref)
     kind = type_ref.get("kind")
     schemas = {
         "LegacyTypeRefV2": {"kind", "value"},
@@ -1042,7 +1045,7 @@ def validate_type_v2(
     elif kind == "NextTypeV2":
         validate_slot_v1(type_ref["clock"], "Clock")
         validate_type_v2(type_ref["payload"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
-        later = type_ref["later_contract"]
+        later = validate_contract_object(type_ref["later_contract"])
         if isinstance(later.get("kind"), dict):
             validate_contract_parameter(later, returns)
             reject(later["slot"] not in contract_binders, "contract-projection-escapes-scope")
@@ -1181,7 +1184,11 @@ def validate_usage(
             )
     elif kind == "ReturnUsageV2":
         binder = validate_return_ref(usage, returns)
-        reject(binder["type"].get("kind") != "ResumeTypeRefV2", "contract-component-kind-mismatch")
+        reject(
+            binder["type"].get("kind") != "ResumeTypeRefV2"
+            or binder.get("usage") is None,
+            "contract-component-kind-mismatch",
+        )
     else:
         raise Diagnostic("contract-component-kind-mismatch")
 
@@ -1209,55 +1216,186 @@ def suffix_projection_key(reference: dict[str, Any]) -> tuple[str, int]:
     return reference["namespace"], reference["slot"]
 
 
-def suffix_live_projection_keys(suffix: dict[str, Any]) -> set[tuple[str, int]]:
-    """Derive the complete Pi/chi/usage support of a suffix computation."""
+SUFFIX_FIELDS = {
+    "answer_type", "applications", "computation", "cleanup", "live_bindings",
+}
+LIVE_TUPLE_FIELDS = ("type", "provenance", "capture", "usage")
 
-    result: set[tuple[str, int]] = set()
 
-    def collect_expression(value: Any) -> None:
+def value_projection(
+    *,
+    type_ref: dict[str, Any],
+    provenance: dict[str, Any],
+    capture: dict[str, Any],
+    usage: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Return the exact serialized part of one deterministic live tuple."""
+
+    return {
+        "type": copy.deepcopy(type_ref),
+        "provenance": copy.deepcopy(provenance),
+        "capture": copy.deepcopy(capture),
+        "usage": copy.deepcopy(usage),
+    }
+
+
+def authority_projection(
+    type_ref: dict[str, Any], reference: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Materialize the canonical nonzero usage projection of an authority."""
+
+    grade = authority_usage_grade(type_ref)
+    if grade in {None, "Zero"}:
+        return None
+    return {
+        "kind": "LegacyUsageExprV2",
+        "value": {"slot": copy.deepcopy(reference), "kind": grade},
+    }
+
+
+def return_value_projection(binder: dict[str, Any]) -> dict[str, Any]:
+    number = binder["slot"]
+    return value_projection(
+        type_ref=binder["type"],
+        provenance={"kind": "ReturnProvenanceV2", "return_slot": number},
+        capture={"kind": "ReturnCaptureV2", "return_slot": number},
+        usage={"kind": "ReturnUsageV2", "return_slot": number},
+    )
+
+
+def suffix_live_projection(
+    suffix: dict[str, Any],
+    *,
+    returns: ReturnScope | None = None,
+    value_bindings: dict[tuple[str, int], dict[str, Any]] | None = None,
+) -> tuple[dict[tuple[str, int], dict[str, Any] | None], set[tuple[str, int]]]:
+    """Derive lexical free support and every resolvable full live tuple.
+
+    A nested PathBind return is bound only in its continuation. Nested suffixes
+    are deliberately skipped here and validated as independent projections by
+    the root traversal. InvokeV2 adds the complete actual summaries from the
+    referenced suffix application ledger.
+    """
+
+    outer_returns = returns or {}
+    ambient = value_bindings or {}
+    projected: dict[tuple[str, int], dict[str, Any] | None] = {}
+    unresolved: set[tuple[str, int]] = set()
+    invoked: set[int] = set()
+
+    def resolved_projection(key: tuple[str, int]) -> dict[str, Any] | None:
+        if key[0] == "Return" and key[1] in outer_returns:
+            return return_value_projection(outer_returns[key[1]])
+        return copy.deepcopy(ambient.get(key))
+
+    def remember(
+        key: tuple[str, int],
+        *,
+        summary: dict[str, Any] | None = None,
+    ) -> None:
+        expected = resolved_projection(key)
+        from_summary = None
+        if summary is not None:
+            from_summary = value_projection(
+                type_ref=summary["type"],
+                provenance=summary["provenance"],
+                capture=summary["capture"],
+                usage=summary["usage"],
+            )
+            reject(
+                expected is not None and from_summary != expected,
+                "contract-component-kind-mismatch",
+            )
+        candidate = expected if expected is not None else from_summary
+        if key in projected:
+            reject(
+                candidate is not None
+                and projected[key] is not None
+                and candidate != projected[key],
+                "contract-component-kind-mismatch",
+            )
+            if projected[key] is None and candidate is not None:
+                projected[key] = candidate
+                unresolved.discard(key)
+            return
+        projected[key] = candidate
+        if candidate is None:
+            unresolved.add(key)
+
+    def collect_expression(
+        value: Any,
+        bound_returns: set[int],
+        *,
+        summary: dict[str, Any] | None = None,
+    ) -> None:
         if isinstance(value, list):
             for member in value:
-                collect_expression(member)
+                collect_expression(member, bound_returns, summary=summary)
             return
         if not isinstance(value, dict):
             return
-        if value.get("kind") in {
-            "ReturnSlotRefV2", "ReturnProvenanceV2", "ReturnCaptureV2",
-            "ReturnUsageV2", "ReturnNominalIndexV2", "ReturnWorldV2",
-        }:
-            result.add(("Return", value["return_slot"]))
+        if value.get("kind") in RETURN_KINDS:
+            number = value.get("return_slot")
+            if number not in bound_returns:
+                remember(("Return", number), summary=summary)
             return
         if set(value) == {"namespace", "slot"}:
-            result.add((value["namespace"], value["slot"]))
+            remember((value["namespace"], value["slot"]), summary=summary)
             return
-        if {
-            "answer_type", "applications", "computation", "cleanup",
-            "live_bindings",
-        } <= set(value):
+        if set(value) == SUFFIX_FIELDS:
             return
         for member in value.values():
-            collect_expression(member)
+            collect_expression(member, bound_returns, summary=summary)
 
-    def scan_computation(value: Any) -> None:
+    def scan_summary(summary: dict[str, Any], bound_returns: set[int]) -> None:
+        for key in ("provenance", "capture", "usage"):
+            collect_expression(summary.get(key), bound_returns, summary=summary)
+
+    def scan_computation(value: Any, bound_returns: set[int]) -> None:
         if isinstance(value, list):
             for member in value:
-                scan_computation(member)
+                scan_computation(member, bound_returns)
             return
-        if not isinstance(value, dict):
+        if not isinstance(value, dict) or set(value) == SUFFIX_FIELDS:
             return
-        if {
-            "answer_type", "applications", "computation", "cleanup",
-            "live_bindings",
-        } <= set(value):
+        kind = value.get("kind")
+        if kind == "InvokeV2":
+            invoked.add(value["application_slot"])
+            return
+        if kind == "PathBindV2":
+            scan_computation(value["prefix"], bound_returns)
+            binder = value["return_binder"]
+            for key in ("provenance", "capture", "usage"):
+                collect_expression(binder.get(key), bound_returns)
+            scan_computation(
+                value["continuation"], bound_returns | {binder["slot"]},
+            )
             return
         for key, member in value.items():
             if key in {"provenance", "capture", "usage"}:
-                collect_expression(member)
+                collect_expression(member, bound_returns)
             else:
-                scan_computation(member)
+                scan_computation(member, bound_returns)
 
-    scan_computation(suffix["computation"])
-    return result
+    scan_computation(suffix["computation"], set())
+    applications = {
+        application["application_slot"]: application
+        for application in suffix["applications"]
+    }
+    for application_slot in invoked:
+        application = applications.get(application_slot)
+        if application is None:
+            continue
+        for summary in application["actual_arguments"]:
+            scan_summary(summary, set())
+    return projected, unresolved
+
+
+def suffix_live_projection_keys(suffix: dict[str, Any]) -> set[tuple[str, int]]:
+    """Compatibility view used by ReplayableCleanup's empty-support check."""
+
+    projected, _ = suffix_live_projection(suffix)
+    return set(projected)
 
 
 def validate_result_transformer(
@@ -1459,17 +1597,14 @@ def validate_suffix(
         validate_type_v2(binding["type"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions)
         validate_provenance(binding["provenance"], returns, disposition_binder=disposition_binder)
         validate_capture(binding["capture"], returns, disposition_binder=disposition_binder)
-        validate_usage(binding["usage"], returns, disposition_binder=disposition_binder)
+        if binding["usage"] is not None:
+            validate_usage(binding["usage"], returns, disposition_binder=disposition_binder)
     validate_computation(
         suffix["computation"], applications,
         returns=returns, context="suffix", imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
         disposition_binder=disposition_binder,
         row_binders=row_binders,
-    )
-    reject(
-        declared_live_keys != suffix_live_projection_keys(suffix),
-        "contract-component-kind-mismatch",
     )
 
 
@@ -2360,6 +2495,178 @@ def authority_usage_grade(type_ref: Any) -> str | None:
 USAGE_GRADE_ORDER = {"Zero": 0, "Once": 1, "Many": 2}
 
 
+def lexical_binding_projection(
+    reference: dict[str, Any],
+    type_ref: dict[str, Any],
+    provenance: dict[str, Any],
+    capture: dict[str, Any],
+) -> dict[str, Any]:
+    return value_projection(
+        type_ref=type_ref,
+        provenance=provenance,
+        capture=capture,
+        usage=authority_projection(type_ref, reference),
+    )
+
+
+def validate_suffix_projection_exact(
+    suffix: dict[str, Any],
+    *,
+    returns: ReturnScope,
+    value_bindings: dict[tuple[str, int], dict[str, Any]],
+) -> None:
+    expected, unresolved = suffix_live_projection(
+        suffix, returns=returns, value_bindings=value_bindings,
+    )
+    declared: dict[tuple[str, int], dict[str, Any]] = {}
+    for binding in suffix["live_bindings"]:
+        key = suffix_projection_key(binding["slot"])
+        declared[key] = {
+            field: copy.deepcopy(binding[field]) for field in LIVE_TUPLE_FIELDS
+        }
+    reject(
+        bool(unresolved) or set(declared) != set(expected),
+        "contract-component-kind-mismatch",
+    )
+    for key in declared:
+        fields = (
+            ("provenance", "capture", "usage")
+            if key[0] == "Return"
+            else LIVE_TUPLE_FIELDS
+        )
+        reject(
+            any(declared[key][field] != expected[key][field] for field in fields),
+            "contract-component-kind-mismatch",
+        )
+
+
+HANDLER_CONTRACT_FIELDS = {
+    "handled_entry", "prompt_slot", "residual_row", "attributed_demand",
+    "suspension", "semantic_summary", "required_phase", "handler_environment",
+    "applications", "return_computation", "clause_computations",
+}
+
+
+def validate_suffix_projection_tree(
+    value: Any,
+    *,
+    returns: ReturnScope,
+    value_bindings: dict[tuple[str, int], dict[str, Any]],
+) -> None:
+    """Validate every nested suffix with its exact lexical Return environment."""
+
+    if isinstance(value, list):
+        for member in value:
+            validate_suffix_projection_tree(
+                member, returns=returns, value_bindings=value_bindings,
+            )
+        return
+    if not isinstance(value, dict):
+        return
+    if value.get("artifact") == "FunctionContractV2" or set(value) == HANDLER_CONTRACT_FIELDS:
+        # Embedded contracts run their own root-scoped pass when decoded.
+        return
+    if set(value) == SUFFIX_FIELDS:
+        validate_suffix_projection_exact(
+            value, returns=returns, value_bindings=value_bindings,
+        )
+        for key in ("answer_type", "applications", "cleanup", "live_bindings"):
+            validate_suffix_projection_tree(
+                value[key], returns=returns, value_bindings=value_bindings,
+            )
+        validate_suffix_projection_tree(
+            value["computation"], returns=returns,
+            value_bindings=value_bindings,
+        )
+        return
+    if value.get("kind") == "PathBindV2":
+        validate_suffix_projection_tree(
+            value["prefix"], returns=returns, value_bindings=value_bindings,
+        )
+        binder = value["return_binder"]
+        validate_suffix_projection_tree(
+            binder, returns=returns, value_bindings=value_bindings,
+        )
+        continuation_returns = dict(returns)
+        continuation_returns[binder["slot"]] = binder
+        validate_suffix_projection_tree(
+            value["continuation"], returns=continuation_returns,
+            value_bindings=value_bindings,
+        )
+        return
+    for member in value.values():
+        validate_suffix_projection_tree(
+            member, returns=returns, value_bindings=value_bindings,
+        )
+
+
+def function_value_bindings(
+    contract: dict[str, Any],
+) -> dict[tuple[str, int], dict[str, Any]]:
+    result: dict[tuple[str, int], dict[str, Any]] = {}
+    for binder in contract["binders"]["parameter_binders"]:
+        reference = slot("Parameter", binder["slot"])
+        result[("Parameter", binder["slot"])] = lexical_binding_projection(
+            reference,
+            binder["type"],
+            {
+                "kind": "LegacyProvenanceExprV2",
+                "value": {"kind": "ArgumentV1", "argument": reference},
+            },
+            {
+                "kind": "LegacyCaptureExprV2",
+                "value": {"kind": "ArgumentCaptureV1", "argument": reference},
+            },
+        )
+    for binding in contract["closure_environment"]:
+        reference = binding["slot"]
+        result[(reference["namespace"], reference["slot"])] = lexical_binding_projection(
+            reference, binding["type"], binding["provenance"], binding["capture"],
+        )
+    return result
+
+
+def validate_function_suffix_projections(contract: dict[str, Any]) -> None:
+    bindings = function_value_bindings(contract)
+    for key in (
+        "declaration_kind", "binders", "applications", "computation",
+        "closure_environment",
+    ):
+        validate_suffix_projection_tree(
+            contract[key], returns={}, value_bindings=bindings,
+        )
+
+
+def validate_handler_suffix_projections(contract: dict[str, Any]) -> None:
+    bindings: dict[tuple[str, int], dict[str, Any]] = {}
+    for binding in contract["handler_environment"]:
+        reference = binding["slot"]
+        bindings[(reference["namespace"], reference["slot"])] = lexical_binding_projection(
+            reference, binding["type"], binding["provenance"], binding["capture"],
+        )
+    for key in ("applications", "return_computation"):
+        validate_suffix_projection_tree(
+            contract[key], returns={}, value_bindings=bindings,
+        )
+    for clause in contract["clause_computations"]:
+        disposition = clause["disposition_binder"]
+        reference = slot("SuffixLive", disposition["slot"])
+        resume = disposition["type"]["value"]
+        clause_bindings = dict(bindings)
+        clause_bindings[("SuffixLive", disposition["slot"])] = lexical_binding_projection(
+            reference,
+            disposition["type"],
+            resume["live_provenance"],
+            resume["live_capture"],
+        )
+        validate_suffix_projection_tree(
+            disposition["type"], returns={}, value_bindings=bindings,
+        )
+        validate_suffix_projection_tree(
+            clause["computation"], returns={}, value_bindings=clause_bindings,
+        )
+
+
 def validate_authority_bearing_usages(
     value: Any,
     *,
@@ -2778,6 +3085,7 @@ def validate_function_contract(
                 "contract-projection-escapes-scope",
             )
     validate_authority_bearing_usages(contract)
+    validate_function_suffix_projections(contract)
 
 
 def validate_handler_contract(
@@ -2838,6 +3146,7 @@ def validate_handler_contract(
     validate_authority_bearing_usages(
         contract, slot_types=handler_slot_types,
     )
+    validate_handler_suffix_projections(contract)
 
 
 def validate_projection_evidence(oracle: dict[str, Any], source: dict[str, Any]) -> None:
@@ -3882,6 +4191,10 @@ def solve_call_obligation(
             any(
                 not capture_is_duplicable(summary["capture"])
                 or (
+                    is_authority_bearing_type(summary["type"])
+                    and authority_usage_grade(summary["type"]) != "Many"
+                )
+                or (
                     summary["usage"] is not None
                     and summary["usage"].get("kind") == "LegacyUsageExprV2"
                     and summary["usage"]["value"]["kind"] == "Once"
@@ -4148,13 +4461,47 @@ def evaluate_contract_computation(
         binder["slot"]: binder
         for binder in contract.get("binders", {}).get("row_binders", [])
     }
+    evaluator_slot_types = {
+        ("Parameter", binder["slot"]): binder["type"]
+        for binder in contract.get("binders", {}).get("parameter_binders", [])
+    }
+    evaluator_slot_types.update(
+        {
+            (binding["slot"]["namespace"], binding["slot"]["slot"]): binding["type"]
+            for binding in contract.get("closure_environment", [])
+        }
+    )
 
-    def evaluate(node: dict[str, Any]) -> list[dict[str, Any]]:
+    def materialize_path_usage(
+        path: dict[str, Any], returns: ReturnScope,
+    ) -> dict[str, Any]:
+        result = copy.deepcopy(path)
+
+        def materialize(
+            usage: dict[str, Any], seen: set[int] | None = None,
+        ) -> dict[str, Any]:
+            if usage.get("kind") != "ReturnUsageV2":
+                return copy.deepcopy(usage)
+            number = usage["return_slot"]
+            reject(number not in returns, "contract-projection-escapes-scope")
+            seen = seen or set()
+            reject(number in seen, "contract-component-kind-mismatch")
+            projected = returns[number].get("usage")
+            reject(projected is None, "contract-component-kind-mismatch")
+            return materialize(projected, seen | {number})
+
+        result["usage"] = [materialize(usage) for usage in result["usage"]]
+        return result
+
+    def evaluate(
+        node: dict[str, Any], returns: ReturnScope | None = None,
+    ) -> list[dict[str, Any]]:
+        returns = returns or {}
         kind = node["kind"]
         if kind in {"LiteralPathsV2", "CurrentDispositionPathsV2"}:
             return [
                 {
-                    "path": copy.deepcopy(path),
+                    "path": materialize_path_usage(path, returns),
                     "trace": [],
                 }
                 for path in node["paths"]
@@ -4209,10 +4556,12 @@ def evaluate_contract_computation(
                 for path in paths
             ]
         if kind == "PathBindV2":
-            prefix = evaluate(node["prefix"])
+            prefix = evaluate(node["prefix"], returns)
             terminal = [path for path in prefix if path["path"]["outcome"]["kind"] != "ReturnsV2"]
             continued: list[dict[str, Any]] = []
-            continuation = evaluate(node["continuation"])
+            continuation_returns = dict(returns)
+            continuation_returns[node["return_binder"]["slot"]] = node["return_binder"]
+            continuation = evaluate(node["continuation"], continuation_returns)
             materialized_source = None
             if node["prefix"]["kind"] == "CurrentDispositionPathsV2":
                 reject(disposition_binder is None, "term-actual-source-unavailable")
@@ -4226,15 +4575,29 @@ def evaluate_contract_computation(
                         suffix["path"], node["return_binder"],
                         materialized_source=materialized_source,
                     )
+                    composed = compose_path_contracts(
+                        returning["path"], substituted_suffix,
+                    )
+                    validate_authority_bearing_usages(
+                        composed,
+                        slot_types=evaluator_slot_types,
+                        disposition=(
+                            disposition_binder["slot"], disposition_binder["type"]
+                        ) if disposition_binder is not None else None,
+                    )
                     continued.append(
                         {
-                            "path": compose_path_contracts(returning["path"], substituted_suffix),
+                            "path": composed,
                             "trace": [*returning["trace"], *suffix["trace"]],
                         }
                     )
             return [*terminal, *continued]
         if kind == "JoinV2":
-            return [path for member in node["members"] for path in evaluate(member)]
+            return [
+                path
+                for member in node["members"]
+                for path in evaluate(member, returns)
+            ]
         raise AssertionError(f"evaluator saw unknown computation: {kind}")
 
     return evaluate(contract["computation"])
@@ -4388,6 +4751,14 @@ def validate_clock_package(
     child_owner_binder = validate_contract_object(package["child_owner_binder"])
     exact_fields(child_owner_binder, {"owner_slot"}, "QuantifiedOwnerBinderV1")
     validate_u32(child_owner_binder["owner_slot"], "PackedNext child Owner binder")
+    reject(
+        child_owner_binder["owner_slot"] == storage_owner["slot"]
+        or (
+            storage_owner_scope is not None
+            and child_owner_binder["owner_slot"] in storage_owner_scope
+        ),
+        "contract-component-kind-mismatch",
+    )
     exact_fields(relation, {"child", "parent", "relation", "sealed_origin"}, "ChildOwnerWitnessV2")
     child = slot("Owner", child_owner_binder["owner_slot"])
     reject(
@@ -4673,7 +5044,11 @@ def validate_handler_oracle(oracle: dict[str, Any], directory: Path) -> None:
         "BoundarySafeV2.slots": any(node.get("kind") == "ReturnSlotRefV2" and node.get("return_slot") == return_slot for node in walk(continuation_path["ParametricObligations"]) if isinstance(node, dict)),
         "LiveAcrossSiteV2.usage": any(node.get("kind") == "ReturnUsageV2" and node.get("return_slot") == return_slot for node in walk(continuation_path["LatentSites"]) if isinstance(node, dict)),
     }
-    require(all(surfaces.values()) and set(surfaces) == set(oracle["expectation"]["return_usage_surfaces"]), "return-bound authority surfaces incomplete")
+    expected_surfaces = set(oracle["expectation"]["return_usage_surfaces"])
+    require(
+        {name for name, present in surfaces.items() if present} == expected_surfaces,
+        "return-bound authority surfaces incomplete",
+    )
 
 
 def validate_local_contract_oracle(oracle: dict[str, Any]) -> None:
@@ -7174,6 +7549,19 @@ def main() -> int:
     task31_probe_count = validate_task31_regressions()
     task33_probe_count = validate_task33_regressions()
     task34_probe_count = validate_task34_regressions()
+    task35_result = subprocess.run(
+        [sys.executable, str(TASK35_REGRESSIONS), str(ROOT.parent.parent)],
+        check=False,
+        cwd=ROOT.parent.parent,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    require(
+        task35_result.returncode == 0,
+        "task-35 complete-root regressions failed:\n" + task35_result.stdout,
+    )
+    task35_probe_count = 13
     validate_normative_producer_alignment()
     print(
         f"PASS: {len(interface_paths)} interface artifacts, "
@@ -7184,7 +7572,8 @@ def main() -> int:
         f"{task30_probe_count} task-30 full-root probes, "
         f"{task31_probe_count} task-31 full-root probes, "
         f"{task33_probe_count} task-33 full-root probes, "
-        f"{task34_probe_count} task-34 full-root probes"
+        f"{task34_probe_count} task-34 full-root probes, "
+        f"{task35_probe_count} task-35 full-root probes"
     )
     return 0
 

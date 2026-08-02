@@ -231,12 +231,20 @@ root直接使用 `ReplayableCleanupV2`，对称覆盖 neutral source/import、cl
 nonneutral、missing-site以及真实非空 projected environment的 source/import边界；task
 #33的 replay roots保留为 V1历史覆盖。
 
+`task35-regressions.py` 提交 13 个相邻 complete-root cases：lexical
+`PathBindV2` local Return不进入外层 live support；reachable `InvokeV2` 的 actual
+summary进入 projection；Closure/actual live tuple逐字段校验；Return usage先沿 alias
+物化、再 semiring fold并重查 capacity；null projection与 once-Resume
+`DuplicableEnv`稳定拒绝；PackedNext child Owner必须 fresh/nonalias，nested payload/
+Later scalar只产生稳定 diagnostic。主 validator以独立进程运行这组 roots，避免
+共享 mutable fixture状态。
+
 `diagnostics-v2.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；
 新增或重命名 id需要新 registry version，不能让 parser recovery改变同一
 profile的静态诊断接口。
 
 这些 case 是首批 corpus。完整规则来源：
 
-- [状态矩阵](../../docs/spec-status.md)
-- [完整表面语法](../../docs/surface-grammar.md)
+- [Authority/status manifest](../../docs/spec-status.md)
+- [完整表面语法与 elaboration](../../docs/surface-syntax.md)
 - [Cire-TR₀ 形式化](../../docs/temporal-reactivity-formalization.typ)

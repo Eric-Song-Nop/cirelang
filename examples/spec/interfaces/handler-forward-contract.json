@@ -30,7 +30,7 @@
     "forward_transfer": "Open->Forwarded/ExclusiveToForwardContract",
     "current_disposition_evaluated_outcomes": ["DelegatesV2"],
     "return_bound_authority_slot": 10,
-    "return_usage_surfaces": ["PathContractV2.usage", "LiveAcrossSiteV2.usage", "BoundarySafeV2.slots"]
+    "return_usage_surfaces": ["LiveAcrossSiteV2.usage", "BoundarySafeV2.slots"]
   },
   "handler_contract": {
     "applications": [
@@ -174,8 +174,7 @@
                 "semantic_summary": { "kind": "PureV1" },
                 "suspension": { "atoms": [], "grade": "NoSuspend" },
                 "usage": [
-                  { "kind": "LegacyUsageExprV2", "value": { "kind": "Once", "slot": { "namespace": "SuffixLive", "slot": 0 } } },
-                  { "kind": "ReturnUsageV2", "return_slot": 10 }
+                  { "kind": "LegacyUsageExprV2", "value": { "kind": "Once", "slot": { "namespace": "SuffixLive", "slot": 0 } } }
                 ]
               }
             ]
