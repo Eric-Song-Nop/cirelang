@@ -1548,6 +1548,156 @@ def alpha_equal_v2(left: Any, right: Any) -> bool:
         if set(left_value) != set(right_value):
             return False
 
+        if left_value.get("artifact") == "FunctionContractV2":
+            binder_fields = {
+                "parameter_binders", "type_binders", "row_binders",
+                "contract_binders", "owner_binders", "clock_binders",
+                "identity_binders", "prompt_binders",
+            }
+            left_binders = left_value.get("binders")
+            right_binders = right_value.get("binders")
+            if (
+                not isinstance(left_binders, dict)
+                or not isinstance(right_binders, dict)
+                or set(left_binders) != binder_fields
+                or set(right_binders) != binder_fields
+            ):
+                return False
+
+            nested_left = left_environment
+            nested_right = right_environment
+            binder_specs = (
+                ("parameter_binders", "slot", "Parameter"),
+                ("type_binders", "slot", "Type"),
+                ("row_binders", "slot", "Row"),
+                ("contract_binders", "slot", "Contract"),
+                ("owner_binders", "slot", "Owner"),
+                ("clock_binders", "slot", "Clock"),
+                ("identity_binders", "identity_slot", "Identity"),
+                ("prompt_binders", "prompt_slot", "Prompt"),
+            )
+            for field, slot_field, namespace in binder_specs:
+                left_entries = left_binders[field]
+                right_entries = right_binders[field]
+                if (
+                    not isinstance(left_entries, list)
+                    or not isinstance(right_entries, list)
+                    or len(left_entries) != len(right_entries)
+                ):
+                    return False
+                seen_left: set[int] = set()
+                seen_right: set[int] = set()
+                for left_entry, right_entry in zip(
+                    left_entries, right_entries,
+                ):
+                    if (
+                        not isinstance(left_entry, dict)
+                        or not isinstance(right_entry, dict)
+                        or set(left_entry) != set(right_entry)
+                        or slot_field not in left_entry
+                        or not isinstance(left_entry[slot_field], int)
+                        or isinstance(left_entry[slot_field], bool)
+                        or not isinstance(right_entry[slot_field], int)
+                        or isinstance(right_entry[slot_field], bool)
+                        or left_entry[slot_field] in seen_left
+                        or right_entry[slot_field] in seen_right
+                    ):
+                        return False
+                    seen_left.add(left_entry[slot_field])
+                    seen_right.add(right_entry[slot_field])
+                    nested_left, nested_right = extend(
+                        nested_left,
+                        nested_right,
+                        namespace,
+                        left_entry[slot_field],
+                        right_entry[slot_field],
+                    )
+
+            left_closure = left_value.get("closure_environment")
+            right_closure = right_value.get("closure_environment")
+            if (
+                not isinstance(left_closure, list)
+                or not isinstance(right_closure, list)
+                or len(left_closure) != len(right_closure)
+            ):
+                return False
+            seen_left_closure: set[int] = set()
+            seen_right_closure: set[int] = set()
+            for left_binding, right_binding in zip(
+                left_closure, right_closure,
+            ):
+                if (
+                    not isinstance(left_binding, dict)
+                    or not isinstance(right_binding, dict)
+                    or set(left_binding) != set(right_binding)
+                ):
+                    return False
+                left_slot = left_binding.get("slot")
+                right_slot = right_binding.get("slot")
+                if (
+                    not isinstance(left_slot, dict)
+                    or not isinstance(right_slot, dict)
+                    or set(left_slot) != {"namespace", "slot"}
+                    or set(right_slot) != {"namespace", "slot"}
+                    or left_slot.get("namespace") != "ClosureCapture"
+                    or right_slot.get("namespace") != "ClosureCapture"
+                    or not isinstance(left_slot.get("slot"), int)
+                    or isinstance(left_slot.get("slot"), bool)
+                    or not isinstance(right_slot.get("slot"), int)
+                    or isinstance(right_slot.get("slot"), bool)
+                    or left_slot["slot"] in seen_left_closure
+                    or right_slot["slot"] in seen_right_closure
+                ):
+                    return False
+                seen_left_closure.add(left_slot["slot"])
+                seen_right_closure.add(right_slot["slot"])
+                nested_left, nested_right = extend(
+                    nested_left,
+                    nested_right,
+                    "ClosureCapture",
+                    left_slot["slot"],
+                    right_slot["slot"],
+                )
+
+            for field, slot_field, _namespace in binder_specs:
+                for left_entry, right_entry in zip(
+                    left_binders[field], right_binders[field],
+                ):
+                    if not all(
+                        equivalent(
+                            left_entry[key],
+                            right_entry[key],
+                            nested_left,
+                            nested_right,
+                        )
+                        for key in left_entry
+                        if key != slot_field
+                    ):
+                        return False
+            if not all(
+                equivalent(
+                    left_binding[key],
+                    right_binding[key],
+                    nested_left,
+                    nested_right,
+                )
+                for left_binding, right_binding in zip(
+                    left_closure, right_closure,
+                )
+                for key in left_binding
+            ):
+                return False
+            return all(
+                equivalent(
+                    left_value[key],
+                    right_value[key],
+                    nested_left,
+                    nested_right,
+                )
+                for key in left_value
+                if key not in {"binders", "closure_environment"}
+            )
+
         if set(left_value) == {"namespace", "slot"}:
             if left_value["namespace"] != right_value["namespace"]:
                 return False
@@ -1561,6 +1711,14 @@ def alpha_equal_v2(left: Any, right: Any) -> bool:
         tag = left_value.get("kind")
         if tag != right_value.get("kind"):
             return False
+        if tag == "InstallationPromptV1" and set(left_value) == {
+            "kind", "prompt_slot",
+        }:
+            return resolved_slot(
+                "Prompt", left_value["prompt_slot"], left_environment,
+            ) == resolved_slot(
+                "Prompt", right_value["prompt_slot"], right_environment,
+            )
         if isinstance(tag, str) and tag in {
             "TypeParameterV1", "TypeParameterV2",
         }:
@@ -3112,8 +3270,12 @@ def validate_operation_signature(
     signature: dict[str, Any],
     returns: ReturnScope,
     *,
+    imports: ImportScope | None = None,
+    local_functions: LocalFunctionScope | None = None,
     declaration_scope: DeclarationScope | None = None,
 ) -> None:
+    imports = imports or ImportScope()
+    local_functions = local_functions or {}
     exact_fields(signature, {"type_binders", "parameters", "result", "mode", "transition", "suspension", "result_transformer", "required_phase", "obligation_ids", "secondary_sites"}, "OperationSignatureV2")
     type_binders = validate_contract_list(signature["type_binders"])
     for binder in type_binders:
@@ -3150,10 +3312,13 @@ def validate_operation_signature(
         )
     for parameter in validate_contract_list(signature["parameters"]):
         validate_type_v2(
-            parameter, returns=returns, declaration_scope=signature_scope,
+            parameter, returns=returns, imports=imports,
+            local_functions=local_functions,
+            declaration_scope=signature_scope,
         )
     validate_type_v2(
-        signature["result"], returns=returns,
+        signature["result"], returns=returns, imports=imports,
+        local_functions=local_functions,
         declaration_scope=signature_scope,
     )
     reject(
@@ -3207,6 +3372,7 @@ def validate_latent_site(
     )
     validate_operation_signature(
         latent["instantiated_signature"], returns,
+        imports=imports, local_functions=local_functions,
         declaration_scope=declaration_scope,
     )
     require(
@@ -3276,6 +3442,7 @@ def validate_forward_contract(
     )
     validate_operation_signature(
         forward["instantiated_signature"], returns,
+        imports=imports, local_functions=local_functions,
         declaration_scope=declaration_scope,
     )
     reject(
@@ -4534,13 +4701,43 @@ def substitute_contract_kind(kind: dict[str, Any], substitution: dict[str, Any])
                 for key, member in value.items()
             }
 
-        if tag == "TypeParameterV2":
+        if tag == "LegacyTypeRefV2" and isinstance(
+            value.get("value"), dict,
+        ) and value["value"].get("kind") == "TypeParameterV1":
+            slot_number = value["value"].get("slot")
+            if slot_number in renames["Type"]:
+                return {
+                    "kind": tag,
+                    "value": {
+                        "kind": "TypeParameterV1",
+                        "slot": renames["Type"][slot_number],
+                    },
+                }
+            if slot_number not in type_arguments:
+                return copy.deepcopy(value)
+            argument = copy.deepcopy(type_arguments[slot_number])
+            if expected_kind == "Effect" and argument.get(
+                "kind"
+            ) == "LegacyTypeRefV2":
+                return copy.deepcopy(argument["value"])
+            return argument
+        if isinstance(tag, str) and tag in {
+            "TypeParameterV1", "TypeParameterV2",
+        }:
             slot_number = value.get("slot")
             if slot_number in renames["Type"]:
                 return {"kind": tag, "slot": renames["Type"][slot_number]}
             if slot_number not in type_arguments:
                 return copy.deepcopy(value)
             argument = copy.deepcopy(type_arguments[value["slot"]])
+            if tag == "TypeParameterV1":
+                if argument.get("kind") == "LegacyTypeRefV2":
+                    return copy.deepcopy(argument["value"])
+                if argument.get("kind") == "TypeParameterV2":
+                    return {
+                        "kind": "TypeParameterV1",
+                        "slot": argument["slot"],
+                    }
             if expected_kind == "Effect" and argument.get("kind") == "LegacyTypeRefV2":
                 return copy.deepcopy(argument["value"])
             return argument
@@ -6996,19 +7193,13 @@ def validate_clock_package(
     body = validate_contract_object(package["body"])
     reject(
         body.get("kind") != "NextTypeV2"
-        or body.get("clock") != clock_ref
-        or not alpha_equal_v2(
-            body.get("payload"), summary["payload_type"],
-        ),
+        or body.get("clock") != clock_ref,
         "contract-component-kind-mismatch",
     )
-    package_contracts = {
-        summary_binder["contract_slot"]: summary_binder,
-    }
-    package_scope = DeclarationScope(
+    clock_scope = DeclarationScope(
         type_parameter_kinds={},
         row_binders={},
-        contract_binders=package_contracts,
+        contract_binders={},
         identity_binders={
             clock["identity_slot"]: {
                 "family": {
@@ -7035,9 +7226,25 @@ def validate_clock_package(
         },
     )
     validate_type_v2(
+        summary["payload_type"],
+        declaration_scope=clock_scope,
+    )
+    package_contracts = {
+        summary_binder["contract_slot"]: summary_binder,
+    }
+    package_scope = clock_scope.nested(
+        contract_binders=package_contracts,
+    )
+    validate_type_v2(
         body,
         contract_binders=package_contracts,
         declaration_scope=package_scope,
+    )
+    reject(
+        not alpha_equal_v2(
+            body["payload"], summary["payload_type"],
+        ),
+        "contract-component-kind-mismatch",
     )
     protocol = package["control_protocol"]
     exact_fields(protocol, {"states", "acquire", "dispose", "release"}, "PackedNextControlProtocolV2")
@@ -9937,7 +10144,7 @@ def main() -> int:
         task46_result.returncode == 0,
         "task-46 complete-root regressions failed:\n" + task46_result.stdout,
     )
-    task46_probe_count = 85
+    task46_probe_count = 95
     validate_normative_producer_alignment()
     print(
         f"PASS: {len(interface_paths)} interface artifacts, "

@@ -341,6 +341,57 @@ def quantified_and_capability_roots() -> None:
     )
     v.validate_document(renamed_packed, INTERFACES)
 
+    def embedded_contract(type_slot: int) -> dict[str, Any]:
+        local_oracle = load("local-function-call.json")
+        contract = copy.deepcopy(
+            local_oracle["local_declarations"][0]["contract"]
+        )
+        contract["binders"]["type_binders"] = [
+            {"slot": type_slot, "kind": "Type"}
+        ]
+        contract["closure_environment"] = [
+            {
+                "slot": {"namespace": "ClosureCapture", "slot": 55},
+                "type": {"kind": "TypeParameterV2", "slot": type_slot},
+                "provenance": {
+                    "kind": "LegacyProvenanceExprV2",
+                    "value": {"kind": "StableV1"},
+                },
+                "capture": {
+                    "kind": "LegacyCaptureExprV2",
+                    "value": {"kind": "NoCaptureV1"},
+                },
+            }
+        ]
+        v.validate_function_contract(contract)
+        return contract
+
+    def embedded_function_type(type_slot: int) -> dict[str, Any]:
+        contract = embedded_contract(type_slot)
+        return {
+            "kind": "FunctionTypeV2",
+            "parameter": copy.deepcopy(
+                contract["declaration_kind"]["parameter_type"]
+            ),
+            "result": copy.deepcopy(
+                contract["declaration_kind"]["result_type"]
+            ),
+            "contract": contract,
+        }
+
+    embedded_left = embedded_function_type(700)
+    embedded_right = embedded_function_type(701)
+    exact_embedded_package = copy.deepcopy(clock_package)
+    exact_embedded_package["summary_binder"]["kind"]["payload_type"] = (
+        copy.deepcopy(embedded_left)
+    )
+    exact_embedded_package["body"] = copy.deepcopy(embedded_left)
+    v.validate_function_contract(with_result(exact_embedded_package))
+
+    renamed_embedded_package = copy.deepcopy(exact_embedded_package)
+    renamed_embedded_package["body"] = copy.deepcopy(embedded_right)
+    v.validate_function_contract(with_result(renamed_embedded_package))
+
     unbound_package_summary_clock = copy.deepcopy(clock_package)
     unbound_package_summary_clock["summary_binder"]["kind"]["clock"][
         "slot"
@@ -518,6 +569,66 @@ def quantified_import_and_handler_boundary_roots() -> None:
         "handler environment malformed quantifier is total",
         "contract-component-kind-mismatch",
         lambda: v.validate_handler_oracle(malformed, INTERFACES),
+    )
+
+
+def operation_signature_contract_scope_roots() -> None:
+    local_oracle = load("local-function-call.json")
+    declaration = local_oracle["local_declarations"][0]
+    target = declaration["contract"]
+    target_kind = target["declaration_kind"]
+    artifact_hash = v.canonical_hash(target)
+    imports = v.single_import_scope(
+        artifact_hash,
+        target,
+        tuple(declaration["module"]),
+        declaration["name"],
+    )
+    local_functions = {declaration["declaration_slot"]: target}
+
+    def function_type(reference: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "kind": "FunctionTypeV2",
+            "parameter": copy.deepcopy(target_kind["parameter_type"]),
+            "result": copy.deepcopy(target_kind["result_type"]),
+            "contract": copy.deepcopy(reference),
+        }
+
+    imported_type = function_type(
+        {
+            "kind": "ImportedFunctionRefV2",
+            "module": copy.deepcopy(declaration["module"]),
+            "name": declaration["name"],
+            "artifact_hash": artifact_hash,
+        }
+    )
+    local_type = function_type(
+        {
+            "kind": "LocalFunctionRefV2",
+            "declaration_slot": declaration["declaration_slot"],
+        }
+    )
+    v.validate_type_v2(imported_type, imports=imports)
+    v.validate_type_v2(local_type, local_functions=local_functions)
+
+    signature_template = load("handler-forward-contract.json")[
+        "handler_contract"
+    ]["clause_computations"][0]["computation"]["continuation"][
+        "paths"
+    ][0]["LatentSites"][0]["instantiated_signature"]
+
+    def signature_with(type_ref: dict[str, Any]) -> dict[str, Any]:
+        signature = copy.deepcopy(signature_template)
+        signature["type_binders"] = []
+        signature["parameters"] = [copy.deepcopy(type_ref)]
+        signature["result"] = copy.deepcopy(target_kind["result_type"])
+        return signature
+
+    v.validate_operation_signature(
+        signature_with(imported_type), {}, imports=imports,
+    )
+    v.validate_operation_signature(
+        signature_with(local_type), {}, local_functions=local_functions,
     )
 
 
@@ -759,6 +870,81 @@ def capture_avoiding_substitution_roots() -> None:
         type_substitution,
     )["parameter_type"]["signature"]
     assert [item["slot"] for item in signature_result["parameters"]] == [0, 1]
+
+    signature_fields = {
+        "type_binders", "parameters", "result", "mode", "transition",
+        "suspension", "result_transformer", "required_phase",
+        "obligation_ids", "secondary_sites",
+    }
+    legacy_signature = next(
+        copy.deepcopy(node)
+        for node in v.walk(load("handler-forward-contract.json"))
+        if isinstance(node, dict) and set(node) == signature_fields
+    )
+    legacy_signature["type_binders"] = [{"slot": 0, "kind": "Type"}]
+    legacy_signature["parameters"] = [
+        {
+            "kind": "LegacyTypeRefV2",
+            "value": {"kind": "TypeParameterV1", "slot": 0},
+        },
+        {"kind": "TypeParameterV2", "slot": 999},
+    ]
+    legacy_signature["result"] = int_type()
+    signature_scope = v.DeclarationScope(
+        type_parameter_kinds={0: "Type", 1: "Type", 999: "Type"},
+        row_binders={},
+        contract_binders={},
+        identity_binders={},
+        handler_contract_binders=set(),
+        owner_binders={},
+        clock_binders={},
+        parameter_binders=set(),
+        closure_capture_binders=set(),
+    )
+    v.validate_operation_signature(
+        legacy_signature, {}, declaration_scope=signature_scope,
+    )
+
+    def legacy_signature_slots(actual_slot: int) -> tuple[int, int, int]:
+        substitution = empty_substitution()
+        substitution["type_arguments"] = [
+            {
+                "binder_slot": 999,
+                "value": {"kind": "TypeParameterV2", "slot": actual_slot},
+            }
+        ]
+        result = v.substitute_contract_kind(
+            {"signature": legacy_signature}, substitution,
+        )["signature"]
+        return (
+            result["type_binders"][0]["slot"],
+            result["parameters"][0]["value"]["slot"],
+            result["parameters"][1]["slot"],
+        )
+
+    assert legacy_signature_slots(1) == (0, 0, 1)
+    assert legacy_signature_slots(0) == (1, 1, 0)
+
+
+def packed_alpha_totality_roots() -> None:
+    package = load("clock-package-paths.json")
+    v.validate_document(copy.deepcopy(package), INTERFACES)
+
+    malformed_quantifier = {
+        "kind": "ForAllOwnerTypeV2",
+        "binder": {"owner_slot": 910},
+    }
+    package["package"]["summary_binder"]["kind"]["payload_type"] = (
+        copy.deepcopy(malformed_quantifier)
+    )
+    package["package"]["body"]["payload"] = copy.deepcopy(
+        malformed_quantifier
+    )
+    expect_diagnostic(
+        "packed payload alpha comparison follows exact TypeRef decode",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_document(package, INTERFACES),
+    )
 
 
 def row_scope_roots() -> None:
@@ -2076,7 +2262,9 @@ def handler_recursive_descendant_scope_roots() -> None:
 catalog_roots()
 quantified_and_capability_roots()
 quantified_import_and_handler_boundary_roots()
+operation_signature_contract_scope_roots()
 capture_avoiding_substitution_roots()
+packed_alpha_totality_roots()
 row_scope_roots()
 handler_entry_lacks_roots()
 named_lacks_roots()
@@ -2090,4 +2278,4 @@ evaluated_clause_and_return_boundary_roots()
 handler_computation_scope_roots()
 handler_recursive_descendant_scope_roots()
 validate_inline_function_fresh_scope_root()
-print("PASS: 85 task-46 exact-schema/scope/substitution complete-root probes")
+print("PASS: 95 task-46 exact-schema/scope/substitution complete-root probes")
