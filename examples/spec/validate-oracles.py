@@ -370,20 +370,31 @@ class DeclarationScope:
     ) -> DeclarationScope:
         """Copy this lexical scope while replacing selected nested tables."""
 
+        nested_contracts = (
+            self.contract_binders
+            if contract_binders is None
+            else contract_binders
+        )
+        nested_handler_contracts = (
+            self.handler_contract_binders
+            if contract_binders is None
+            else {
+                slot_number
+                for slot_number, binder in nested_contracts.items()
+                if binder.get("kind") == "HandlerContractBinderV2"
+            }
+        )
+
         return DeclarationScope(
             type_parameter_kinds=self.type_parameter_kinds,
             row_binders=self.row_binders,
-            contract_binders=(
-                self.contract_binders
-                if contract_binders is None
-                else contract_binders
-            ),
+            contract_binders=nested_contracts,
             identity_binders=(
                 self.identity_binders
                 if identity_binders is None
                 else identity_binders
             ),
-            handler_contract_binders=self.handler_contract_binders,
+            handler_contract_binders=nested_handler_contracts,
             owner_binders=(
                 self.owner_binders if owner_binders is None else owner_binders
             ),
@@ -934,7 +945,7 @@ def validate_lexical_slot_scope(
         return
     tag = value.get("kind")
     if tag == "ForAllIdentityTypeV2":
-        binder = value["binder"]
+        binder = value.get("binder")
         if isinstance(binder, dict):
             for member in (binder.get("family"), binder.get("owner")):
                 validate_lexical_slot_scope(
@@ -951,22 +962,22 @@ def validate_lexical_slot_scope(
                 if isinstance(clock_slot, int) and not isinstance(clock_slot, bool):
                     nested.setdefault("Clock", set()).add(clock_slot)
         validate_lexical_slot_scope(
-            value["body"], slot_scopes=nested, _root=False,
+            value.get("body"), slot_scopes=nested, _root=False,
         )
         return
     if tag == "ForAllOwnerTypeV2":
         nested = {key: set(slots) for key, slots in slot_scopes.items()}
-        binder = value["binder"]
+        binder = value.get("binder")
         if isinstance(binder, dict):
             owner_slot = binder.get("owner_slot")
             if isinstance(owner_slot, int) and not isinstance(owner_slot, bool):
                 nested.setdefault("Owner", set()).add(owner_slot)
         validate_lexical_slot_scope(
-            value["body"], slot_scopes=nested, _root=False,
+            value.get("body"), slot_scopes=nested, _root=False,
         )
         return
     if tag == "ExistsClockPackageTypeV2":
-        binder = value["clock_binder"]
+        binder = value.get("clock_binder")
         if isinstance(binder, dict):
             validate_lexical_slot_scope(
                 binder.get("owner"), slot_scopes=slot_scopes, _root=False,
@@ -982,10 +993,10 @@ def validate_lexical_slot_scope(
                 if isinstance(clock_slot, int) and not isinstance(clock_slot, bool):
                     nested.setdefault("Clock", set()).add(clock_slot)
         validate_lexical_slot_scope(
-            value["summary_binder"], slot_scopes=nested, _root=False,
+            value.get("summary_binder"), slot_scopes=nested, _root=False,
         )
         validate_lexical_slot_scope(
-            value["body"], slot_scopes=nested, _root=False,
+            value.get("body"), slot_scopes=nested, _root=False,
         )
         return
     if set(value) == {"namespace", "slot"}:
@@ -1350,7 +1361,11 @@ def validate_contract_kind(
     returns: ReturnScope,
     *,
     declaration_scope: DeclarationScope | None = None,
+    imports: ImportScope | None = None,
+    local_functions: LocalFunctionScope | None = None,
 ) -> None:
+    imports = imports or ImportScope()
+    local_functions = local_functions or {}
     tag = kind.get("kind")
     fields = {
         "FunctionContractKindV2": {"kind", "parameter_type", "result_type", "visible_row"},
@@ -1366,6 +1381,13 @@ def validate_contract_kind(
             validate_type_v2(
                 kind[key], returns=returns,
                 declaration_scope=declaration_scope,
+                imports=imports,
+                contract_binders=(
+                    declaration_scope.contract_binders
+                    if declaration_scope is not None
+                    else None
+                ),
+                local_functions=local_functions,
             )
     if "family" in kind:
         family = validate_contract_object(kind["family"])
@@ -1388,11 +1410,14 @@ def validate_contract_parameter(
     returns: ReturnScope,
     *,
     declaration_scope: DeclarationScope | None = None,
+    imports: ImportScope | None = None,
+    local_functions: LocalFunctionScope | None = None,
 ) -> None:
     exact_fields(parameter, {"slot", "kind"}, "ContractParameterV2")
     validate_u32(parameter["slot"], "ContractParameterV2 slot")
     validate_contract_kind(
         parameter["kind"], returns, declaration_scope=declaration_scope,
+        imports=imports, local_functions=local_functions,
     )
 
 
@@ -1428,6 +1453,8 @@ def validate_contract_ref(
         validate_contract_parameter(
             reference["parameter"], returns,
             declaration_scope=declaration_scope,
+            imports=imports,
+            local_functions=local_functions,
         )
         slot_number = reference["parameter"]["slot"]
         reject(slot_number not in contract_binders, "contract-projection-escapes-scope")
@@ -1460,6 +1487,326 @@ def normalized_effect_family_v2(family: Any) -> dict[str, Any]:
     return family
 
 
+def alpha_equal_v2(left: Any, right: Any) -> bool:
+    """Compare V2 trees modulo every binder introduced inside a TypeRefV2."""
+
+    counters: dict[str, int] = {}
+
+    def extend(
+        left_environment: dict[str, dict[int, int]],
+        right_environment: dict[str, dict[int, int]],
+        namespace: str,
+        left_slot: int,
+        right_slot: int,
+    ) -> tuple[dict[str, dict[int, int]], dict[str, dict[int, int]]]:
+        token = counters.get(namespace, 0)
+        counters[namespace] = token + 1
+        nested_left = {
+            name: dict(bindings)
+            for name, bindings in left_environment.items()
+        }
+        nested_right = {
+            name: dict(bindings)
+            for name, bindings in right_environment.items()
+        }
+        nested_left.setdefault(namespace, {})[left_slot] = token
+        nested_right.setdefault(namespace, {})[right_slot] = token
+        return nested_left, nested_right
+
+    def resolved_slot(
+        namespace: str,
+        slot_number: Any,
+        environment: dict[str, dict[int, int]],
+    ) -> tuple[str, Any]:
+        binding = environment.get(namespace, {}).get(slot_number)
+        if binding is None:
+            return "free", slot_number
+        return "bound", binding
+
+    def equivalent(
+        left_value: Any,
+        right_value: Any,
+        left_environment: dict[str, dict[int, int]],
+        right_environment: dict[str, dict[int, int]],
+    ) -> bool:
+        if type(left_value) is not type(right_value):
+            return False
+        if isinstance(left_value, list):
+            return len(left_value) == len(right_value) and all(
+                equivalent(
+                    left_member,
+                    right_member,
+                    left_environment,
+                    right_environment,
+                )
+                for left_member, right_member in zip(
+                    left_value, right_value,
+                )
+            )
+        if not isinstance(left_value, dict):
+            return left_value == right_value
+        if set(left_value) != set(right_value):
+            return False
+
+        if set(left_value) == {"namespace", "slot"}:
+            if left_value["namespace"] != right_value["namespace"]:
+                return False
+            namespace = left_value["namespace"]
+            return resolved_slot(
+                namespace, left_value["slot"], left_environment,
+            ) == resolved_slot(
+                namespace, right_value["slot"], right_environment,
+            )
+
+        tag = left_value.get("kind")
+        if tag != right_value.get("kind"):
+            return False
+        if isinstance(tag, str) and tag in {
+            "TypeParameterV1", "TypeParameterV2",
+        }:
+            return resolved_slot(
+                "Type", left_value.get("slot"), left_environment,
+            ) == resolved_slot(
+                "Type", right_value.get("slot"), right_environment,
+            )
+        if tag == "HandlerEntryParameterV1":
+            return resolved_slot(
+                "Contract",
+                left_value.get("contract_slot"),
+                left_environment,
+            ) == resolved_slot(
+                "Contract",
+                right_value.get("contract_slot"),
+                right_environment,
+            )
+        if (
+            set(left_value) == {"slot", "kind"}
+            and isinstance(left_value.get("kind"), dict)
+        ):
+            return resolved_slot(
+                "Contract", left_value["slot"], left_environment,
+            ) == resolved_slot(
+                "Contract", right_value["slot"], right_environment,
+            ) and equivalent(
+                left_value["kind"], right_value["kind"],
+                left_environment, right_environment,
+            )
+
+        if tag == "ForAllOwnerTypeV2":
+            left_binder = left_value.get("binder", {})
+            right_binder = right_value.get("binder", {})
+            if set(left_binder) != {"owner_slot"} or set(
+                right_binder
+            ) != {"owner_slot"}:
+                return False
+            nested_left, nested_right = extend(
+                left_environment,
+                right_environment,
+                "Owner",
+                left_binder["owner_slot"],
+                right_binder["owner_slot"],
+            )
+            return equivalent(
+                left_value["body"], right_value["body"],
+                nested_left, nested_right,
+            )
+
+        if tag == "ForAllContractTypeV2":
+            left_binder = left_value.get("binder", {})
+            right_binder = right_value.get("binder", {})
+            if set(left_binder) != {"contract_slot", "kind"} or set(
+                right_binder
+            ) != {"contract_slot", "kind"}:
+                return False
+            if not equivalent(
+                left_binder["kind"], right_binder["kind"],
+                left_environment, right_environment,
+            ):
+                return False
+            nested_left, nested_right = extend(
+                left_environment,
+                right_environment,
+                "Contract",
+                left_binder["contract_slot"],
+                right_binder["contract_slot"],
+            )
+            return equivalent(
+                left_value["body"], right_value["body"],
+                nested_left, nested_right,
+            )
+
+        if tag == "ForAllIdentityTypeV2":
+            left_binder = left_value.get("binder", {})
+            right_binder = right_value.get("binder", {})
+            binder_fields = {
+                "identity_slot", "clock_refinement", "family", "owner",
+            }
+            if set(left_binder) != binder_fields or set(
+                right_binder
+            ) != binder_fields:
+                return False
+            if not equivalent(
+                left_binder["family"], right_binder["family"],
+                left_environment, right_environment,
+            ) or not equivalent(
+                left_binder["owner"], right_binder["owner"],
+                left_environment, right_environment,
+            ):
+                return False
+            nested_left, nested_right = extend(
+                left_environment,
+                right_environment,
+                "Identity",
+                left_binder["identity_slot"],
+                right_binder["identity_slot"],
+            )
+            left_refinement = left_binder["clock_refinement"]
+            right_refinement = right_binder["clock_refinement"]
+            if (left_refinement is None) != (right_refinement is None):
+                return False
+            if left_refinement is not None:
+                if set(left_refinement) != {"clock_slot", "identity"} or set(
+                    right_refinement
+                ) != {"clock_slot", "identity"}:
+                    return False
+                nested_left, nested_right = extend(
+                    nested_left,
+                    nested_right,
+                    "Clock",
+                    left_refinement["clock_slot"],
+                    right_refinement["clock_slot"],
+                )
+                if not equivalent(
+                    left_refinement["identity"],
+                    right_refinement["identity"],
+                    nested_left,
+                    nested_right,
+                ):
+                    return False
+            return equivalent(
+                left_value["body"], right_value["body"],
+                nested_left, nested_right,
+            )
+
+        if tag == "ExistsClockPackageTypeV2":
+            left_clock = left_value.get("clock_binder", {})
+            right_clock = right_value.get("clock_binder", {})
+            clock_fields = {
+                "identity_slot", "clock_refinement", "family_witness",
+                "owner",
+            }
+            if set(left_clock) != clock_fields or set(
+                right_clock
+            ) != clock_fields:
+                return False
+            if not equivalent(
+                left_clock["family_witness"],
+                right_clock["family_witness"],
+                left_environment,
+                right_environment,
+            ) or not equivalent(
+                left_clock["owner"], right_clock["owner"],
+                left_environment, right_environment,
+            ):
+                return False
+            nested_left, nested_right = extend(
+                left_environment,
+                right_environment,
+                "Identity",
+                left_clock["identity_slot"],
+                right_clock["identity_slot"],
+            )
+            left_refinement = left_clock.get("clock_refinement", {})
+            right_refinement = right_clock.get("clock_refinement", {})
+            if set(left_refinement) != {"clock_slot", "identity"} or set(
+                right_refinement
+            ) != {"clock_slot", "identity"}:
+                return False
+            nested_left, nested_right = extend(
+                nested_left,
+                nested_right,
+                "Clock",
+                left_refinement["clock_slot"],
+                right_refinement["clock_slot"],
+            )
+            if not equivalent(
+                left_refinement["identity"],
+                right_refinement["identity"],
+                nested_left,
+                nested_right,
+            ):
+                return False
+            left_summary = left_value.get("summary_binder", {})
+            right_summary = right_value.get("summary_binder", {})
+            if set(left_summary) != {"contract_slot", "kind"} or set(
+                right_summary
+            ) != {"contract_slot", "kind"}:
+                return False
+            if not equivalent(
+                left_summary["kind"], right_summary["kind"],
+                nested_left, nested_right,
+            ):
+                return False
+            nested_left, nested_right = extend(
+                nested_left,
+                nested_right,
+                "Contract",
+                left_summary["contract_slot"],
+                right_summary["contract_slot"],
+            )
+            return equivalent(
+                left_value["body"], right_value["body"],
+                nested_left, nested_right,
+            )
+
+        signature_fields = {
+            "type_binders", "parameters", "result", "mode", "transition",
+            "suspension", "result_transformer", "required_phase",
+            "obligation_ids", "secondary_sites",
+        }
+        if signature_fields <= set(left_value):
+            left_binders = left_value["type_binders"]
+            right_binders = right_value["type_binders"]
+            if len(left_binders) != len(right_binders):
+                return False
+            nested_left = left_environment
+            nested_right = right_environment
+            for left_binder, right_binder in zip(
+                left_binders, right_binders,
+            ):
+                if (
+                    set(left_binder) != {"slot", "kind"}
+                    or set(right_binder) != {"slot", "kind"}
+                    or left_binder["kind"] != right_binder["kind"]
+                ):
+                    return False
+                nested_left, nested_right = extend(
+                    nested_left,
+                    nested_right,
+                    "Type",
+                    left_binder["slot"],
+                    right_binder["slot"],
+                )
+            return all(
+                equivalent(
+                    left_value[key], right_value[key],
+                    nested_left, nested_right,
+                )
+                for key in left_value
+                if key != "type_binders"
+            )
+
+        return all(
+            equivalent(
+                left_value[key], right_value[key],
+                left_environment, right_environment,
+            )
+            for key in left_value
+        )
+
+    return equivalent(left, right, {}, {})
+
+
 def validate_scoped_declaration_slot(
     reference: Any,
     namespace: str,
@@ -1483,6 +1830,9 @@ def validate_quantified_contract_binder_v2(
     binder: Any,
     returns: ReturnScope,
     declaration_scope: DeclarationScope,
+    *,
+    imports: ImportScope,
+    local_functions: LocalFunctionScope,
 ) -> dict[str, Any]:
     """Decode one V2 Contract binder in the scope preceding its body."""
 
@@ -1501,6 +1851,7 @@ def validate_quantified_contract_binder_v2(
     )
     validate_contract_kind(
         kind, returns, declaration_scope=declaration_scope,
+        imports=imports, local_functions=local_functions,
     )
     if "clock" in kind:
         validate_scoped_declaration_slot(
@@ -1655,6 +2006,7 @@ def validate_type_v2(
         elif isinstance(contract.get("kind"), dict) and isinstance(contract.get("slot"), int):
             validate_contract_parameter(
                 contract, returns, declaration_scope=declaration_scope,
+                imports=imports, local_functions=local_functions,
             )
             reject(contract["slot"] not in contract_binders, "contract-projection-escapes-scope")
             resolved_kind = binder_kind(contract_binders[contract["slot"]])
@@ -1708,6 +2060,7 @@ def validate_type_v2(
         if isinstance(later.get("kind"), dict):
             validate_contract_parameter(
                 later, returns, declaration_scope=declaration_scope,
+                imports=imports, local_functions=local_functions,
             )
             reject(later["slot"] not in contract_binders, "contract-projection-escapes-scope")
             reject(later["kind"] != binder_kind(contract_binders[later["slot"]]), "contract-component-kind-mismatch")
@@ -1764,6 +2117,7 @@ def validate_type_v2(
         if isinstance(contract.get("kind"), dict):
             validate_contract_parameter(
                 contract, returns, declaration_scope=declaration_scope,
+                imports=imports, local_functions=local_functions,
             )
             contract_slot = contract["slot"]
             reject(
@@ -1812,6 +2166,7 @@ def validate_type_v2(
     elif kind == "ForAllContractTypeV2":
         binder = validate_quantified_contract_binder_v2(
             type_ref["binder"], returns, declaration_scope,
+            imports=imports, local_functions=local_functions,
         )
         nested_contracts = dict(declaration_scope.contract_binders)
         nested_contracts[binder["contract_slot"]] = binder
@@ -1894,6 +2249,7 @@ def validate_type_v2(
         )
         summary_binder = validate_quantified_contract_binder_v2(
             type_ref["summary_binder"], returns, clock_scope,
+            imports=imports, local_functions=local_functions,
         )
         summary_kind = summary_binder["kind"]
         reject(
@@ -1911,7 +2267,9 @@ def validate_type_v2(
             local_functions=local_functions, declaration_scope=body_scope,
         )
         reject(
-            type_ref["body"] != summary_kind["payload_type"],
+            not alpha_equal_v2(
+                type_ref["body"], summary_kind["payload_type"],
+            ),
             "contract-component-kind-mismatch",
         )
 
@@ -3921,34 +4279,330 @@ def substitute_contract_kind(kind: dict[str, Any], substitution: dict[str, Any])
     contract_arguments = {entry["binder_slot"]: entry["contract"] for entry in substitution["contract_arguments"]}
     row_arguments = {entry["binder_slot"]: entry["value"] for entry in substitution["row_arguments"]}
 
-    def replace(value: Any, *, expected_kind: str = "Type") -> Any:
+    namespaces = {"Type", "Row", "Contract", "Owner", "Identity", "Clock"}
+
+    def collect_slots(
+        value: Any,
+        destination: dict[str, set[int]],
+    ) -> None:
         if isinstance(value, list):
-            return [replace(member, expected_kind=expected_kind) for member in value]
+            for member in value:
+                collect_slots(member, destination)
+            return
+        if not isinstance(value, dict):
+            return
+        if set(value) == {"namespace", "slot"}:
+            namespace = value.get("namespace")
+            slot_number = value.get("slot")
+            if namespace in destination and isinstance(slot_number, int):
+                destination[namespace].add(slot_number)
+        tag = value.get("kind")
+        if isinstance(tag, str) and tag in {
+            "TypeParameterV1", "TypeParameterV2",
+        } and isinstance(
+            value.get("slot"), int,
+        ):
+            destination["Type"].add(value["slot"])
+        if tag == "HandlerEntryParameterV1" and isinstance(
+            value.get("contract_slot"), int,
+        ):
+            destination["Contract"].add(value["contract_slot"])
+        if (
+            set(value) == {"slot", "kind"}
+            and isinstance(value.get("kind"), dict)
+            and isinstance(value.get("slot"), int)
+        ):
+            destination["Contract"].add(value["slot"])
+        if tag == "ForAllOwnerTypeV2":
+            binder = value.get("binder", {})
+            if isinstance(binder.get("owner_slot"), int):
+                destination["Owner"].add(binder["owner_slot"])
+        elif tag == "ForAllContractTypeV2":
+            binder = value.get("binder", {})
+            if isinstance(binder.get("contract_slot"), int):
+                destination["Contract"].add(binder["contract_slot"])
+        elif tag == "ForAllIdentityTypeV2":
+            binder = value.get("binder", {})
+            if isinstance(binder.get("identity_slot"), int):
+                destination["Identity"].add(binder["identity_slot"])
+            refinement = binder.get("clock_refinement")
+            if isinstance(refinement, dict) and isinstance(
+                refinement.get("clock_slot"), int,
+            ):
+                destination["Clock"].add(refinement["clock_slot"])
+        elif tag == "ExistsClockPackageTypeV2":
+            clock_binder = value.get("clock_binder", {})
+            if isinstance(clock_binder.get("identity_slot"), int):
+                destination["Identity"].add(clock_binder["identity_slot"])
+            refinement = clock_binder.get("clock_refinement", {})
+            if isinstance(refinement.get("clock_slot"), int):
+                destination["Clock"].add(refinement["clock_slot"])
+            summary = value.get("summary_binder", {})
+            if isinstance(summary.get("contract_slot"), int):
+                destination["Contract"].add(summary["contract_slot"])
+        signature_fields = {
+            "type_binders", "parameters", "result", "mode", "transition",
+            "suspension", "result_transformer", "required_phase",
+            "obligation_ids", "secondary_sites",
+        }
+        if signature_fields <= set(value):
+            for binder in value["type_binders"]:
+                if isinstance(binder.get("slot"), int):
+                    destination["Type"].add(binder["slot"])
+        for member in value.values():
+            collect_slots(member, destination)
+
+    used_slots = {namespace: set() for namespace in namespaces}
+    collect_slots(kind, used_slots)
+    collect_slots(substitution, used_slots)
+    capture_slots = {namespace: set() for namespace in namespaces}
+    for field in (
+        "type_arguments", "owner_arguments", "identity_arguments",
+        "clock_arguments", "contract_arguments", "row_arguments",
+    ):
+        for entry in substitution[field]:
+            collect_slots(
+                entry.get("value", entry.get("contract")), capture_slots,
+            )
+
+    def fresh_slot(namespace: str) -> int:
+        candidate = 0
+        while candidate in used_slots[namespace]:
+            candidate += 1
+        reject(candidate > U32_MAX, "contract-component-kind-mismatch")
+        used_slots[namespace].add(candidate)
+        return candidate
+
+    def nested_renames(
+        renames: dict[str, dict[int, int]],
+        namespace: str,
+        old_slot: int,
+    ) -> tuple[dict[str, dict[int, int]], int]:
+        new_slot = (
+            fresh_slot(namespace)
+            if old_slot in capture_slots[namespace]
+            else old_slot
+        )
+        nested = {
+            name: dict(bindings) for name, bindings in renames.items()
+        }
+        nested[namespace][old_slot] = new_slot
+        return nested, new_slot
+
+    def replace(
+        value: Any,
+        *,
+        expected_kind: str = "Type",
+        renames: dict[str, dict[int, int]] | None = None,
+    ) -> Any:
+        renames = renames or {namespace: {} for namespace in namespaces}
+        if isinstance(value, list):
+            return [
+                replace(
+                    member,
+                    expected_kind=expected_kind,
+                    renames=renames,
+                )
+                for member in value
+            ]
         if not isinstance(value, dict):
             return value
-        if value.get("kind") == "TypeParameterV2" and value.get("slot") in type_arguments:
+        if value.get("artifact") == "FunctionContractV2":
+            return copy.deepcopy(value)
+
+        tag = value.get("kind")
+        if tag == "ForAllOwnerTypeV2":
+            binder = value["binder"]
+            nested, owner_slot = nested_renames(
+                renames, "Owner", binder["owner_slot"],
+            )
+            return {
+                "kind": tag,
+                "binder": {"owner_slot": owner_slot},
+                "body": replace(value["body"], renames=nested),
+            }
+        if tag == "ForAllContractTypeV2":
+            binder = value["binder"]
+            binder_kind_value = replace(binder["kind"], renames=renames)
+            nested, contract_slot = nested_renames(
+                renames, "Contract", binder["contract_slot"],
+            )
+            return {
+                "kind": tag,
+                "binder": {
+                    "contract_slot": contract_slot,
+                    "kind": binder_kind_value,
+                },
+                "body": replace(value["body"], renames=nested),
+            }
+        if tag == "ForAllIdentityTypeV2":
+            binder = value["binder"]
+            nested, identity_slot = nested_renames(
+                renames, "Identity", binder["identity_slot"],
+            )
+            refinement = binder["clock_refinement"]
+            replaced_refinement = None
+            if refinement is not None:
+                nested, clock_slot = nested_renames(
+                    nested, "Clock", refinement["clock_slot"],
+                )
+                replaced_refinement = {
+                    "clock_slot": clock_slot,
+                    "identity": replace(
+                        refinement["identity"], renames=nested,
+                    ),
+                }
+            return {
+                "kind": tag,
+                "binder": {
+                    "identity_slot": identity_slot,
+                    "clock_refinement": replaced_refinement,
+                    "family": replace(
+                        binder["family"],
+                        expected_kind="Effect",
+                        renames=renames,
+                    ),
+                    "owner": replace(binder["owner"], renames=renames),
+                },
+                "body": replace(value["body"], renames=nested),
+            }
+        if tag == "ExistsClockPackageTypeV2":
+            clock_binder = value["clock_binder"]
+            nested, identity_slot = nested_renames(
+                renames, "Identity", clock_binder["identity_slot"],
+            )
+            refinement = clock_binder["clock_refinement"]
+            nested, clock_slot = nested_renames(
+                nested, "Clock", refinement["clock_slot"],
+            )
+            summary = value["summary_binder"]
+            summary_kind = replace(summary["kind"], renames=nested)
+            body_renames, contract_slot = nested_renames(
+                nested, "Contract", summary["contract_slot"],
+            )
+            return {
+                "kind": tag,
+                "clock_binder": {
+                    "identity_slot": identity_slot,
+                    "clock_refinement": {
+                        "clock_slot": clock_slot,
+                        "identity": replace(
+                            refinement["identity"], renames=nested,
+                        ),
+                    },
+                    "family_witness": replace(
+                        clock_binder["family_witness"], renames=renames,
+                    ),
+                    "owner": replace(
+                        clock_binder["owner"], renames=renames,
+                    ),
+                },
+                "summary_binder": {
+                    "contract_slot": contract_slot,
+                    "kind": summary_kind,
+                },
+                "body": replace(value["body"], renames=body_renames),
+            }
+
+        signature_fields = {
+            "type_binders", "parameters", "result", "mode", "transition",
+            "suspension", "result_transformer", "required_phase",
+            "obligation_ids", "secondary_sites",
+        }
+        if signature_fields <= set(value):
+            nested = renames
+            replaced_binders = []
+            for binder in value["type_binders"]:
+                nested, type_slot = nested_renames(
+                    nested, "Type", binder["slot"],
+                )
+                replaced_binders.append(
+                    {"slot": type_slot, "kind": binder["kind"]}
+                )
+            return {
+                key: (
+                    replaced_binders
+                    if key == "type_binders"
+                    else replace(
+                        member,
+                        expected_kind=(
+                            "Effect" if key == "family" else "Type"
+                        ),
+                        renames=nested,
+                    )
+                )
+                for key, member in value.items()
+            }
+
+        if tag == "TypeParameterV2":
+            slot_number = value.get("slot")
+            if slot_number in renames["Type"]:
+                return {"kind": tag, "slot": renames["Type"][slot_number]}
+            if slot_number not in type_arguments:
+                return copy.deepcopy(value)
             argument = copy.deepcopy(type_arguments[value["slot"]])
             if expected_kind == "Effect" and argument.get("kind") == "LegacyTypeRefV2":
                 return copy.deepcopy(argument["value"])
             return argument
-        if value.get("kind") == "TailV1":
+        if tag == "TailV1":
             row_slot = value.get("row_slot", {})
+            if row_slot.get("slot") in renames["Row"]:
+                return {
+                    "kind": tag,
+                    "row_slot": {
+                        "namespace": "Row",
+                        "slot": renames["Row"][row_slot["slot"]],
+                    },
+                }
             if row_slot.get("namespace") == "Row" and row_slot.get("slot") in row_arguments:
                 return copy.deepcopy(row_arguments[row_slot["slot"]])
         if set(value) == {"namespace", "slot"}:
+            namespace = value["namespace"]
+            if namespace in renames and value["slot"] in renames[namespace]:
+                return {
+                    "namespace": namespace,
+                    "slot": renames[namespace][value["slot"]],
+                }
             table = {"Owner": owner_arguments, "Identity": identity_arguments, "Clock": clock_arguments}.get(value["namespace"])
             if table is not None and value["slot"] in table:
                 return copy.deepcopy(table[value["slot"]])
-        if isinstance(value.get("kind"), dict) and value.get("slot") in contract_arguments:
-            return copy.deepcopy(contract_arguments[value["slot"]])
-        if value.get("kind") == "ContractParameterRefV2":
+        if tag == "ContractParameterRefV2":
             parameter = value.get("parameter", {})
-            if parameter.get("slot") in contract_arguments:
-                return copy.deepcopy(contract_arguments[parameter["slot"]])
+            slot_number = parameter.get("slot")
+            if slot_number in renames["Contract"]:
+                return {
+                    "kind": tag,
+                    "parameter": {
+                        "slot": renames["Contract"][slot_number],
+                        "kind": replace(
+                            parameter["kind"], renames=renames,
+                        ),
+                    },
+                }
+            if slot_number in contract_arguments:
+                return copy.deepcopy(contract_arguments[slot_number])
+        if isinstance(value.get("kind"), dict) and isinstance(
+            value.get("slot"), int,
+        ):
+            if value["slot"] in renames["Contract"]:
+                return {
+                    "slot": renames["Contract"][value["slot"]],
+                    "kind": replace(value["kind"], renames=renames),
+                }
+            if value["slot"] in contract_arguments:
+                return copy.deepcopy(contract_arguments[value["slot"]])
+        if tag == "HandlerEntryParameterV1":
+            contract_slot = value.get("contract_slot")
+            if contract_slot in renames["Contract"]:
+                return {
+                    "kind": tag,
+                    "contract_slot": renames["Contract"][contract_slot],
+                }
         return {
             key: replace(
                 member,
                 expected_kind="Effect" if key == "family" else "Type",
+                renames=renames,
             )
             for key, member in value.items()
         }
@@ -6343,7 +6997,9 @@ def validate_clock_package(
     reject(
         body.get("kind") != "NextTypeV2"
         or body.get("clock") != clock_ref
-        or body.get("payload") != summary["payload_type"],
+        or not alpha_equal_v2(
+            body.get("payload"), summary["payload_type"],
+        ),
         "contract-component-kind-mismatch",
     )
     package_contracts = {
@@ -9281,7 +9937,7 @@ def main() -> int:
         task46_result.returncode == 0,
         "task-46 complete-root regressions failed:\n" + task46_result.stdout,
     )
-    task46_probe_count = 71
+    task46_probe_count = 85
     validate_normative_producer_alignment()
     print(
         f"PASS: {len(interface_paths)} interface artifacts, "

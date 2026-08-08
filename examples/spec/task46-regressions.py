@@ -48,6 +48,17 @@ def int_type() -> dict[str, Any]:
     return legacy_type({"kind": "BuiltinTypeV1", "name": "Int"})
 
 
+def quantified_owner_type(owner_slot: int) -> dict[str, Any]:
+    return {
+        "kind": "ForAllOwnerTypeV2",
+        "binder": {"owner_slot": owner_slot},
+        "body": {
+            "kind": "OwnerTypeV2",
+            "owner": {"namespace": "Owner", "slot": owner_slot},
+        },
+    }
+
+
 def later_contract() -> dict[str, Any]:
     return {
         "capture": {
@@ -297,6 +308,39 @@ def quantified_and_capability_roots() -> None:
     }
     v.validate_function_contract(with_result(clock_package))
 
+    exact_alpha_package = copy.deepcopy(clock_package)
+    exact_alpha_package["summary_binder"]["kind"]["payload_type"] = (
+        quantified_owner_type(900)
+    )
+    exact_alpha_package["body"] = quantified_owner_type(900)
+    v.validate_function_contract(with_result(exact_alpha_package))
+
+    renamed_alpha_package = copy.deepcopy(exact_alpha_package)
+    renamed_alpha_package["body"] = quantified_owner_type(901)
+    v.validate_function_contract(with_result(renamed_alpha_package))
+
+    nonalpha_package = copy.deepcopy(exact_alpha_package)
+    nonalpha_package["body"] = quantified_owner_type(901)
+    nonalpha_package["body"]["body"]["owner"]["slot"] = 0
+    expect_diagnostic(
+        "clock-package payload is not alpha-equivalent",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_function_contract(with_result(nonalpha_package)),
+    )
+
+    exact_packed = load("clock-package-paths.json")
+    exact_packed["package"]["summary_binder"]["kind"]["payload_type"] = (
+        quantified_owner_type(910)
+    )
+    exact_packed["package"]["body"]["payload"] = quantified_owner_type(910)
+    v.validate_document(exact_packed, INTERFACES)
+
+    renamed_packed = copy.deepcopy(exact_packed)
+    renamed_packed["package"]["body"]["payload"] = (
+        quantified_owner_type(911)
+    )
+    v.validate_document(renamed_packed, INTERFACES)
+
     unbound_package_summary_clock = copy.deepcopy(clock_package)
     unbound_package_summary_clock["summary_binder"]["kind"]["clock"][
         "slot"
@@ -331,6 +375,390 @@ def quantified_and_capability_roots() -> None:
         "contract-component-kind-mismatch",
         lambda: v.validate_function_contract(with_result(wrong_capability)),
     )
+
+
+def quantified_import_and_handler_boundary_roots() -> None:
+    base = load("handler-forward-contract.json")
+    target = load("choose-once-function-contract.json")
+    function_type = {
+        "kind": "FunctionTypeV2",
+        "parameter": copy.deepcopy(
+            target["declaration_kind"]["parameter_type"]
+        ),
+        "result": copy.deepcopy(
+            target["declaration_kind"]["result_type"]
+        ),
+        "contract": copy.deepcopy(
+            base["handler_contract"]["applications"][0]["contract"]
+        ),
+    }
+
+    def validate_environment_type(type_ref: dict[str, Any]) -> None:
+        root = copy.deepcopy(base)
+        root["binders"]["type_binders"].append(
+            {"slot": 0, "kind": "Type"}
+        )
+        root["handler_contract"]["handler_environment"] = [
+            {
+                "slot": {"namespace": "Parameter", "slot": 0},
+                "type": copy.deepcopy(type_ref),
+                "provenance": {
+                    "kind": "LegacyProvenanceExprV2",
+                    "value": {
+                        "kind": "ArgumentV1",
+                        "argument": {
+                            "namespace": "Parameter",
+                            "slot": 0,
+                        },
+                    },
+                },
+                "capture": {
+                    "kind": "LegacyCaptureExprV2",
+                    "value": {
+                        "kind": "ArgumentCaptureV1",
+                        "argument": {
+                            "namespace": "Parameter",
+                            "slot": 0,
+                        },
+                    },
+                },
+            }
+        ]
+        v.validate_handler_oracle(root, INTERFACES)
+
+    validate_environment_type(function_type)
+    quantified_import = {
+        "kind": "ForAllContractTypeV2",
+        "binder": {
+            "contract_slot": 777,
+            "kind": {
+                "kind": "FunctionContractKindV2",
+                "parameter_type": copy.deepcopy(function_type),
+                "result_type": int_type(),
+                "visible_row": {"kind": "ClosedV1", "entries": []},
+            },
+        },
+        "body": int_type(),
+    }
+    validate_environment_type(quantified_import)
+
+    shadowed = load("choose-once-function-contract.json")
+    type_parameter = {"kind": "TypeParameterV2", "slot": 0}
+    shadowed["binders"]["contract_binders"].append(
+        {
+            "answer_type": copy.deepcopy(type_parameter),
+            "family": legacy_type(nominal_effect("IoFailure")),
+            "input_type": copy.deepcopy(type_parameter),
+            "kind": "HandlerContractBinderV2",
+            "slot": 999,
+        }
+    )
+
+    def function_kind(row: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "kind": "FunctionContractKindV2",
+            "parameter_type": copy.deepcopy(type_parameter),
+            "result_type": copy.deepcopy(type_parameter),
+            "visible_row": copy.deepcopy(row),
+        }
+
+    shadowed["declaration_kind"]["result_type"] = {
+        "kind": "ForAllContractTypeV2",
+        "binder": {
+            "contract_slot": 999,
+            "kind": function_kind({"kind": "ClosedV1", "entries": []}),
+        },
+        "body": {
+            "kind": "ForAllContractTypeV2",
+            "binder": {
+                "contract_slot": 998,
+                "kind": function_kind(
+                    {
+                        "kind": "ClosedV1",
+                        "entries": [
+                            {
+                                "kind": "HandlerEntryParameterV1",
+                                "contract_slot": 999,
+                            }
+                        ],
+                    }
+                ),
+            },
+            "body": copy.deepcopy(type_parameter),
+        },
+    }
+    expect_diagnostic(
+        "nested Function Contract shadows outer Handler classification",
+        "contract-projection-escapes-scope",
+        lambda: v.validate_function_contract(shadowed),
+    )
+
+    malformed = load("handler-forward-contract.json")
+    malformed["handler_contract"]["handler_environment"] = [
+        {
+            "slot": {"namespace": "Parameter", "slot": 0},
+            "type": {"kind": "ForAllOwnerTypeV2", "body": int_type()},
+            "provenance": {
+                "kind": "LegacyProvenanceExprV2",
+                "value": {
+                    "kind": "ArgumentV1",
+                    "argument": {"namespace": "Parameter", "slot": 0},
+                },
+            },
+            "capture": {
+                "kind": "LegacyCaptureExprV2",
+                "value": {
+                    "kind": "ArgumentCaptureV1",
+                    "argument": {"namespace": "Parameter", "slot": 0},
+                },
+            },
+        }
+    ]
+    expect_diagnostic(
+        "handler environment malformed quantifier is total",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_handler_oracle(malformed, INTERFACES),
+    )
+
+
+def empty_substitution() -> dict[str, list[dict[str, Any]]]:
+    return {
+        "type_arguments": [],
+        "row_arguments": [],
+        "contract_arguments": [],
+        "owner_arguments": [],
+        "identity_arguments": [],
+        "clock_arguments": [],
+    }
+
+
+def capture_avoiding_substitution_roots() -> None:
+    owner_kind = {
+        "kind": "FunctionContractKindV2",
+        "parameter_type": {
+            "kind": "ForAllOwnerTypeV2",
+            "binder": {"owner_slot": 0},
+            "body": {
+                "kind": "ApplyTypeV2",
+                "constructor": {
+                    "kind": "BuiltinConstructorV1",
+                    "name": "Pair",
+                },
+                "arguments": [
+                    {
+                        "kind": "OwnerTypeV2",
+                        "owner": {"namespace": "Owner", "slot": 999},
+                    },
+                    {
+                        "kind": "OwnerTypeV2",
+                        "owner": {"namespace": "Owner", "slot": 0},
+                    },
+                ],
+            },
+        },
+        "result_type": int_type(),
+        "visible_row": {"kind": "ClosedV1", "entries": []},
+    }
+    noncolliding = empty_substitution()
+    noncolliding["owner_arguments"] = [
+        {
+            "binder_slot": 999,
+            "value": {"namespace": "Owner", "slot": 1},
+        }
+    ]
+    noncolliding_result = v.substitute_contract_kind(
+        owner_kind, noncolliding,
+    )["parameter_type"]
+    assert [
+        item["owner"]["slot"]
+        for item in noncolliding_result["body"]["arguments"]
+    ] == [1, 0]
+
+    colliding = empty_substitution()
+    colliding["owner_arguments"] = [
+        {
+            "binder_slot": 999,
+            "value": {"namespace": "Owner", "slot": 0},
+        }
+    ]
+    colliding_result = v.substitute_contract_kind(
+        owner_kind, colliding,
+    )["parameter_type"]
+    owner_slots = [
+        item["owner"]["slot"]
+        for item in colliding_result["body"]["arguments"]
+    ]
+    assert owner_slots == [0, 1], owner_slots
+
+    frame = legacy_type(frame_clock_family())
+    identity_kind = {
+        "kind": "FunctionContractKindV2",
+        "parameter_type": {
+            "kind": "ForAllIdentityTypeV2",
+            "binder": {
+                "identity_slot": 0,
+                "clock_refinement": {
+                    "clock_slot": 0,
+                    "identity": {"namespace": "Identity", "slot": 0},
+                },
+                "family": copy.deepcopy(frame),
+                "owner": {"namespace": "Owner", "slot": 0},
+            },
+            "body": {
+                "kind": "ApplyTypeV2",
+                "constructor": {
+                    "kind": "BuiltinConstructorV1",
+                    "name": "Tuple4",
+                },
+                "arguments": [
+                    {
+                        "kind": "CapabilityTypeV2",
+                        "identity": {"namespace": "Identity", "slot": 999},
+                        "family": copy.deepcopy(frame),
+                    },
+                    {
+                        "kind": "CapabilityTypeV2",
+                        "identity": {"namespace": "Identity", "slot": 0},
+                        "family": copy.deepcopy(frame),
+                    },
+                    {
+                        "kind": "SignalTypeV2",
+                        "clock": {"namespace": "Clock", "slot": 999},
+                        "payload": int_type(),
+                    },
+                    {
+                        "kind": "SignalTypeV2",
+                        "clock": {"namespace": "Clock", "slot": 0},
+                        "payload": int_type(),
+                    },
+                ],
+            },
+        },
+        "result_type": int_type(),
+        "visible_row": {"kind": "ClosedV1", "entries": []},
+    }
+    identity_substitution = empty_substitution()
+    identity_substitution["identity_arguments"] = [
+        {
+            "binder_slot": 999,
+            "value": {"namespace": "Identity", "slot": 0},
+        }
+    ]
+    identity_substitution["clock_arguments"] = [
+        {
+            "binder_slot": 999,
+            "value": {"namespace": "Clock", "slot": 0},
+        }
+    ]
+    identity_result = v.substitute_contract_kind(
+        identity_kind, identity_substitution,
+    )["parameter_type"]
+    arguments = identity_result["body"]["arguments"]
+    assert [item["identity"]["slot"] for item in arguments[:2]] == [0, 1]
+    assert [item["clock"]["slot"] for item in arguments[2:]] == [0, 1]
+
+    contract_kind = {
+        "kind": "FunctionContractKindV2",
+        "parameter_type": int_type(),
+        "result_type": int_type(),
+        "visible_row": {"kind": "ClosedV1", "entries": []},
+    }
+    contract_type = {
+        "kind": "ForAllContractTypeV2",
+        "binder": {
+            "contract_slot": 0,
+            "kind": copy.deepcopy(contract_kind),
+        },
+        "body": {
+            "kind": "ApplyTypeV2",
+            "constructor": {
+                "kind": "BuiltinConstructorV1",
+                "name": "Pair",
+            },
+            "arguments": [
+                {
+                    "kind": "FunctionTypeV2",
+                    "parameter": int_type(),
+                    "result": int_type(),
+                    "contract": {
+                        "slot": 999,
+                        "kind": copy.deepcopy(contract_kind),
+                    },
+                },
+                {
+                    "kind": "FunctionTypeV2",
+                    "parameter": int_type(),
+                    "result": int_type(),
+                    "contract": {
+                        "slot": 0,
+                        "kind": copy.deepcopy(contract_kind),
+                    },
+                },
+            ],
+        },
+    }
+    contract_substitution = empty_substitution()
+    contract_substitution["contract_arguments"] = [
+        {
+            "binder_slot": 999,
+            "contract": {
+                "kind": "ContractParameterRefV2",
+                "parameter": {
+                    "slot": 0,
+                    "kind": copy.deepcopy(contract_kind),
+                },
+            },
+        }
+    ]
+    contract_result = v.substitute_contract_kind(
+        {
+            "kind": "FunctionContractKindV2",
+            "parameter_type": contract_type,
+            "result_type": int_type(),
+            "visible_row": {"kind": "ClosedV1", "entries": []},
+        },
+        contract_substitution,
+    )["parameter_type"]
+    assert contract_result["body"]["arguments"][0]["contract"][
+        "parameter"
+    ]["slot"] == 0
+    assert contract_result["body"]["arguments"][1]["contract"]["slot"] == 1
+
+    signature = {
+        "type_binders": [{"slot": 0, "kind": "Type"}],
+        "parameters": [
+            {"kind": "TypeParameterV2", "slot": 999},
+            {"kind": "TypeParameterV2", "slot": 0},
+        ],
+        "result": int_type(),
+        "mode": "fun",
+        "transition": {"kind": "SameWorldV1"},
+        "suspension": {"atoms": [], "grade": "NoSuspend"},
+        "result_transformer": {"kind": "SyntheticTransformer"},
+        "required_phase": {},
+        "obligation_ids": [],
+        "secondary_sites": {},
+    }
+    type_substitution = empty_substitution()
+    type_substitution["type_arguments"] = [
+        {
+            "binder_slot": 999,
+            "value": {"kind": "TypeParameterV2", "slot": 0},
+        }
+    ]
+    signature_result = v.substitute_contract_kind(
+        {
+            "kind": "FunctionContractKindV2",
+            "parameter_type": {
+                "kind": "SyntheticSignatureTypeV2",
+                "signature": signature,
+            },
+            "result_type": int_type(),
+            "visible_row": {"kind": "ClosedV1", "entries": []},
+        },
+        type_substitution,
+    )["parameter_type"]["signature"]
+    assert [item["slot"] for item in signature_result["parameters"]] == [0, 1]
 
 
 def row_scope_roots() -> None:
@@ -1647,6 +2075,8 @@ def handler_recursive_descendant_scope_roots() -> None:
 
 catalog_roots()
 quantified_and_capability_roots()
+quantified_import_and_handler_boundary_roots()
+capture_avoiding_substitution_roots()
 row_scope_roots()
 handler_entry_lacks_roots()
 named_lacks_roots()
@@ -1660,4 +2090,4 @@ evaluated_clause_and_return_boundary_roots()
 handler_computation_scope_roots()
 handler_recursive_descendant_scope_roots()
 validate_inline_function_fresh_scope_root()
-print("PASS: 71 task-46 exact-schema/scope/substitution complete-root probes")
+print("PASS: 85 task-46 exact-schema/scope/substitution complete-root probes")
