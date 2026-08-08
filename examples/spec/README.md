@@ -263,7 +263,7 @@ family、malformed Lacks container/entry以及未在 declaration environment解�
 Effect的普通 nominal Type，所有负例只返回 registered stable
 diagnostic。主 validator也以独立进程运行本 gate。
 
-`task46-regressions.py` 提交 95 个 schema-relative complete-root probes：catalog exact
+`task46-regressions.py` 提交 100 个 schema-relative complete-root probes：catalog exact
 shape一个正例与missing/extra-field两个稳定负例；public bound/unbound
 Row tail、contract-binder bound/unbound row与 nested-Union unbound tail；
 ordinary/handler-binder scope中的 `HandlerEntryParameterV1`；unbound/
@@ -294,7 +294,12 @@ capture-avoiding递归替换。相邻根还覆盖 inline FunctionContract全套
 declaration binder alpha scope、`LegacyTypeRefV2(TypeParameterV1)`与 operation
 Type binder的同步刷新、OperationSignature中 imported/local FunctionType的
 caller resolution tables，以及 packed payload在 alpha比较前的 exact TypeRef
-decode/total diagnostic。主 validator
+decode/total diagnostic。
+相邻完整根进一步固定 FunctionContract 内 `HandlerContractV2.prompt_slot`、
+`ParkContractV2`/`OwnerBoundV1.owner_slot` 与
+`TypeParameterIndexV1.slot` 的 binder-aware alpha rename，并要求缺字段
+`PromptSlotDeclV1` 与 scalar FunctionType contract 均返回稳定 exact-schema
+diagnostic。主 validator
 同样以独立进程运行本 gate。
 
 `diagnostics-v2.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；

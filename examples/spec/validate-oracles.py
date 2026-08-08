@@ -1698,6 +1698,49 @@ def alpha_equal_v2(left: Any, right: Any) -> bool:
                 if key not in {"binders", "closure_environment"}
             )
 
+        handler_contract_fields = {
+            "handled_entry", "prompt_slot", "residual_row",
+            "attributed_demand", "suspension", "semantic_summary",
+            "required_phase", "handler_environment", "applications",
+            "return_computation", "clause_computations",
+        }
+        if set(left_value) == handler_contract_fields:
+            if resolved_slot(
+                "Prompt", left_value["prompt_slot"], left_environment,
+            ) != resolved_slot(
+                "Prompt", right_value["prompt_slot"], right_environment,
+            ):
+                return False
+            return all(
+                equivalent(
+                    left_value[key], right_value[key],
+                    left_environment, right_environment,
+                )
+                for key in left_value
+                if key != "prompt_slot"
+            )
+
+        park_contract_fields = {
+            "owner_slot", "site_slot", "claim_cell_slot", "source",
+            "completion_port", "claim", "disposition", "required_phase",
+            "origin",
+        }
+        if set(left_value) == park_contract_fields:
+            if resolved_slot(
+                "Owner", left_value["owner_slot"], left_environment,
+            ) != resolved_slot(
+                "Owner", right_value["owner_slot"], right_environment,
+            ):
+                return False
+            return all(
+                equivalent(
+                    left_value[key], right_value[key],
+                    left_environment, right_environment,
+                )
+                for key in left_value
+                if key != "owner_slot"
+            )
+
         if set(left_value) == {"namespace", "slot"}:
             if left_value["namespace"] != right_value["namespace"]:
                 return False
@@ -1726,6 +1769,31 @@ def alpha_equal_v2(left: Any, right: Any) -> bool:
                 "Type", left_value.get("slot"), left_environment,
             ) == resolved_slot(
                 "Type", right_value.get("slot"), right_environment,
+            )
+        if tag == "TypeParameterIndexV1" and set(left_value) == {
+            "kind", "slot",
+        }:
+            return resolved_slot(
+                "Type", left_value["slot"], left_environment,
+            ) == resolved_slot(
+                "Type", right_value["slot"], right_environment,
+            )
+        if tag == "OwnerBoundV1" and set(left_value) == {
+            "kind", "park_site_slot", "owner_slot", "grade", "origin",
+        }:
+            if resolved_slot(
+                "Owner", left_value["owner_slot"], left_environment,
+            ) != resolved_slot(
+                "Owner", right_value["owner_slot"], right_environment,
+            ):
+                return False
+            return all(
+                equivalent(
+                    left_value[key], right_value[key],
+                    left_environment, right_environment,
+                )
+                for key in left_value
+                if key != "owner_slot"
             )
         if tag == "HandlerEntryParameterV1":
             return resolved_slot(
@@ -2156,7 +2224,7 @@ def validate_type_v2(
     elif kind == "FunctionTypeV2":
         validate_type_v2(type_ref["parameter"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
         validate_type_v2(type_ref["result"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
-        contract = type_ref["contract"]
+        contract = validate_contract_object(type_ref["contract"])
         if contract.get("artifact") == "FunctionContractV2":
             validate_function_contract(contract, imports=imports, local_functions=local_functions)
             resolved_kind = contract["declaration_kind"]
@@ -3885,6 +3953,71 @@ def validate_declaration_binders(binders: dict[str, Any], closure_environment: l
         {"parameter_binders", "type_binders", "row_binders", "contract_binders", "owner_binders", "clock_binders", "identity_binders", "prompt_binders"},
         "DeclarationBindersV2",
     )
+    binder_lists = {
+        field: validate_contract_list(binders[field])
+        for field in (
+            "parameter_binders", "type_binders", "row_binders",
+            "contract_binders", "owner_binders", "clock_binders",
+            "identity_binders", "prompt_binders",
+        )
+    }
+    for parameter in binder_lists["parameter_binders"]:
+        parameter = validate_contract_object(parameter)
+        exact_fields(parameter, {"slot", "type"}, "ParameterBinderV2")
+    for binder in binder_lists["type_binders"]:
+        validate_type_binder(binder)
+    for row in binder_lists["row_binders"]:
+        row = validate_contract_object(row)
+        exact_fields(row, {"slot", "lacks"}, "RowBinderV1")
+    for binder in binder_lists["contract_binders"]:
+        binder = validate_contract_object(binder)
+        binder_tag = binder.get("kind")
+        if binder_tag == "FunctionContractBinderV2":
+            exact_fields(
+                binder,
+                {"kind", "slot", "parameter_type", "result_type", "visible_row"},
+                binder_tag,
+            )
+        elif binder_tag == "HandlerContractBinderV2":
+            exact_fields(
+                binder,
+                {"kind", "slot", "family", "input_type", "answer_type"},
+                binder_tag,
+            )
+        else:
+            raise Diagnostic("contract-component-kind-mismatch")
+    for owner in binder_lists["owner_binders"]:
+        owner = validate_contract_object(owner)
+        exact_fields(owner, {"slot", "source"}, "OwnerSlotDeclV1")
+        validate_slot_v1(owner["source"])
+    for clock in binder_lists["clock_binders"]:
+        clock = validate_contract_object(clock)
+        exact_fields(
+            clock, {"slot", "identity", "owner"}, "ClockSlotDeclV1",
+        )
+        validate_slot_v1(clock["identity"], "Identity")
+        validate_slot_v1(clock["owner"], "Owner")
+    for identity in binder_lists["identity_binders"]:
+        identity = validate_contract_object(identity)
+        exact_fields(
+            identity,
+            {"identity_slot", "family", "owner", "binder"},
+            "IdentitySlotDeclV1",
+        )
+        validate_slot_v1(identity["owner"], "Owner")
+    for prompt in binder_lists["prompt_binders"]:
+        prompt = validate_contract_object(prompt)
+        exact_fields(
+            prompt,
+            {"binder_site_slot", "prompt_slot", "scope"},
+            "PromptSlotDeclV1",
+        )
+        validate_u32(prompt["binder_site_slot"], "Prompt binder site slot")
+        validate_u32(prompt["prompt_slot"], "Prompt binder slot")
+        reject(
+            prompt["scope"] != "LexicalInstallation",
+            "contract-component-kind-mismatch",
+        )
     parameters = unique_slots(binders["parameter_binders"], "slot", "Parameter")
     types = unique_slots(binders["type_binders"], "slot", "Type")
     rows = unique_slots(binders["row_binders"], "slot", "Row")
@@ -3893,10 +4026,6 @@ def validate_declaration_binders(binders: dict[str, Any], closure_environment: l
     clocks = unique_slots(binders["clock_binders"], "slot", "Clock")
     contracts = unique_slots(binders["contract_binders"], "slot", "Contract")
     prompts = unique_slots(binders["prompt_binders"], "prompt_slot", "Prompt")
-    for parameter in binders["parameter_binders"]:
-        exact_fields(parameter, {"slot", "type"}, "ParameterBinderV2")
-    for binder in binders["type_binders"]:
-        validate_type_binder(binder)
     type_parameter_kinds = {
         binder["slot"]: binder["kind"] for binder in binders["type_binders"]
     }
@@ -10144,7 +10273,7 @@ def main() -> int:
         task46_result.returncode == 0,
         "task-46 complete-root regressions failed:\n" + task46_result.stdout,
     )
-    task46_probe_count = 95
+    task46_probe_count = 100
     validate_normative_producer_alignment()
     print(
         f"PASS: {len(interface_paths)} interface artifacts, "

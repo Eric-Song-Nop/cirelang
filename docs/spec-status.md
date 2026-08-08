@@ -36,7 +36,7 @@ and no compiler/runtime implementation.
 - `examples/spec/validate-oracles.py` — reference decoder/evaluator/gate.
 - `examples/spec/task35-regressions.py` — 13 complete-root adjacent regressions.
 - `examples/spec/task45-regressions.py` — 21 associated-evidence/kind complete-root regressions.
-- `examples/spec/task46-regressions.py` — 95 catalog/quantifier/declaration-scope/substitution complete-root regressions.
+- `examples/spec/task46-regressions.py` — 100 catalog/quantifier/declaration-scope/substitution complete-root regressions.
 - `examples/spec/diagnostics-v2.json`.
 - `examples/spec/mutations/v1-rejects-v2-tags.json`.
 - `examples/spec/runtime/packed-next-lease-runtime.json`.

@@ -947,6 +947,189 @@ def packed_alpha_totality_roots() -> None:
     )
 
 
+def adjacent_alpha_occurrence_totality_roots() -> None:
+    def function_type(contract: dict[str, Any]) -> dict[str, Any]:
+        kind = contract["declaration_kind"]
+        return {
+            "kind": "FunctionTypeV2",
+            "parameter": copy.deepcopy(kind["parameter_type"]),
+            "result": copy.deepcopy(kind["result_type"]),
+            "contract": copy.deepcopy(contract),
+        }
+
+    def package(
+        summary_payload: dict[str, Any], body_payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        root = load("apply-later-function-contract.json")
+        root["declaration_kind"]["result_type"] = {
+            "kind": "ExistsClockPackageTypeV2",
+            "clock_binder": {
+                "identity_slot": 777,
+                "clock_refinement": {
+                    "clock_slot": 778,
+                    "identity": {"namespace": "Identity", "slot": 777},
+                },
+                "family_witness": {
+                    "kind": "CanonicalFrameClockV2",
+                    "module": ["cire", "temporal"],
+                    "name": "FrameClock",
+                    "sealed_origin": "cire.temporal:FrameClock",
+                },
+                "owner": {"namespace": "Owner", "slot": 0},
+            },
+            "summary_binder": {
+                "contract_slot": 779,
+                "kind": {
+                    "kind": "ClockPackageSummaryKindV2",
+                    "clock": {"namespace": "Clock", "slot": 778},
+                    "payload_type": copy.deepcopy(summary_payload),
+                },
+            },
+            "body": copy.deepcopy(body_payload),
+        }
+        return root
+
+    def validate_renamed(
+        left: dict[str, Any], right: dict[str, Any],
+    ) -> None:
+        v.validate_function_contract(left)
+        v.validate_function_contract(right)
+        v.validate_document(
+            package(function_type(left), function_type(right)), INTERFACES,
+        )
+
+    def prompt_contract(prompt_slot: int) -> dict[str, Any]:
+        local = load("local-function-call.json")
+        contract = copy.deepcopy(local["local_declarations"][0]["contract"])
+        contract["binders"]["owner_binders"] = [
+            {
+                "slot": 0,
+                "source": {"namespace": "Parameter", "slot": 0},
+            }
+        ]
+        contract["binders"]["prompt_binders"] = [
+            {
+                "binder_site_slot": 100,
+                "prompt_slot": prompt_slot,
+                "scope": "LexicalInstallation",
+            }
+        ]
+        handler = copy.deepcopy(load("handler-forward-contract.json")[
+            "handler_contract"
+        ])
+        handler["applications"] = []
+        handler["clause_computations"] = []
+        handler["return_computation"] = copy.deepcopy(
+            handler["return_computation"]["continuation"]
+        )
+        handler["prompt_slot"] = prompt_slot
+        contract["closure_environment"].append(
+            {
+                "capture": {
+                    "kind": "LegacyCaptureExprV2",
+                    "value": {"kind": "NoCaptureV1"},
+                },
+                "provenance": {
+                    "kind": "LegacyProvenanceExprV2",
+                    "value": {"kind": "StableV1"},
+                },
+                "slot": {"namespace": "ClosureCapture", "slot": 999},
+                "type": {
+                    "answer": int_type(),
+                    "contract": handler,
+                    "family": copy.deepcopy(handler["handled_entry"]["family"]),
+                    "input": int_type(),
+                    "kind": "HandlerTemplateTypeV2",
+                    "owner": {"namespace": "Owner", "slot": 0},
+                    "policy": "PersistentTemplateV1",
+                    "residual_row": {"kind": "EmptyV1"},
+                },
+            }
+        )
+        return contract
+
+    validate_renamed(prompt_contract(0), prompt_contract(1))
+
+    def owner_contract(owner_slot: int) -> dict[str, Any]:
+        contract = load("mixed-next-callback-function-contract.json")
+        contract["declaration_kind"]["result_type"] = int_type()
+        if owner_slot != 0:
+            for node in v.walk(contract):
+                if not isinstance(node, dict):
+                    continue
+                if node.get("namespace") == "Owner" and node.get("slot") == 0:
+                    node["slot"] = owner_slot
+                if node.get("owner_slot") == 0:
+                    node["owner_slot"] = owner_slot
+            contract["binders"]["owner_binders"][0]["slot"] = owner_slot
+        return contract
+
+    validate_renamed(owner_contract(0), owner_contract(7))
+
+    def indexed_contract(type_slot: int) -> dict[str, Any]:
+        contract = load("mixed-next-callback-function-contract.json")
+        contract["declaration_kind"]["result_type"] = int_type()
+        contract["binders"]["type_binders"] = [
+            {"slot": type_slot, "kind": "Type"}
+        ]
+        contract["computation"]["return_binder"]["nominal_index"] = {
+            "kind": "LegacyNominalIndexExprV2",
+            "value": {"kind": "TypeParameterIndexV1", "slot": type_slot},
+        }
+        return contract
+
+    validate_renamed(indexed_contract(700), indexed_contract(701))
+
+    malformed_prompt = prompt_contract(0)
+    del malformed_prompt["binders"]["prompt_binders"][0]["prompt_slot"]
+    malformed_type = function_type(malformed_prompt)
+    expect_diagnostic(
+        "missing inline PromptSlotDeclV1 field is stable",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_document(
+            package(malformed_type, malformed_type), INTERFACES,
+        ),
+    )
+
+    local = load("local-function-call.json")
+    declaration = local["local_declarations"][0]
+    target = declaration["contract"]
+    target_kind = target["declaration_kind"]
+    artifact_hash = v.canonical_hash(target)
+    imports = v.single_import_scope(
+        artifact_hash,
+        target,
+        tuple(declaration["module"]),
+        declaration["name"],
+    )
+    signature_fields = {
+        "type_binders", "parameters", "result", "mode", "transition",
+        "suspension", "result_transformer", "required_phase",
+        "obligation_ids", "secondary_sites",
+    }
+    handler = load("handler-forward-contract.json")
+    signature = next(
+        copy.deepcopy(node)
+        for node in v.walk(handler)
+        if isinstance(node, dict) and set(node) == signature_fields
+    )
+    signature["type_binders"] = []
+    signature["parameters"] = [
+        {
+            "kind": "FunctionTypeV2",
+            "parameter": copy.deepcopy(target_kind["parameter_type"]),
+            "result": copy.deepcopy(target_kind["result_type"]),
+            "contract": 0,
+        }
+    ]
+    signature["result"] = copy.deepcopy(target_kind["result_type"])
+    expect_diagnostic(
+        "scalar OperationSignature FunctionType contract is stable",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_operation_signature(signature, {}, imports=imports),
+    )
+
+
 def row_scope_roots() -> None:
     bound = load("choose-once-function-contract.json")
     bound["binders"]["row_binders"].append({"slot": 999, "lacks": []})
@@ -2265,6 +2448,7 @@ quantified_import_and_handler_boundary_roots()
 operation_signature_contract_scope_roots()
 capture_avoiding_substitution_roots()
 packed_alpha_totality_roots()
+adjacent_alpha_occurrence_totality_roots()
 row_scope_roots()
 handler_entry_lacks_roots()
 named_lacks_roots()
@@ -2278,4 +2462,4 @@ evaluated_clause_and_return_boundary_roots()
 handler_computation_scope_roots()
 handler_recursive_descendant_scope_roots()
 validate_inline_function_fresh_scope_root()
-print("PASS: 95 task-46 exact-schema/scope/substitution complete-root probes")
+print("PASS: 100 task-46 exact-schema/scope/substitution complete-root probes")
