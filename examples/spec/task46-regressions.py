@@ -1416,6 +1416,88 @@ def task49_schema_scope_totality_roots() -> None:
         lambda: v.validate_function_contract(malformed_operation_name),
     )
 
+    for malformed_stage in (0, [], None):
+        expect_diagnostic(
+            f"LatentSite scalar stage {malformed_stage!r}",
+            "contract-component-kind-mismatch",
+            lambda stage=malformed_stage: v.validate_function_contract(
+                malformed_latent_root("stage", stage)
+            ),
+        )
+    expect_diagnostic(
+        "LatentSite unknown StageV1 tag",
+        "unknown-obligation-stage",
+        lambda: v.validate_function_contract(
+            malformed_latent_root("stage", "Bogus")
+        ),
+    )
+    expect_diagnostic(
+        "ResolveAtInstallationV1 is HandlerInstall-only",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_function_contract(
+            malformed_latent_root("stage", "Call")
+        ),
+    )
+    call_route_at_install = malformed_latent_root(
+        "route", {"kind": "ResolveAtCallV1", "on_missing": "RootOfEntryV1"},
+    )
+    expect_diagnostic(
+        "ResolveAtCallV1 is Call-only",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_function_contract(call_route_at_install),
+    )
+    outer_route = malformed_latent_root(
+        "route", {"kind": "OuterOfV1", "prompt_slot": 999},
+    )
+    outer_route["binders"]["prompt_binders"].append(
+        {
+            "binder_site_slot": 999,
+            "prompt_slot": 999,
+            "scope": "LexicalInstallation",
+        }
+    )
+    expect_diagnostic(
+        "OuterOfV1 is Kernel-Forward-only",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_function_contract(outer_route),
+    )
+
+    for field in (
+        "actual_arguments", "call_obligation_ids", "install_obligation_ids",
+    ):
+        expect_diagnostic(
+            f"LatentSite scalar {field} container",
+            "contract-component-kind-mismatch",
+            lambda field=field: v.validate_function_contract(
+                malformed_latent_root(field, 0)
+            ),
+        )
+    expect_diagnostic(
+        "LatentSite scalar SecondarySiteSetV1",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_function_contract(
+            malformed_latent_root("secondary_sites", 0)
+        ),
+    )
+    expect_diagnostic(
+        "LatentSite scalar SecondarySiteSetV1 sites list",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_function_contract(
+            malformed_latent_root(
+                "secondary_sites", {"kind": "Closed", "sites": 0},
+            )
+        ),
+    )
+    expect_diagnostic(
+        "LatentSite unknown SecondarySiteSetV1 kind",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_function_contract(
+            malformed_latent_root(
+                "secondary_sites", {"kind": "Open", "sites": []},
+            )
+        ),
+    )
+
     malformed_hash = {
         "kind": "ImportedFunctionRefV2",
         "module": copy.deepcopy(declaration["module"]),
@@ -2918,4 +3000,4 @@ evaluated_clause_and_return_boundary_roots()
 handler_computation_scope_roots()
 handler_recursive_descendant_scope_roots()
 validate_inline_function_fresh_scope_root()
-print("PASS: 120 task-46 exact-schema/scope/substitution complete-root probes")
+print("PASS: 133 task-46 exact-schema/scope/substitution complete-root probes")

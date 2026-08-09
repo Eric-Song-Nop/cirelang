@@ -3405,6 +3405,78 @@ def validate_obligation(
         validate_effect_entry_selector(obligation["entry"])
 
 
+def validate_secondary_site_set(
+    secondary_sites: Any,
+    *,
+    declaration_scope: DeclarationScope | None = None,
+) -> None:
+    """Exact-decode one closed SecondarySiteSetV1 in lexical scope."""
+
+    secondary_sites = validate_contract_object(secondary_sites)
+    exact_fields(
+        secondary_sites, {"kind", "sites"}, "SecondarySiteSetV1",
+    )
+    reject(
+        secondary_sites["kind"] != "Closed",
+        "contract-component-kind-mismatch",
+    )
+    for site in validate_contract_list(secondary_sites["sites"]):
+        site = validate_contract_object(site)
+        exact_fields(
+            site,
+            {
+                "site_slot", "receiver", "operation", "route",
+                "suspension", "semantic_summary", "origin",
+            },
+            "SecondarySiteV1",
+        )
+        validate_u32(site["site_slot"], "SecondarySiteV1 site_slot")
+        validate_effect_entry_selector(
+            site["receiver"],
+            (
+                declaration_scope.type_parameter_kinds
+                if declaration_scope is not None
+                else None
+            ),
+            identity_binders=(
+                declaration_scope.identity_binders
+                if declaration_scope is not None
+                else None
+            ),
+            handler_contract_binders=(
+                declaration_scope.handler_contract_binders
+                if declaration_scope is not None
+                else None
+            ),
+        )
+        validate_operation_selector(
+            site["operation"],
+            (
+                declaration_scope.type_parameter_kinds
+                if declaration_scope is not None
+                else None
+            ),
+        )
+        validate_route_selector(site["route"])
+        route_kind = site["route"].get("kind")
+        reject(
+            route_kind == "OuterOfV1",
+            "contract-component-kind-mismatch",
+        )
+        if (
+            declaration_scope is not None
+            and route_kind in {"InstallationPromptV1", "OuterOfV1"}
+        ):
+            reject(
+                site["route"]["prompt_slot"]
+                not in declaration_scope.prompt_binders,
+                "contract-projection-escapes-scope",
+            )
+        validate_suspension(site["suspension"])
+        validate_summary_normal_form(site["semantic_summary"])
+        validate_source_origins(site)
+
+
 def validate_operation_signature(
     signature: dict[str, Any],
     returns: ReturnScope,
@@ -3472,22 +3544,9 @@ def validate_operation_signature(
     validate_phase_requirement(signature["required_phase"])
     for local_id in validate_contract_list(signature["obligation_ids"]):
         validate_u32(local_id, "OperationSignatureV2 obligation id")
-    secondary_sites = validate_contract_object(signature["secondary_sites"])
-    exact_fields(secondary_sites, {"kind", "sites"}, "OperationSignatureV2 secondary_sites")
-    require(secondary_sites["kind"] == "Closed", "operation secondary sites must be closed")
-    for site in validate_contract_list(secondary_sites["sites"]):
-        site = validate_contract_object(site)
-        exact_fields(
-            site,
-            {"site_slot", "receiver", "operation", "route", "suspension", "semantic_summary", "origin"},
-            "SecondarySiteV1",
-        )
-        validate_u32(site["site_slot"], "SecondarySiteV1 site_slot")
-        validate_effect_entry_selector(site["receiver"])
-        validate_operation_selector(site["operation"])
-        validate_route_selector(site["route"])
-        validate_suspension(site["suspension"])
-        validate_summary_normal_form(site["semantic_summary"])
+    validate_secondary_site_set(
+        signature["secondary_sites"], declaration_scope=signature_scope,
+    )
 
 
 def validate_latent_site(
@@ -3503,6 +3562,14 @@ def validate_latent_site(
 ) -> None:
     exact_fields(latent, {"site_slot", "stage", "receiver", "operation", "route", "actual_arguments", "instantiated_signature", "suffix", "secondary_sites", "call_obligation_ids", "install_obligation_ids", "origin"}, "LatentSiteV2")
     validate_u32(latent["site_slot"], "LatentSiteV2 site_slot")
+    reject(
+        not isinstance(latent["stage"], str),
+        "contract-component-kind-mismatch",
+    )
+    reject(
+        latent["stage"] not in {"Call", "HandlerInstall"},
+        "unknown-obligation-stage",
+    )
     validate_effect_entry_selector(
         latent["receiver"],
         (
@@ -3530,9 +3597,17 @@ def validate_latent_site(
         ),
     )
     validate_route_selector(latent["route"])
+    route_kind = latent["route"].get("kind")
+    reject(
+        route_kind == "ResolveAtCallV1" and latent["stage"] != "Call"
+        or route_kind == "ResolveAtInstallationV1"
+        and latent["stage"] != "HandlerInstall"
+        or route_kind == "OuterOfV1",
+        "contract-component-kind-mismatch",
+    )
     if (
         declaration_scope is not None
-        and latent["route"].get("kind")
+        and route_kind
         in {"InstallationPromptV1", "OuterOfV1"}
     ):
         reject(
@@ -3540,12 +3615,19 @@ def validate_latent_site(
             not in declaration_scope.prompt_binders,
             "contract-projection-escapes-scope",
         )
-    for local_id in [*latent["call_obligation_ids"], *latent["install_obligation_ids"]]:
+    actual_arguments = validate_contract_list(latent["actual_arguments"])
+    call_obligation_ids = validate_contract_list(
+        latent["call_obligation_ids"]
+    )
+    install_obligation_ids = validate_contract_list(
+        latent["install_obligation_ids"]
+    )
+    for local_id in [*call_obligation_ids, *install_obligation_ids]:
         validate_u32(local_id, "LatentSiteV2 obligation id")
-    for summary in latent["actual_arguments"]:
+    for summary in actual_arguments:
         validate_value_summary(summary, returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope, disposition_binder=disposition_binder)
     validate_operation_argument_scope(
-        latent["actual_arguments"], len(latent["actual_arguments"]),
+        actual_arguments, len(actual_arguments),
     )
     validate_operation_signature(
         latent["instantiated_signature"], returns,
@@ -3553,9 +3635,12 @@ def validate_latent_site(
         declaration_scope=declaration_scope,
     )
     require(
-        [summary["type"] for summary in latent["actual_arguments"]]
+        [summary["type"] for summary in actual_arguments]
         == latent["instantiated_signature"]["parameters"],
         "LatentSiteV2 actual/signature type mismatch",
+    )
+    validate_secondary_site_set(
+        latent["secondary_sites"], declaration_scope=declaration_scope,
     )
     validate_suffix(
         latent["suffix"], returns=returns, imports=imports,
@@ -10492,7 +10577,7 @@ def main() -> int:
         task46_result.returncode == 0,
         "task-46 complete-root regressions failed:\n" + task46_result.stdout,
     )
-    task46_probe_count = 120
+    task46_probe_count = 133
     validate_normative_producer_alignment()
     print(
         f"PASS: {len(interface_paths)} interface artifacts, "

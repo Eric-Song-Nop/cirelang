@@ -263,7 +263,7 @@ family、malformed Lacks container/entry以及未在 declaration environment解�
 Effect的普通 nominal Type，所有负例只返回 registered stable
 diagnostic。主 validator也以独立进程运行本 gate。
 
-`task46-regressions.py` 提交 120 个 schema-relative complete-root probes：catalog exact
+`task46-regressions.py` 提交 133 个 schema-relative complete-root probes：catalog exact
 shape一个正例与missing/extra-field两个稳定负例；public bound/unbound
 Row tail、contract-binder bound/unbound row与 nested-Union unbound tail；
 ordinary/handler-binder scope中的 `HandlerEntryParameterV1`；unbound/
@@ -307,7 +307,12 @@ diagnostic。再加十二个完整根要求 empty Prompt table 不得放行 nest
 Handler，`LatentSiteV2` 的 receiver/operation/route 必须 exact decode 且显式
 Prompt route 必须 lexical closure；并将 non-string imported `artifact_hash`
 在 direct OperationSignature、LatentSite 与 Forward 三条路径及 malformed
-`ContractKindV2` object 全部固化为 stable diagnostic。主 validator
+`ContractKindV2` object 全部固化为 stable diagnostic。再加十三个相邻
+完整根 exact-decode `StageV1`，拒绝
+Call/HandlerInstall 与 `ResolveAtCallV1`/`ResolveAtInstallationV1` 的交叉
+错配，禁止 LatentSite 使用 Kernel-Forward-only `OuterOfV1`，并将
+actual/obligation list 与 `SecondarySiteSetV1` 的 scalar/open/malformed
+container 全部收口为 stable diagnostic。主 validator
 同样以独立进程运行本 gate。
 
 `diagnostics-v2.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；
