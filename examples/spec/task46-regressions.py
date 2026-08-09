@@ -1130,6 +1130,235 @@ def adjacent_alpha_occurrence_totality_roots() -> None:
     )
 
 
+def task49_schema_scope_totality_roots() -> None:
+    """Keep every distinct task-49 closure defect as a consumable root."""
+
+    later = load("mixed-next-callback-function-contract.json")
+    later["declaration_kind"]["result_type"] = int_type()
+    later["binders"]["contract_binders"] = [
+        {
+            "kind": "LaterContractBinderV2",
+            "slot": 780,
+            "clock": {"namespace": "Clock", "slot": 0},
+            "payload_type": int_type(),
+        }
+    ]
+    v.validate_function_contract(later)
+
+    continuation = load("choose-once-function-contract.json")
+    continuation["binders"]["contract_binders"] = [
+        {
+            "kind": "ContinuationContractBinderV2",
+            "slot": 781,
+            "argument_type": int_type(),
+            "answer_type": int_type(),
+        }
+    ]
+    v.validate_function_contract(continuation)
+
+    def indexed_contract(
+        binder_slot: int, occurrence_slot: int | None = None,
+    ) -> dict[str, Any]:
+        occurrence_slot = (
+            binder_slot if occurrence_slot is None else occurrence_slot
+        )
+        contract = load("mixed-next-callback-function-contract.json")
+        contract["declaration_kind"]["result_type"] = int_type()
+        contract["binders"]["type_binders"] = [
+            {"slot": binder_slot, "kind": "Type"}
+        ]
+        contract["computation"]["return_binder"]["nominal_index"] = {
+            "kind": "LegacyNominalIndexExprV2",
+            "value": {
+                "kind": "TypeParameterIndexV1",
+                "slot": occurrence_slot,
+            },
+        }
+        return contract
+
+    def world_parameter_contract(contract_slot: int) -> dict[str, Any]:
+        contract = indexed_contract(790)
+        contract["binders"]["contract_binders"] = [
+            {
+                "kind": "FunctionContractBinderV2",
+                "slot": contract_slot,
+                "parameter_type": int_type(),
+                "result_type": int_type(),
+                "visible_row": {"kind": "ClosedV1", "entries": []},
+            }
+        ]
+        contract["computation"]["prefix"]["paths"][0][
+            "ParametricObligations"
+        ].append(
+            {
+                "kind": "LegacyObligationV2",
+                "value": {
+                    "kind": "StableAcrossV1",
+                    "id": 4240,
+                    "stage": "HandlerInstall",
+                    "slots": [],
+                    "clock_slot": {"namespace": "Clock", "slot": 0},
+                    "worlds": [
+                        {
+                            "kind": "WorldParameterV1",
+                            "contract_slot": contract_slot,
+                        }
+                    ],
+                    "origin": "task49.cire:world-parameter",
+                },
+            }
+        )
+        return contract
+
+    world_left = world_parameter_contract(800)
+    world_right = world_parameter_contract(801)
+    v.validate_function_contract(world_left)
+    v.validate_function_contract(world_right)
+    if not v.alpha_equal_v2(world_left, world_right):
+        raise AssertionError("WorldParameterV1 Contract alpha rename")
+
+    def prompt_contract(
+        binder_slot: int, occurrence_slot: int,
+    ) -> dict[str, Any]:
+        local = load("local-function-call.json")
+        contract = copy.deepcopy(local["local_declarations"][0]["contract"])
+        contract["binders"]["owner_binders"] = [
+            {
+                "slot": 0,
+                "source": {"namespace": "Parameter", "slot": 0},
+            }
+        ]
+        contract["binders"]["prompt_binders"] = [
+            {
+                "binder_site_slot": 4100,
+                "prompt_slot": binder_slot,
+                "scope": "LexicalInstallation",
+            }
+        ]
+        handler = copy.deepcopy(load("handler-forward-contract.json")[
+            "handler_contract"
+        ])
+        handler["applications"] = []
+        handler["clause_computations"] = []
+        handler["return_computation"] = copy.deepcopy(
+            handler["return_computation"]["continuation"]
+        )
+        handler["prompt_slot"] = occurrence_slot
+        contract["closure_environment"].append(
+            {
+                "slot": {"namespace": "ClosureCapture", "slot": 4101},
+                "type": {
+                    "kind": "HandlerTemplateTypeV2",
+                    "family": copy.deepcopy(handler["handled_entry"]["family"]),
+                    "owner": {"namespace": "Owner", "slot": 0},
+                    "input": int_type(),
+                    "answer": int_type(),
+                    "residual_row": {"kind": "EmptyV1"},
+                    "contract": handler,
+                    "policy": "PersistentTemplateV1",
+                },
+                "provenance": {
+                    "kind": "LegacyProvenanceExprV2",
+                    "value": {"kind": "StableV1"},
+                },
+                "capture": {
+                    "kind": "LegacyCaptureExprV2",
+                    "value": {"kind": "NoCaptureV1"},
+                },
+            }
+        )
+        return contract
+
+    unbound_prompt = prompt_contract(60, 61)
+    expect_diagnostic(
+        "unbound HandlerContractV2 prompt scalar",
+        "contract-projection-escapes-scope",
+        lambda: v.validate_function_contract(unbound_prompt),
+    )
+
+    unbound_index = indexed_contract(760, 761)
+    expect_diagnostic(
+        "unbound TypeParameterIndexV1 scalar",
+        "contract-projection-escapes-scope",
+        lambda: v.validate_function_contract(unbound_index),
+    )
+
+    duplicate_type = indexed_contract(760)
+    duplicate_type["binders"]["type_binders"].append(
+        {"slot": 760, "kind": "Type"}
+    )
+    expect_diagnostic(
+        "duplicate Type binder slot is diagnostic",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_function_contract(duplicate_type),
+    )
+
+    local = load("local-function-call.json")
+    declaration = local["local_declarations"][0]
+    target = declaration["contract"]
+    target_kind = target["declaration_kind"]
+    artifact_hash = v.canonical_hash(target)
+    imports = v.single_import_scope(
+        artifact_hash,
+        target,
+        tuple(declaration["module"]),
+        declaration["name"],
+    )
+    handler = load("handler-forward-contract.json")
+    signature_fields = {
+        "type_binders", "parameters", "result", "mode", "transition",
+        "suspension", "result_transformer", "required_phase",
+        "obligation_ids", "secondary_sites",
+    }
+    signature_template = next(
+        copy.deepcopy(node)
+        for node in v.walk(handler)
+        if isinstance(node, dict) and set(node) == signature_fields
+    )
+
+    def malformed_signature(reference: dict[str, Any]) -> dict[str, Any]:
+        signature = copy.deepcopy(signature_template)
+        signature["type_binders"] = []
+        signature["parameters"] = [
+            {
+                "kind": "FunctionTypeV2",
+                "parameter": copy.deepcopy(target_kind["parameter_type"]),
+                "result": copy.deepcopy(target_kind["result_type"]),
+                "contract": reference,
+            }
+        ]
+        signature["result"] = copy.deepcopy(target_kind["result_type"])
+        signature["obligation_ids"] = []
+        return signature
+
+    malformed_import = {
+        "kind": "ImportedFunctionRefV2",
+        "module": 0,
+        "name": declaration["name"],
+        "artifact_hash": artifact_hash,
+    }
+    expect_diagnostic(
+        "non-list imported module is diagnostic",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_operation_signature(
+            malformed_signature(malformed_import), {}, imports=imports,
+        ),
+    )
+
+    malformed_local = {
+        "kind": "LocalFunctionRefV2",
+        "declaration_slot": [],
+    }
+    expect_diagnostic(
+        "non-u32 local declaration slot is diagnostic",
+        "local-function-ref-unresolved",
+        lambda: v.validate_operation_signature(
+            malformed_signature(malformed_local), {},
+            local_functions={declaration["declaration_slot"]: target},
+        ),
+    )
+
+
 def row_scope_roots() -> None:
     bound = load("choose-once-function-contract.json")
     bound["binders"]["row_binders"].append({"slot": 999, "lacks": []})
@@ -2449,6 +2678,7 @@ operation_signature_contract_scope_roots()
 capture_avoiding_substitution_roots()
 packed_alpha_totality_roots()
 adjacent_alpha_occurrence_totality_roots()
+task49_schema_scope_totality_roots()
 row_scope_roots()
 handler_entry_lacks_roots()
 named_lacks_roots()
@@ -2462,4 +2692,4 @@ evaluated_clause_and_return_boundary_roots()
 handler_computation_scope_roots()
 handler_recursive_descendant_scope_roots()
 validate_inline_function_fresh_scope_root()
-print("PASS: 100 task-46 exact-schema/scope/substitution complete-root probes")
+print("PASS: 108 task-46 exact-schema/scope/substitution complete-root probes")

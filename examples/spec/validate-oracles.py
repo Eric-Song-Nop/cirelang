@@ -939,11 +939,42 @@ def validate_lexical_slot_scope(
         return
     if not isinstance(value, dict):
         return
-    if value.get("artifact") == "FunctionContractV2" or (
-        not _root and set(value) == HANDLER_CONTRACT_FIELDS
-    ):
+    if value.get("artifact") == "FunctionContractV2":
         return
     tag = value.get("kind")
+    if set(value) == HANDLER_CONTRACT_FIELDS:
+        prompt_scope = slot_scopes.get("Prompt", set())
+        if prompt_scope:
+            reject(
+                value.get("prompt_slot") not in prompt_scope,
+                "contract-projection-escapes-scope",
+            )
+        elif not _root:
+            # A captured handler contract with no enclosing prompt table owns
+            # its installation scope; its direct decoder validates that root.
+            return
+        for key, member in value.items():
+            if key != "prompt_slot":
+                validate_lexical_slot_scope(
+                    member, slot_scopes=slot_scopes, _root=False,
+                )
+        return
+    if tag == "WorldParameterV1" and set(value) == {
+        "kind", "contract_slot",
+    }:
+        if "Contract" in slot_scopes:
+            reject(
+                value.get("contract_slot") not in slot_scopes["Contract"],
+                "contract-projection-escapes-scope",
+            )
+        return
+    if tag == "TypeParameterIndexV1" and set(value) == {"kind", "slot"}:
+        if "Type" in slot_scopes:
+            reject(
+                value.get("slot") not in slot_scopes["Type"],
+                "contract-projection-escapes-scope",
+            )
+        return
     if tag == "ForAllIdentityTypeV2":
         binder = value.get("binder")
         if isinstance(binder, dict):
@@ -1433,6 +1464,17 @@ def validate_contract_ref(
     tag = reference.get("kind")
     if tag == "ImportedFunctionRefV2":
         exact_fields(reference, {"kind", "module", "name", "artifact_hash"}, tag)
+        reject(
+            not isinstance(reference["module"], list)
+            or not reference["module"]
+            or any(
+                not isinstance(component, str) or not component
+                for component in reference["module"]
+            )
+            or not isinstance(reference["name"], str)
+            or not reference["name"],
+            "contract-component-kind-mismatch",
+        )
         reject(reference["artifact_hash"] not in imports, "contract-component-kind-mismatch")
         expected_export = imports.exports.get(reference["artifact_hash"])
         reject(
@@ -1441,6 +1483,13 @@ def validate_contract_ref(
         )
     elif tag == "LocalFunctionRefV2":
         exact_fields(reference, {"kind", "declaration_slot"}, tag)
+        reject(
+            not isinstance(reference["declaration_slot"], int)
+            or isinstance(reference["declaration_slot"], bool)
+            or reference["declaration_slot"] < 0
+            or reference["declaration_slot"] > U32_MAX,
+            "local-function-ref-unresolved",
+        )
         reject(reference["declaration_slot"] not in local_functions, "local-function-ref-unresolved")
         target = local_functions[reference["declaration_slot"]]
         reject(
@@ -1777,6 +1826,14 @@ def alpha_equal_v2(left: Any, right: Any) -> bool:
                 "Type", left_value["slot"], left_environment,
             ) == resolved_slot(
                 "Type", right_value["slot"], right_environment,
+            )
+        if tag == "WorldParameterV1" and set(left_value) == {
+            "kind", "contract_slot",
+        }:
+            return resolved_slot(
+                "Contract", left_value["contract_slot"], left_environment,
+            ) == resolved_slot(
+                "Contract", right_value["contract_slot"], right_environment,
             )
         if tag == "OwnerBoundV1" and set(left_value) == {
             "kind", "park_site_slot", "owner_slot", "grade", "origin",
@@ -3911,21 +3968,36 @@ def binder_kind(binder: dict[str, Any]) -> dict[str, Any]:
             not in {
                 "FunctionContractKindV2",
                 "LaterContractKindV2",
+                "ContinuationContractKindV2",
+                "HandlerContractKindV2",
                 "ClockPackageSummaryKindV2",
             },
             "contract-component-kind-mismatch",
         )
         return kind
-    reject(
-        binder.get("kind") != "FunctionContractBinderV2",
-        "contract-component-kind-mismatch",
-    )
-    return {
-        "kind": "FunctionContractKindV2",
-        "parameter_type": binder["parameter_type"],
-        "result_type": binder["result_type"],
-        "visible_row": binder["visible_row"],
-    }
+    tag = binder.get("kind")
+    if tag == "FunctionContractBinderV2":
+        return {
+            "kind": "FunctionContractKindV2",
+            "parameter_type": binder["parameter_type"],
+            "result_type": binder["result_type"],
+            "visible_row": binder["visible_row"],
+        }
+    if tag == "LaterContractBinderV2":
+        return {
+            "kind": "LaterContractKindV2",
+            "clock": binder["clock"],
+            "payload_type": binder["payload_type"],
+        }
+    if tag == "ContinuationContractBinderV2":
+        return {
+            "kind": "ContinuationContractKindV2",
+            "argument_type": binder["argument_type"],
+            "answer_type": binder["answer_type"],
+        }
+    if tag == "HandlerContractBinderV2":
+        return handler_binder_kind(binder)
+    raise Diagnostic("contract-component-kind-mismatch")
 
 
 def handler_binder_kind(binder: dict[str, Any]) -> dict[str, Any]:
@@ -3942,8 +4014,16 @@ def handler_binder_kind(binder: dict[str, Any]) -> dict[str, Any]:
 
 
 def unique_slots(bindings: list[dict[str, Any]], key: str, label: str) -> set[int]:
-    values = [binding[key] for binding in bindings]
-    require(len(values) == len(set(values)), f"duplicate {label} slot")
+    values: list[int] = []
+    for binding in bindings:
+        binding = validate_contract_object(binding)
+        reject(key not in binding, "contract-component-kind-mismatch")
+        validate_u32(binding[key], f"{label} binder slot")
+        values.append(binding[key])
+    reject(
+        len(values) != len(set(values)),
+        "contract-component-kind-mismatch",
+    )
     return set(values)
 
 
@@ -3976,6 +4056,19 @@ def validate_declaration_binders(binders: dict[str, Any], closure_environment: l
             exact_fields(
                 binder,
                 {"kind", "slot", "parameter_type", "result_type", "visible_row"},
+                binder_tag,
+            )
+        elif binder_tag == "LaterContractBinderV2":
+            exact_fields(
+                binder,
+                {"kind", "slot", "clock", "payload_type"},
+                binder_tag,
+            )
+            validate_slot_v1(binder["clock"], "Clock")
+        elif binder_tag == "ContinuationContractBinderV2":
+            exact_fields(
+                binder,
+                {"kind", "slot", "argument_type", "answer_type"},
                 binder_tag,
             )
         elif binder_tag == "HandlerContractBinderV2":
@@ -4105,6 +4198,15 @@ def validate_kinded_type_parameter_scope(
     if value.get("artifact") == "FunctionContractV2":
         # An inline nested declaration establishes its own binder context and is
         # validated recursively by validate_type_v2.
+        return
+    if value.get("kind") == "TypeParameterIndexV1":
+        slot_number = value.get("slot")
+        reject(
+            expected_kind != "Type"
+            or slot_number not in ambient_type_parameters
+            or ambient_type_parameters[slot_number] != "Type",
+            "contract-projection-escapes-scope",
+        )
         return
     if isinstance(value.get("kind"), str) and value.get("kind") in {
         "TypeParameterV1", "TypeParameterV2",
@@ -5421,6 +5523,39 @@ def validate_function_contract(
             )
             validate_type_v2(binder["parameter_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
             validate_type_v2(binder["result_type"], imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
+        elif binder_tag == "LaterContractBinderV2":
+            reject(
+                set(binder)
+                != {"kind", "slot", "clock", "payload_type"},
+                "contract-component-kind-mismatch",
+            )
+            validate_scoped_declaration_slot(
+                binder["clock"], "Clock", clock_binders,
+            )
+            validate_type_v2(
+                binder["payload_type"], imports=imports,
+                contract_binders=contract_binders,
+                local_functions=local_functions,
+                declaration_scope=declaration_scope,
+            )
+        elif binder_tag == "ContinuationContractBinderV2":
+            reject(
+                set(binder)
+                != {"kind", "slot", "argument_type", "answer_type"},
+                "contract-component-kind-mismatch",
+            )
+            validate_type_v2(
+                binder["argument_type"], imports=imports,
+                contract_binders=contract_binders,
+                local_functions=local_functions,
+                declaration_scope=declaration_scope,
+            )
+            validate_type_v2(
+                binder["answer_type"], imports=imports,
+                contract_binders=contract_binders,
+                local_functions=local_functions,
+                declaration_scope=declaration_scope,
+            )
         elif binder_tag == "HandlerContractBinderV2":
             reject(
                 set(binder)
@@ -5449,12 +5584,19 @@ def validate_function_contract(
     slot_scopes = {
         "Parameter": parameter_scope,
         "ClosureCapture": closure_scope,
+        "Type": {binder["slot"] for binder in binders["type_binders"]},
+        "Contract": {
+            binder["slot"] for binder in binders["contract_binders"]
+        },
         "Owner": {binder["slot"] for binder in binders["owner_binders"]},
         "Identity": {
             binder["identity_slot"] for binder in binders["identity_binders"]
         },
         "Clock": {binder["slot"] for binder in binders["clock_binders"]},
         "Row": {binder["slot"] for binder in binders["row_binders"]},
+        "Prompt": {
+            binder["prompt_slot"] for binder in binders["prompt_binders"]
+        },
     }
     validate_lexical_effect_selector_scope(
         [
@@ -10273,7 +10415,7 @@ def main() -> int:
         task46_result.returncode == 0,
         "task-46 complete-root regressions failed:\n" + task46_result.stdout,
     )
-    task46_probe_count = 100
+    task46_probe_count = 108
     validate_normative_producer_alignment()
     print(
         f"PASS: {len(interface_paths)} interface artifacts, "
