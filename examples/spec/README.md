@@ -263,7 +263,7 @@ family、malformed Lacks container/entry以及未在 declaration environment解�
 Effect的普通 nominal Type，所有负例只返回 registered stable
 diagnostic。主 validator也以独立进程运行本 gate。
 
-`task46-regressions.py` 提交 142 个 schema-relative complete-root probes：catalog exact
+`task46-regressions.py` 提交 150 个 schema-relative complete-root probes：catalog exact
 shape一个正例与missing/extra-field两个稳定负例；public bound/unbound
 Row tail、contract-binder bound/unbound row与 nested-Union unbound tail；
 ordinary/handler-binder scope中的 `HandlerEntryParameterV1`；unbound/
@@ -316,7 +316,10 @@ container 全部收口为 stable diagnostic。最后一正八负完整根把同�
 Prompt scope 贯穿 LatentSite 与 path-level `DemandV1` / `RequestV1`，禁止后两处使用
 Kernel-Forward-only `OuterOfV1`，并要求 demand/request/site 的 canonical
 attribution key 一致；同时 exact-decode suspension atoms list，并从 atoms
-重新计算 aggregate grade。主 validator
+重新计算 aggregate grade。再以三正五负完整根冻结 secondary template 与
+`LatentSite.secondary_sites` sealed evidence 的 exact 一致、普通 Function 的
+site/request exact closure，以及 Handler 只接受有 Call projection、当前 exact
+handler removal 或 Forward disposition 证明的 finite extra site。主 validator
 同样以独立进程运行本 gate。
 
 `diagnostics-v2.json` 冻结 corpus oracle可引用的 diagnostic id与产生 stage；

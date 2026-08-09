@@ -753,6 +753,7 @@ def validate_attributed_request_keys(
     request_keys: list[AttributionKey],
     *,
     site_keys: list[AttributionKey] | None = None,
+    authenticated_extra_keys: set[AttributionKey] | None = None,
 ) -> None:
     """Enforce AttributedOK without trusting any serialized aggregate."""
 
@@ -763,9 +764,11 @@ def validate_attributed_request_keys(
         "contract-component-kind-mismatch",
     )
     if site_keys is not None:
+        authenticated_extra_keys = authenticated_extra_keys or set()
         reject(
             len(site_keys) != len(set(site_keys))
-            or not set(request_keys).issubset(site_keys),
+            or set(site_keys)
+            != set(request_keys) | authenticated_extra_keys,
             "contract-component-kind-mismatch",
         )
 
@@ -3588,6 +3591,10 @@ def validate_secondary_site_set(
                 },
             )
         )
+    reject(
+        len(site_keys) != len(set(site_keys)),
+        "contract-component-kind-mismatch",
+    )
     return site_keys
 
 
@@ -3729,7 +3736,10 @@ def validate_latent_site(
     install_obligation_ids = validate_contract_list(
         latent["install_obligation_ids"]
     )
-    for local_id in [*call_obligation_ids, *install_obligation_ids]:
+    projected_obligation_ids = [
+        *call_obligation_ids, *install_obligation_ids,
+    ]
+    for local_id in projected_obligation_ids:
         validate_u32(local_id, "LatentSiteV2 obligation id")
     for summary in actual_arguments:
         validate_value_summary(summary, returns, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope, disposition_binder=disposition_binder)
@@ -3741,6 +3751,14 @@ def validate_latent_site(
         imports=imports, local_functions=local_functions,
         declaration_scope=declaration_scope,
     )
+    reject(
+        len(projected_obligation_ids)
+        != len(set(projected_obligation_ids))
+        or not set(projected_obligation_ids).issubset(
+            latent["instantiated_signature"]["obligation_ids"]
+        ),
+        "contract-component-kind-mismatch",
+    )
     require(
         [summary["type"] for summary in actual_arguments]
         == latent["instantiated_signature"]["parameters"],
@@ -3748,6 +3766,12 @@ def validate_latent_site(
     )
     secondary_site_keys = validate_secondary_site_set(
         latent["secondary_sites"], declaration_scope=declaration_scope,
+    )
+    reject(
+        latent["secondary_sites"]
+        != latent["instantiated_signature"]["secondary_sites"]
+        or secondary_site_keys != signature_site_keys,
+        "contract-component-kind-mismatch",
     )
     validate_suffix(
         latent["suffix"], returns=returns, imports=imports,
@@ -3761,7 +3785,7 @@ def validate_latent_site(
             entry=latent["receiver"], operation=latent["operation"],
             site_role="Primary",
         ),
-        *(secondary_site_keys or signature_site_keys),
+        *secondary_site_keys,
     ]
 
 
@@ -3780,7 +3804,7 @@ def validate_forward_contract(
     nearest_outer_prompt_slot: int | None,
     row_binders: dict[int, dict[str, Any]] | None = None,
     declaration_scope: DeclarationScope | None = None,
-) -> None:
+) -> list[AttributionKey]:
     exact_fields(forward, {"site_slot", "route", "entry", "operation", "continuation", "entry_world", "actual_argument_summaries", "instantiated_signature", "call_obligation_ids", "install_obligation_ids", "secondary_sites", "origin"}, "ForwardContractV2")
     validate_u32(forward["site_slot"], "ForwardContractV2 site_slot")
     exact_fields(evidence, {"inner_disposition", "input_state", "output_state", "forward_site_slot", "continuation_transfer"}, "ForwardDispositionEvidenceV2")
@@ -3817,7 +3841,7 @@ def validate_forward_contract(
         forward["actual_argument_summaries"],
         len(forward["actual_argument_summaries"]),
     )
-    validate_operation_signature(
+    signature_site_keys = validate_operation_signature(
         forward["instantiated_signature"], returns,
         imports=imports, local_functions=local_functions,
         declaration_scope=declaration_scope,
@@ -3834,7 +3858,15 @@ def validate_forward_contract(
         or set(projected_ids) != obligation_ids,
         "forward-obligation-projection-mismatch",
     )
-    require(forward["secondary_sites"].get("kind") == "Closed", "Forward secondary sites must be closed")
+    secondary_site_keys = validate_secondary_site_set(
+        forward["secondary_sites"], declaration_scope=declaration_scope,
+    )
+    reject(
+        forward["secondary_sites"]
+        != forward["instantiated_signature"]["secondary_sites"]
+        or secondary_site_keys != signature_site_keys,
+        "contract-component-kind-mismatch",
+    )
     validate_suffix(
         forward["continuation"], returns=returns, imports=imports,
         contract_binders=contract_binders, local_functions=local_functions,
@@ -3854,6 +3886,14 @@ def validate_forward_contract(
         resume_type["value"]["usage"] != quantities[forward["instantiated_signature"]["mode"]],
         "forward-disposition-quantity-mismatch",
     )
+    return [
+        attribution_key(
+            site_slot=forward["site_slot"], route=route,
+            entry=forward["entry"], operation=forward["operation"],
+            site_role="Primary",
+        ),
+        *secondary_site_keys,
+    ]
 
 
 def validate_path(
@@ -3899,26 +3939,39 @@ def validate_path(
     q = [obligation_value(obligation) for obligation in path["ParametricObligations"]]
     q_keys = {(entry["stage"], entry["id"]) for entry in q}
     site_keys: list[AttributionKey] = []
+    latent_key_groups: list[
+        tuple[dict[str, Any], list[AttributionKey]]
+    ] = []
+    projected_obligation_keys: set[tuple[str, int]] = set()
     for latent in validate_contract_list(path["LatentSites"]):
-        site_keys.extend(
-            validate_latent_site(
-                latent, returns=returns, imports=imports,
-                contract_binders=contract_binders,
-                local_functions=local_functions,
-                disposition_binder=disposition_binder,
-                row_binders=row_binders,
-                declaration_scope=declaration_scope,
-            )
+        latent_keys = validate_latent_site(
+            latent, returns=returns, imports=imports,
+            contract_binders=contract_binders,
+            local_functions=local_functions,
+            disposition_binder=disposition_binder,
+            row_binders=row_binders,
+            declaration_scope=declaration_scope,
         )
+        site_keys.extend(latent_keys)
+        latent_key_groups.append((latent, latent_keys))
         for local_id in latent["call_obligation_ids"]:
             reject(("Call", local_id) not in q_keys, "projected-obligation-stage-lost")
+            reject(
+                ("Call", local_id) in projected_obligation_keys,
+                "contract-component-kind-mismatch",
+            )
+            projected_obligation_keys.add(("Call", local_id))
         for local_id in latent["install_obligation_ids"]:
             reject(("HandlerInstall", local_id) not in q_keys, "projected-obligation-stage-lost")
-    validate_attributed_request_keys(
-        demand_keys, request_keys, site_keys=site_keys,
-    )
+            reject(
+                ("HandlerInstall", local_id)
+                in projected_obligation_keys,
+                "contract-component-kind-mismatch",
+            )
+            projected_obligation_keys.add(("HandlerInstall", local_id))
     outcome = path["outcome"]
     kind = outcome.get("kind")
+    forward_site_keys: list[AttributionKey] = []
     if kind == "ReturnsV2":
         exact_fields(outcome, {"kind", "transition", "result_transformer"}, kind)
         validate_transition(outcome["transition"])
@@ -3980,7 +4033,7 @@ def validate_path(
         reject(context != "handler_clause" or disposition_binder is None, "delegates-outside-handler-clause")
         require(clause_operation is not None and handled_entry is not None and handler_prompt_slot is not None, "handler clause context missing")
         exact_fields(outcome, {"kind", "forward_contract", "disposition_evidence"}, kind)
-        validate_forward_contract(
+        forward_site_keys = validate_forward_contract(
             outcome["forward_contract"], outcome["disposition_evidence"], disposition_binder,
             returns=returns, imports=imports, contract_binders=contract_binders,
             local_functions=local_functions, clause_operation=clause_operation,
@@ -4002,6 +4055,46 @@ def validate_path(
         )
     else:
         raise Diagnostic("unknown-path-outcome-v2")
+
+    authenticated_extra_keys: set[AttributionKey] = set()
+    if context in {"handler_return", "handler_clause"}:
+        expected_handler_route = (
+            {
+                "kind": "InstallationPromptV1",
+                "prompt_slot": handler_prompt_slot,
+            }
+            if handler_prompt_slot is not None
+            else None
+        )
+        for latent, latent_keys in latent_key_groups:
+            if (
+                latent["stage"] == "Call"
+                and latent["call_obligation_ids"]
+            ):
+                authenticated_extra_keys.update(latent_keys)
+            if (
+                latent["stage"] == "HandlerInstall"
+                and handled_entry is not None
+                and expected_handler_route is not None
+            ):
+                authenticated_extra_keys.update(
+                    key
+                    for key in latent_keys
+                    if key[1] == jcs(expected_handler_route)
+                    and key[2] == jcs(handled_entry)
+                )
+        authenticated_extra_keys.update(
+            set(site_keys).intersection(forward_site_keys)
+        )
+    authenticated_extra_keys.intersection_update(
+        set(site_keys) - set(request_keys)
+    )
+    validate_attributed_request_keys(
+        demand_keys,
+        request_keys,
+        site_keys=site_keys,
+        authenticated_extra_keys=authenticated_extra_keys,
+    )
 
 
 def computation_return_types(
@@ -6047,6 +6140,8 @@ def validate_handler_contract(
         contract["return_computation"], applications, context="handler_return",
         imports=imports, contract_binders=contract_binders,
         local_functions=local_functions, row_binders=row_binders,
+        handled_entry=contract["handled_entry"],
+        handler_prompt_slot=contract["prompt_slot"],
         declaration_scope=declaration_scope,
     )
     seen_operations: set[str] = set()
@@ -8577,23 +8672,35 @@ def validate_task28_path_and_qualification_regressions() -> int:
             }
         ],
     }
-    secondary_demand = copy.deepcopy(secondary_path["attributed_demand"][0])
+    secondary_latent["secondary_sites"] = copy.deepcopy(
+        secondary_latent["instantiated_signature"]["secondary_sites"]
+    )
+    primary_demand = secondary_path["attributed_demand"][0]
+    primary_demand["site_slot"] = 5
+    secondary_demand = copy.deepcopy(primary_demand)
     secondary_demand["site_slot"] = 7
     secondary_demand["site_role"] = {
         "kind": "Secondary",
         "secondary_slot": 7,
     }
-    secondary_path["attributed_demand"] = [secondary_demand]
-    secondary_request = next(
+    secondary_path["attributed_demand"] = sorted(
+        [primary_demand, secondary_demand], key=jcs,
+    )
+    primary_request = next(
         atom
         for atom in secondary_path["suspension"]["atoms"]
         if atom.get("kind") == "RequestV1"
     )
+    primary_request["site_slot"] = 5
+    secondary_request = copy.deepcopy(primary_request)
     secondary_request["site_slot"] = 7
     secondary_request["site_role"] = {
         "kind": "Secondary",
         "secondary_slot": 7,
     }
+    secondary_path["suspension"]["atoms"] = sorted(
+        [primary_request, secondary_request], key=jcs,
+    )
     validate_function_contract(secondary_source)
     secondary_hash = canonical_hash(secondary_source)
     secondary_reference = {
@@ -10734,7 +10841,7 @@ def main() -> int:
         task46_result.returncode == 0,
         "task-46 complete-root regressions failed:\n" + task46_result.stdout,
     )
-    task46_probe_count = 142
+    task46_probe_count = 150
     validate_normative_producer_alignment()
     print(
         f"PASS: {len(interface_paths)} interface artifacts, "

@@ -2209,6 +2209,14 @@ primary/secondary site evidence中任一份自报的 route；所有显式 prompt
 都在当前 declaration prompt table中关闭，path-level `OuterOfV1` 直接拒绝。
 `SuspensionV1.atoms` 先 exact-decode为 list，再由 atoms 的 grade join重算
 aggregate grade；container或 aggregate漂移只产生稳定 contract diagnostic。
+`LatentSiteV2.secondary_sites` 是 path attribution唯一可认证的 sealed side
+evidence；它必须与 `instantiated_signature.secondary_sites` 的 deterministic
+instantiation exact一致，signature template不能作为缺失 evidence 的 fallback。
+普通 Function path要求 site key与 Request key exact closure。Handler path的额外
+site只能来自 finite authenticated set：有唯一 Call-stage obligation projection、
+被当前 exact handler prompt/entry消除的 HandlerInstall site，或已由
+`DelegatesV2.forward_contract` 与 disposition evidence验证的 primary/secondary
+site；除此以外的 orphan LatentSite一律拒绝。
 `SuffixContractV1/V2` 是 $D_k,Pi_k,chi_k,u_k$ 的确定性 wire projection：
 residual row/demand、flow/world、suspension、summary/result、phase、cleanup
 与全部 live binding缺一不可。对 V2，checker从本 suffix computation中全部

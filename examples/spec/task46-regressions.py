@@ -1547,6 +1547,152 @@ def task49_schema_scope_totality_roots() -> None:
         lambda: v.validate_function_contract(wrong_grade),
     )
 
+    def secondary_site_from_latent(
+        latent: dict[str, Any], site_slot: int,
+    ) -> dict[str, Any]:
+        return {
+            "site_slot": site_slot,
+            "receiver": copy.deepcopy(latent["receiver"]),
+            "operation": copy.deepcopy(latent["operation"]),
+            "route": copy.deepcopy(latent["route"]),
+            "suspension": {"atoms": [], "grade": "NoSuspend"},
+            "semantic_summary": {"kind": "PureV1"},
+            "origin": f"task49:secondary-{site_slot}",
+        }
+
+    def sealed_secondary_root() -> dict[str, Any]:
+        root = load("choose-once-function-contract.json")
+        path = root["computation"]["paths"][0]
+        latent = path["LatentSites"][0]
+        secondary_site = secondary_site_from_latent(latent, 7)
+        closed = {"kind": "Closed", "sites": [secondary_site]}
+        latent["instantiated_signature"]["secondary_sites"] = (
+            copy.deepcopy(closed)
+        )
+        latent["secondary_sites"] = copy.deepcopy(closed)
+        secondary_demand = copy.deepcopy(path["attributed_demand"][0])
+        secondary_demand["site_slot"] = 7
+        secondary_demand["site_role"] = {
+            "kind": "Secondary",
+            "secondary_slot": 7,
+        }
+        path["attributed_demand"].append(secondary_demand)
+        request = next(
+            atom
+            for atom in path["suspension"]["atoms"]
+            if atom.get("kind") == "RequestV1"
+        )
+        secondary_request = copy.deepcopy(request)
+        secondary_request["site_slot"] = 7
+        secondary_request["site_role"] = {
+            "kind": "Secondary",
+            "secondary_slot": 7,
+        }
+        path["suspension"]["atoms"].append(secondary_request)
+        return root
+
+    valid_sealed_secondary = sealed_secondary_root()
+    v.validate_function_contract(valid_sealed_secondary)
+
+    signature_only_secondary = sealed_secondary_root()
+    signature_only_secondary["computation"]["paths"][0]["LatentSites"][0][
+        "secondary_sites"
+    ] = {"kind": "Closed", "sites": []}
+    expect_diagnostic(
+        "signature secondary template cannot replace sealed site evidence",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_function_contract(signature_only_secondary),
+    )
+
+    outer_only_secondary = sealed_secondary_root()
+    outer_only_secondary["computation"]["paths"][0]["LatentSites"][0][
+        "instantiated_signature"
+    ]["secondary_sites"] = {"kind": "Closed", "sites": []}
+    expect_diagnostic(
+        "sealed secondary evidence cannot drift from its signature template",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_function_contract(outer_only_secondary),
+    )
+
+    orphan_latent = load("choose-once-function-contract.json")
+    orphan_path = orphan_latent["computation"]["paths"][0]
+    orphan = copy.deepcopy(orphan_path["LatentSites"][0])
+    orphan["site_slot"] = 999
+    orphan["origin"] = "task49:orphan-latent"
+    orphan["call_obligation_ids"] = []
+    orphan["install_obligation_ids"] = []
+    orphan_path["LatentSites"].append(orphan)
+    expect_diagnostic(
+        "ordinary Function paths reject an unauthenticated orphan LatentSite",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_function_contract(orphan_latent),
+    )
+
+    valid_handler_extra = load("handler-forward-contract.json")
+    validate_handler_scope_root(valid_handler_extra)
+    orphan_handler_extra = load("handler-forward-contract.json")
+    orphan_handler_path = orphan_handler_extra["handler_contract"][
+        "clause_computations"
+    ][0]["computation"]["continuation"]["paths"][0]
+    handler_orphan = copy.deepcopy(orphan_handler_path["LatentSites"][0])
+    handler_orphan["site_slot"] = 999
+    handler_orphan["origin"] = "task49:handler-orphan"
+    handler_orphan["call_obligation_ids"] = []
+    handler_orphan["install_obligation_ids"] = []
+    orphan_handler_path["LatentSites"].append(handler_orphan)
+    expect_diagnostic(
+        "Handler paths reject unauthenticated extras but retain sealed ones",
+        "contract-component-kind-mismatch",
+        lambda: validate_handler_scope_root(orphan_handler_extra),
+    )
+
+    reused_handler_evidence = load("handler-forward-contract.json")
+    reused_handler_path = reused_handler_evidence["handler_contract"][
+        "clause_computations"
+    ][0]["computation"]["continuation"]["paths"][0]
+    reused_handler_latent = copy.deepcopy(
+        reused_handler_path["LatentSites"][0]
+    )
+    reused_handler_latent["site_slot"] = 998
+    reused_handler_latent["origin"] = "task49:reused-call-evidence"
+    reused_handler_path["LatentSites"].append(reused_handler_latent)
+    expect_diagnostic(
+        "Handler extras cannot reuse another site's Call projection",
+        "contract-component-kind-mismatch",
+        lambda: validate_handler_scope_root(reused_handler_evidence),
+    )
+
+    forwarded_handler_extra = load("handler-forward-contract.json")
+    forwarded_handler_path = forwarded_handler_extra["handler_contract"][
+        "clause_computations"
+    ][0]["computation"]["continuation"]["paths"][0]
+    forward = forwarded_handler_path["outcome"]["forward_contract"]
+    forwarded_handler_path["LatentSites"].append(
+        {
+            "site_slot": forward["site_slot"],
+            "stage": "HandlerInstall",
+            "receiver": copy.deepcopy(forward["entry"]),
+            "operation": copy.deepcopy(forward["operation"]),
+            "route": copy.deepcopy(forward["route"]),
+            "actual_arguments": copy.deepcopy(
+                forward["actual_argument_summaries"]
+            ),
+            "instantiated_signature": copy.deepcopy(
+                forward["instantiated_signature"]
+            ),
+            "suffix": copy.deepcopy(forward["continuation"]),
+            "secondary_sites": copy.deepcopy(forward["secondary_sites"]),
+            "call_obligation_ids": copy.deepcopy(
+                forward["call_obligation_ids"]
+            ),
+            "install_obligation_ids": copy.deepcopy(
+                forward["install_obligation_ids"]
+            ),
+            "origin": "task49:forward-authenticated-site",
+        }
+    )
+    validate_handler_scope_root(forwarded_handler_extra)
+
     for field in (
         "actual_arguments", "call_obligation_ids", "install_obligation_ids",
     ):
@@ -3085,4 +3231,4 @@ evaluated_clause_and_return_boundary_roots()
 handler_computation_scope_roots()
 handler_recursive_descendant_scope_roots()
 validate_inline_function_fresh_scope_root()
-print("PASS: 142 task-46 exact-schema/scope/substitution complete-root probes")
+print("PASS: 150 task-46 exact-schema/scope/substitution complete-root probes")
