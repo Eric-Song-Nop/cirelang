@@ -2217,6 +2217,11 @@ site只能来自 finite authenticated set：有唯一 Call-stage obligation proj
 被当前 exact handler prompt/entry消除的 HandlerInstall site，或已由
 `DelegatesV2.forward_contract` 与 disposition evidence验证的 primary/secondary
 site；除此以外的 orphan LatentSite一律拒绝。
+Forward-authenticated LatentSite还必须是 derived HandlerInstall stage，并逐字段等于
+同一 `ForwardContractV2` 的 authority-bearing语义投影：site、entry/receiver、operation、route、actuals、
+instantiated signature、continuation/suffix、sealed secondary sites与两组 obligation
+ids全部一致；仅命中五字段 attribution key或无唯一 Call projection却改报 Call stage，
+都不能借用 disposition evidence。
 `SuffixContractV1/V2` 是 $D_k,Pi_k,chi_k,u_k$ 的确定性 wire projection：
 residual row/demand、flow/world、suspension、summary/result、phase、cleanup
 与全部 live binding缺一不可。对 V2，checker从本 suffix computation中全部

@@ -3896,6 +3896,30 @@ def validate_forward_contract(
     ]
 
 
+def is_exact_forward_latent_projection(
+    latent: dict[str, Any],
+    forward: dict[str, Any],
+) -> bool:
+    """Match every semantic LatentSite field projected by ForwardContract."""
+
+    field_projection = {
+        "site_slot": "site_slot",
+        "receiver": "entry",
+        "operation": "operation",
+        "route": "route",
+        "actual_arguments": "actual_argument_summaries",
+        "instantiated_signature": "instantiated_signature",
+        "suffix": "continuation",
+        "secondary_sites": "secondary_sites",
+        "call_obligation_ids": "call_obligation_ids",
+        "install_obligation_ids": "install_obligation_ids",
+    }
+    return latent["stage"] == "HandlerInstall" and all(
+        latent[latent_field] == forward[forward_field]
+        for latent_field, forward_field in field_projection.items()
+    )
+
+
 def validate_path(
     path: dict[str, Any],
     *,
@@ -3971,6 +3995,7 @@ def validate_path(
             projected_obligation_keys.add(("HandlerInstall", local_id))
     outcome = path["outcome"]
     kind = outcome.get("kind")
+    forward_contract: dict[str, Any] | None = None
     forward_site_keys: list[AttributionKey] = []
     if kind == "ReturnsV2":
         exact_fields(outcome, {"kind", "transition", "result_transformer"}, kind)
@@ -4033,8 +4058,9 @@ def validate_path(
         reject(context != "handler_clause" or disposition_binder is None, "delegates-outside-handler-clause")
         require(clause_operation is not None and handled_entry is not None and handler_prompt_slot is not None, "handler clause context missing")
         exact_fields(outcome, {"kind", "forward_contract", "disposition_evidence"}, kind)
+        forward_contract = outcome["forward_contract"]
         forward_site_keys = validate_forward_contract(
-            outcome["forward_contract"], outcome["disposition_evidence"], disposition_binder,
+            forward_contract, outcome["disposition_evidence"], disposition_binder,
             returns=returns, imports=imports, contract_binders=contract_binders,
             local_functions=local_functions, clause_operation=clause_operation,
             handled_entry=handled_entry, handler_prompt_slot=handler_prompt_slot,
@@ -4083,9 +4109,15 @@ def validate_path(
                     if key[1] == jcs(expected_handler_route)
                     and key[2] == jcs(handled_entry)
                 )
-        authenticated_extra_keys.update(
-            set(site_keys).intersection(forward_site_keys)
-        )
+        for latent, latent_keys in latent_key_groups:
+            if (
+                forward_contract is not None
+                and is_exact_forward_latent_projection(
+                    latent, forward_contract,
+                )
+                and set(latent_keys) == set(forward_site_keys)
+            ):
+                authenticated_extra_keys.update(latent_keys)
     authenticated_extra_keys.intersection_update(
         set(site_keys) - set(request_keys)
     )
@@ -10841,7 +10873,7 @@ def main() -> int:
         task46_result.returncode == 0,
         "task-46 complete-root regressions failed:\n" + task46_result.stdout,
     )
-    task46_probe_count = 150
+    task46_probe_count = 152
     validate_normative_producer_alignment()
     print(
         f"PASS: {len(interface_paths)} interface artifacts, "

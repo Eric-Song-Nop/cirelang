@@ -1693,6 +1693,28 @@ def task49_schema_scope_totality_roots() -> None:
     )
     validate_handler_scope_root(forwarded_handler_extra)
 
+    forward_projection_drift = copy.deepcopy(forwarded_handler_extra)
+    drift_path = forward_projection_drift["handler_contract"][
+        "clause_computations"
+    ][0]["computation"]["continuation"]["paths"][0]
+    drift_path["LatentSites"][-1]["instantiated_signature"]["mode"] = "fun"
+    expect_diagnostic(
+        "Handler extras reject one-field ForwardContract projection drift",
+        "contract-component-kind-mismatch",
+        lambda: validate_handler_scope_root(forward_projection_drift),
+    )
+
+    forward_stage_drift = copy.deepcopy(forwarded_handler_extra)
+    stage_drift_path = forward_stage_drift["handler_contract"][
+        "clause_computations"
+    ][0]["computation"]["continuation"]["paths"][0]
+    stage_drift_path["LatentSites"][-1]["stage"] = "Call"
+    expect_diagnostic(
+        "ForwardContract projection cannot borrow a Call stage",
+        "contract-component-kind-mismatch",
+        lambda: validate_handler_scope_root(forward_stage_drift),
+    )
+
     for field in (
         "actual_arguments", "call_obligation_ids", "install_obligation_ids",
     ):
@@ -3231,4 +3253,4 @@ evaluated_clause_and_return_boundary_roots()
 handler_computation_scope_roots()
 handler_recursive_descendant_scope_roots()
 validate_inline_function_fresh_scope_root()
-print("PASS: 150 task-46 exact-schema/scope/substitution complete-root probes")
+print("PASS: 152 task-46 exact-schema/scope/substitution complete-root probes")
