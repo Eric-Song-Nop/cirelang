@@ -1,12 +1,12 @@
-// profile: Cire-TR₀/2026-08-01
-// expect: reject
-// rule: OperationSecondaryAnnotation — secondary rows are closed in TR₀
-// oracle: subject=GenericStore.load; ambient=operation rigid EffectRow E; reject_at=! {Audit,..E}; diagnostic=operation-secondary-row-must-be-closed
+// profile: Cire-v1.0
+// expect: reject(operation-secondary-row-must-be-closed)
 
 effect Audit {
-  fun log(message : String) -> Unit
+  fun record(message : String) -> Unit
 }
 
-effect GenericStore {
-  once![..E] load() -> Int ! {Audit, ..E}
+ability Store {
+  effects Extra : Lacks[Audit]
+
+  once load() -> Int ! {Audit, ..Extra}
 }

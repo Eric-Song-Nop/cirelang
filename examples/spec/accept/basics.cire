@@ -1,0 +1,32 @@
+// profile: Cire-v1.0
+// expect: accept
+
+enum Maybe[A] {
+  Nothing,
+  Just(A),
+}
+
+struct Pair {
+  first : Int,
+  second : Int = 0,
+}
+
+def[A] unwrap_or(
+  value : Maybe[A],
+  fallback : A,
+) -> A ! {} {
+  match value {
+    Just(item) => item,
+    Nothing => fallback,
+  }
+}
+
+def demo() -> Pair ! {} {
+  let original = Pair {
+    first: unwrap_or(Just(41), fallback = 0),
+  }
+  Pair {
+    second: 1,
+    ..original
+  }
+}

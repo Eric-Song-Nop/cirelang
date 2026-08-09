@@ -1,0 +1,22 @@
+// profile: Cire-v1.0
+// expect: accept
+
+def increment(
+  value : Int,
+  delta : Int = 1,
+) -> Int ! {} {
+  value + delta
+}
+
+def apply_twice(
+  value : Int,
+  transform : (Int) -> Int ! {},
+) -> Int ! {} {
+  transform(transform(value))
+}
+
+def demo() -> Int ! {} {
+  apply_twice(increment(39, delta = 1)) { value =>
+    increment(value, delta = 1)
+  }
+}

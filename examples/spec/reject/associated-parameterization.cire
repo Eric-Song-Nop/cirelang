@@ -1,8 +1,0 @@
-// profile: Cire-TR₀/2026-08-01
-// expect: reject
-// rule: associated item parameter arity has no retained higher-kinded wire in this profile
-// oracle: subject=Unsupported; ambient=A Type; reject_at=type Item[A]; diagnostic=associated-parameterization-not-in-profile
-
-ability Unsupported {
-  type Item[A]
-}

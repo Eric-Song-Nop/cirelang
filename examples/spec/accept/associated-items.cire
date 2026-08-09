@@ -1,0 +1,30 @@
+// profile: Cire-v1.0
+// expect: accept
+
+effect Failure {}
+effect Background {}
+effect Blocking {}
+
+ability Store {
+  type Key
+  type Value
+  effect Fail
+  effects Extra : Lacks[Blocking] = {}
+
+  fun get(key : Key) -> Value ! {Fail}
+}
+
+effect MemoryStore
+  : Store[
+      Key = Int,
+      Value = String,
+      Fail = Failure,
+      Extra = {Background},
+    ] {}
+
+def[A]![S : Store[Value = A]] load_as(
+  store : S,
+  key : S::Key,
+) -> A ! ({store, S::Fail} | S::Extra) {
+  store.get(key)
+}

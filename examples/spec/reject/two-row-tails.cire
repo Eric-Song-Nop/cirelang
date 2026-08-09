@@ -1,8 +1,8 @@
-// profile: Cire-TR₀/2026-08-01
-// expect: reject
-// rule: Surface grammar / RowLiteralBody — at most one final tail
-// oracle: subject=bad; ambient=rigid EffectRow E1/E2; reject_at={..E1,..E2}; diagnostic=row-literal-has-multiple-tails; suggested=E1|E2
+// profile: Cire-v1.0
+// expect: reject(row-literal-has-multiple-tails)
 
-def[A]![..E1, ..E2] bad(body : () -> A ! E1) -> A ! {..E1, ..E2} {
+def[A]![..E1, ..E2] bad(
+  body : () -> A ! E1,
+) -> A ! {..E1, ..E2} {
   body()
 }

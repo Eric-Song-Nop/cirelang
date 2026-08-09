@@ -1,0 +1,14 @@
+// profile: Cire-v1.0
+// expect: reject(positional-after-labelled)
+
+def connect(
+  host : String,
+  port : Int,
+  secure : Bool,
+) -> Int ! {} {
+  port
+}
+
+def bad() -> Int ! {} {
+  connect("example.test", secure = true, 443)
+}

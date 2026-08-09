@@ -1,0 +1,12 @@
+// profile: Cire-v1.0
+// expect: reject(surface-cap-marker-removed)
+
+ability Reader[A] {
+  fun read() -> A
+}
+
+def[A]![F : Reader[A]] bad(
+  reader : cap F,
+) -> A ! {reader} {
+  reader.read()
+}

@@ -1,0 +1,14 @@
+// profile: Cire-v1.0
+// expect: accept
+
+effect Audit {
+  fun record(message : String) -> Unit
+}
+
+effect Store {
+  once load() -> Int ! {Audit}
+}
+
+def read() -> Int ! {Store, Audit} {
+  Store::load()
+}

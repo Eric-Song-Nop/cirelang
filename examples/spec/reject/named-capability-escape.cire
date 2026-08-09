@@ -1,0 +1,17 @@
+// profile: Cire-v1.0
+// expect: reject(named-capability-escapes)
+
+ability Reader[A] {
+  fun read() -> A
+}
+
+effect State[A] : Reader[A] {}
+
+def bad() -> (() -> Int) ! {} {
+  with State[Int] {
+    fun read() => 42
+  } as state
+  in {
+    fn() { state.read() }
+  }
+}

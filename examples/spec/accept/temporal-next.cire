@@ -1,17 +1,16 @@
-// profile: Cire-TR₀/2026-08-01
+// profile: Cire-v1.0
 // expect: accept
-// rule: T-Delay; T-Operation(FrameClock.yield); T-Advance
-// oracle: subject=after_tick; ambient=FrameClock identity frame; type=Int; row={frame}; world=next(frame); suspension=MaySuspend; captures={}
+// sealed prelude: FrameClock, Next, delay, advance
 
 def![F : FrameClock] next_value(
-  frame : cap F,
+  frame : F,
   value : Int,
-) -> Next[frame, Int] {
+) -> Next[frame, Int] ! {} {
   delay[frame] { value + 1 }
 }
 
 def![F : FrameClock] after_tick(
-  frame : cap F,
+  frame : F,
   pending : Next[frame, Int],
 ) -> Int ! {frame} {
   frame.yield()

@@ -1,0 +1,6 @@
+// profile: Cire-v1.0
+// expect: reject(named-function-effect-row-required)
+
+def bad(value : Int) -> Int {
+  value
+}

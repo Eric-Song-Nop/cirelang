@@ -1,0 +1,11 @@
+// profile: Cire-v1.0
+// expect: reject(surface-tilde-label-removed)
+
+def identity(value : Int) -> Int ! {} {
+  value
+}
+
+def bad() -> Int ! {} {
+  let value = 1
+  identity(value~)
+}

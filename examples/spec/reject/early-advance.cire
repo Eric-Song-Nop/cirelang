@@ -1,11 +1,10 @@
-// profile: Cire-TR₀/2026-08-01
-// expect: reject
-// rule: T-Advance — no matching clock lock
-// oracle: subject=bad; ambient=FrameClock identity frame; reject_at=advance(value); diagnostic=no-matching-clock-lock; world=current(frame)
+// profile: Cire-v1.0
+// expect: reject(no-matching-clock-lock)
+// sealed prelude: FrameClock, Next, advance
 
 def![F : FrameClock] bad(
-  frame : cap F,
-  value : Next[frame, Int],
-) -> Int {
-  advance(value)
+  frame : F,
+  pending : Next[frame, Int],
+) -> Int ! {} {
+  advance(pending)
 }

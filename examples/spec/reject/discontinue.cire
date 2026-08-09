@@ -1,18 +1,16 @@
-// profile: Cire-TR₀/2026-08-01
-// expect: reject
-// rule: TR₀ resumption primitives expose resume/finalize, not discontinue
-// oracle: subject=bad; ambient=Async effect/Task prelude; reject_at=k.discontinue; diagnostic=unknown-resumption-primitive
+// profile: Cire-v1.0
+// expect: reject(unknown-resumption-primitive)
 
 effect Async {
-  once await(task : Task[Int]) -> Int may_suspend
+  once wait() -> Int may_suspend
 }
 
-def bad(task : Task[Int]) -> Int {
-  with handler Async {
-    once await(_task) as k => k.discontinue("cancelled")
+def bad() -> Int ! {} {
+  with Async {
+    once wait() as k => k.discontinue("cancelled")
     return(value) => value
   }
   in {
-    Async::await(task)
+    Async::wait()
   }
 }

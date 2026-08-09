@@ -1,0 +1,35 @@
+// profile: Cire-v1.0
+// expect: accept
+
+effect Control {
+  fun seed() -> Int
+  abort[A] stop(reason : String) -> A
+  once bump(value : Int) -> Int
+  ctl choose(values : Array[Int]) -> Int
+}
+
+def demo() -> Int ! {} {
+  with Control {
+    fun seed() => 40
+
+    abort stop(_reason) => 0
+
+    once bump(value) as k =>
+      k.resume(value + 1)
+
+    ctl choose(values) as k => {
+      let left = k.resume(values[0])
+      let right = k.resume(values[1])
+      k.finalize()
+      left + right
+    }
+
+    return(value) => value
+  }
+  in {
+    Control::choose([
+      Control::seed(),
+      Control::bump(41),
+    ])
+  }
+}

@@ -1,0 +1,21 @@
+// profile: Cire-v1.0
+// expect: accept
+
+effect Log {
+  fun write(message : String) -> Unit
+}
+
+def[A]![..E : Lacks[Log]] logged(
+  body : () -> A ! E,
+) -> A ! {Log, ..E} {
+  Log::write("begin")
+  body()
+}
+
+def[A, B, C]![..E1, ..E2] compose_apply(
+  value : A,
+  first : (A) -> B ! E1,
+  second : (B) -> C ! E2,
+) -> C ! (E1 | E2) {
+  second(first(value))
+}

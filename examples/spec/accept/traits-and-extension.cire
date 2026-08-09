@@ -1,0 +1,33 @@
+// profile: Cire-v1.0
+// expect: accept
+
+newtype UserId {
+  value : UInt64
+}
+
+trait Renderable {
+  type Output
+  def render(self : Self) -> Self::Output ! {}
+}
+
+impl Renderable for UserId {
+  type Output = UInt64
+
+  def render(self : UserId) -> UInt64 ! {} {
+    self.value
+  }
+}
+
+extend def bumped(
+  self : UserId,
+  delta : UInt64 = 1u64,
+) -> UserId ! {} {
+  UserId {
+    value: self.value + delta,
+  }
+}
+
+def demo() -> UInt64 ! {} {
+  let id = UserId { value: 41u64 }
+  id.bumped().render()
+}
