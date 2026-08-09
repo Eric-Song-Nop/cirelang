@@ -1,0 +1,64 @@
+{
+  "artifact": "ConstValueOracleV1",
+  "profile": "Cire-v1.0",
+  "schema_version": 1,
+  "definitions": [
+    {
+      "name": "decomposed",
+      "type": "String",
+      "effect_row": "! {}",
+      "const_safe": true,
+      "value": {
+        "kind": "StringConstV1",
+        "utf8_bytes": [
+          101,
+          204,
+          129
+        ],
+        "unicode_scalars": [
+          101,
+          769
+        ]
+      }
+    },
+    {
+      "name": "greeting",
+      "type": "String",
+      "effect_row": "! {}",
+      "const_safe": true,
+      "value": {
+        "kind": "StringConstV1",
+        "utf8_bytes": [104, 195, 169, 108, 108, 111],
+        "unicode_scalars": [104, 233, 108, 108, 111]
+      }
+    },
+    {
+      "name": "magic",
+      "type": "Int",
+      "effect_row": "! {}",
+      "const_safe": true,
+      "value": { "kind": "IntegerConstV1", "decimal": "42" }
+    },
+    {
+      "name": "packet",
+      "type": "Bytes",
+      "effect_row": "! {}",
+      "const_safe": true,
+      "value": { "kind": "BytesConstV1", "bytes": [0, 127, 128, 255] }
+    }
+  ],
+  "evaluation_cases": [
+    { "id": "literal-adt-and-match", "result": "accept", "value": { "kind": "IntegerConstV1", "decimal": "7" } },
+    { "id": "direct-structural-recursion", "result": "accept", "value": { "kind": "IntegerConstV1", "decimal": "3" } },
+    { "id": "definite-overflow", "result": "reject", "diagnostic": "const-definite-trap" },
+    { "id": "mutual-recursion", "result": "reject", "diagnostic": "const-termination-not-proven" },
+    { "id": "effectful-const", "result": "reject", "diagnostic": "const-safe-requirement-failed" },
+    { "id": "mutable-const", "result": "reject", "diagnostic": "const-safe-requirement-failed" }
+  ],
+  "initialization_policy": {
+    "top_level_dynamic_bindings": false,
+    "cross_file_initializer_order": false,
+    "user_wasm_start_hook": false,
+    "package_singleton_mutation": false
+  }
+}

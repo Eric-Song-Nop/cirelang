@@ -1,0 +1,59 @@
+{
+  "artifact": "ComponentManifestV1",
+  "profile": "Cire-v1.0",
+  "schema_version": 1,
+  "package": {
+    "kind": "PackageInstanceIdV1",
+    "digest": "f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"
+  },
+  "name": "foundation",
+  "imports": [],
+  "exports": [
+    {
+      "wit_path": [
+        "foundation",
+        "identity-int"
+      ],
+      "item": {
+        "kind": "CallableComponentItemV1",
+        "callable": {
+          "module": [
+            "pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb",
+            "root"
+          ],
+          "export_path": [
+            "identity"
+          ],
+          "callable_interface": {
+            "artifact": "CallableInterfaceV1",
+            "hash_algorithm": "sha256-jcs-nfc-v1",
+            "artifact_hash": "sha256:8195195eea35cce181beca66530ca4785d702bde318447d08f86b1237dd68280"
+          }
+        }
+      }
+    },
+    {
+      "wit_path": [
+        "foundation",
+        "status"
+      ],
+      "item": {
+        "kind": "DataComponentItemV1",
+        "declaration": {
+          "package": {
+            "kind": "PackageInstanceIdV1",
+            "digest": "f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"
+          },
+          "namespace": "TypeV1",
+          "module": [
+            "pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb",
+            "root"
+          ],
+          "path": [
+            "Status"
+          ]
+        }
+      }
+    }
+  ]
+}

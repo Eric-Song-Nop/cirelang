@@ -1,0 +1,205 @@
+{
+  "artifact": "CireLanguageInterfaceV1",
+  "profile": "Cire-v1.0",
+  "schema_version": 1,
+  "package_identity": {
+    "kind": "PackageIdentityEvidenceV1",
+    "instance": {
+      "kind": "PackageInstanceIdV1",
+      "digest": "f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"
+    },
+    "input": {
+      "kind": "PackageIdentityInputV1",
+      "dependencies": [],
+      "exact_version": "1.0.0",
+      "features": [
+        "component-sync-v1",
+        "sealed-checkpoint-v1"
+      ],
+      "profile": "Cire-v1.0",
+      "source_checksum": "sha256:6fbe07bca576af65d7bcbbe9894a07849d3fdbd85c8c7477c94040d29cf96cf1",
+      "source_identity": "cire:core"
+    },
+    "hash_algorithm": "sha256-jcs-nfc-v1"
+  },
+  "package_instance_id": {
+    "kind": "PackageInstanceIdV1",
+    "digest": "f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"
+  },
+  "imports": [],
+  "declarations": [
+    {
+      "identity": {
+        "package": {
+          "kind": "PackageInstanceIdV1",
+          "digest": "f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"
+        },
+        "namespace": "AbilityV1",
+        "module": [
+          "pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb",
+          "root"
+        ],
+        "path": [
+          "Reactive"
+        ]
+      },
+      "declaration": {
+        "artifact": "AbilityDeclarationV1",
+        "hash_algorithm": "sha256-jcs-nfc-v1",
+        "artifact_hash": "sha256:f52f2a0eeb6969ed219459c75aa56cac5e87f89d841dbbc8ec073ae5ff464a86"
+      }
+    },
+    {
+      "identity": {
+        "package": {
+          "kind": "PackageInstanceIdV1",
+          "digest": "f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"
+        },
+        "namespace": "EffectV1",
+        "module": [
+          "pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb",
+          "root"
+        ],
+        "path": [
+          "FrameClock"
+        ]
+      },
+      "declaration": {
+        "artifact": "EffectDeclarationV1",
+        "hash_algorithm": "sha256-jcs-nfc-v1",
+        "artifact_hash": "sha256:133dd989aaaa7f9d4df105ff0754bdf004a58fb5a6179f9af0918c455903b38b"
+      }
+    },
+    {
+      "identity": {
+        "package": {
+          "kind": "PackageInstanceIdV1",
+          "digest": "f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"
+        },
+        "namespace": "TraitV1",
+        "module": [
+          "pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb",
+          "root"
+        ],
+        "path": [
+          "Comparable"
+        ]
+      },
+      "declaration": {
+        "artifact": "TraitDeclarationV1",
+        "hash_algorithm": "sha256-jcs-nfc-v1",
+        "artifact_hash": "sha256:fd78c68bf19f9d75ef5e076e05331fcf9529e8099b1f063508c6662abce77487"
+      }
+    },
+    {
+      "identity": {
+        "package": {
+          "kind": "PackageInstanceIdV1",
+          "digest": "f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"
+        },
+        "namespace": "TypeV1",
+        "module": [
+          "pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb",
+          "root"
+        ],
+        "path": [
+          "Status"
+        ]
+      },
+      "declaration": {
+        "artifact": "DataDeclarationV1",
+        "hash_algorithm": "sha256-jcs-nfc-v1",
+        "artifact_hash": "sha256:ba68e494b2e501a1576ebacb781b0aa733061733b4316a41245415d063105146"
+      }
+    },
+    {
+      "identity": {
+        "package": {
+          "kind": "PackageInstanceIdV1",
+          "digest": "f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"
+        },
+        "namespace": "ValueV1",
+        "module": [
+          "pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb",
+          "root"
+        ],
+        "path": [
+          "Answer"
+        ]
+      },
+      "declaration": {
+        "artifact": "ConstDeclarationV1",
+        "hash_algorithm": "sha256-jcs-nfc-v1",
+        "artifact_hash": "sha256:7c46cb758fa961a95cd3c871c29d9e2a4e3561b8a77e0c7aa6f816f342d38338"
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "identity": {
+        "package": {
+          "kind": "PackageInstanceIdV1",
+          "digest": "f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"
+        },
+        "kind": "ImplEvidenceV1",
+        "ordinal": 0
+      },
+      "evidence": {
+        "artifact": "ImplEvidenceV1",
+        "hash_algorithm": "sha256-jcs-nfc-v1",
+        "artifact_hash": "sha256:946396cd359c6ceb87772f7ac5bf1099613d38d99bb3947950723708bb53f3a3"
+      }
+    },
+    {
+      "identity": {
+        "package": {
+          "kind": "PackageInstanceIdV1",
+          "digest": "f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"
+        },
+        "kind": "ProtocolEvidenceV1",
+        "ordinal": 0
+      },
+      "evidence": {
+        "artifact": "CallableContractFactEvidenceV1",
+        "hash_algorithm": "sha256-jcs-nfc-v1",
+        "artifact_hash": "sha256:8252118d55fa06ade88948263f378875d362fd4c8590c35b7edbea0ace3e52db"
+      }
+    }
+  ],
+  "callables": [
+    {
+      "module": [
+        "pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb",
+        "root"
+      ],
+      "export_path": [
+        "identity"
+      ],
+      "callable_interface": {
+        "artifact": "CallableInterfaceV1",
+        "hash_algorithm": "sha256-jcs-nfc-v1",
+        "artifact_hash": "sha256:8195195eea35cce181beca66530ca4785d702bde318447d08f86b1237dd68280"
+      }
+    }
+  ],
+  "components": [
+    {
+      "name": "foundation",
+      "manifest": {
+        "artifact": "ComponentManifestV1",
+        "hash_algorithm": "sha256-jcs-nfc-v1",
+        "artifact_hash": "sha256:425b0b64c5cdc4333fc9fb915f94efc9bfeadfaa7e8bb398a55eaf1230c9f5ec"
+      }
+    }
+  ],
+  "primitive_catalog": {
+    "artifact": "PrimitiveCatalogV1",
+    "hash_algorithm": "sha256-jcs-nfc-v1",
+    "artifact_hash": "sha256:3148fee559f220f7de6fa74f98a15d26202dbab7104ee1c6811a0e04184b5935"
+  },
+  "intrinsic_registry": {
+    "artifact": "IntrinsicRegistryRootV1",
+    "hash_algorithm": "sha256-jcs-nfc-v1",
+    "artifact_hash": "sha256:0517bc97b9964b475c7c2d2df2b8ec78c9e9d7ad1dc94c145267797418b694f1"
+  }
+}

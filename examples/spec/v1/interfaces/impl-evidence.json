@@ -1,0 +1,108 @@
+{
+  "artifact": "ImplEvidenceV1",
+  "profile": "Cire-v1.0",
+  "schema_version": 1,
+  "identity": {
+    "package": {
+      "kind": "PackageInstanceIdV1",
+      "digest": "f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"
+    },
+    "kind": "ImplEvidenceV1",
+    "ordinal": 0
+  },
+  "binders": {
+    "parameter_binders": [],
+    "type_binders": [],
+    "row_binders": [],
+    "contract_binders": [],
+    "owner_binders": [],
+    "clock_binders": [],
+    "identity_binders": [],
+    "prompt_binders": []
+  },
+  "requirements": {
+    "ordinary_traits": [],
+    "effect_parameters": []
+  },
+  "trait": {
+    "package": {
+      "kind": "PackageInstanceIdV1",
+      "digest": "f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"
+    },
+    "namespace": "TraitV1",
+    "module": [
+      "pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb",
+      "root"
+    ],
+    "path": [
+      "Comparable"
+    ]
+  },
+  "target": {
+    "kind": "NominalTypeV2",
+    "module": [
+      "pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb",
+      "root"
+    ],
+    "name": "Status",
+    "arguments": []
+  },
+  "header": {
+    "trait": {
+      "package": {
+        "kind": "PackageInstanceIdV1",
+        "digest": "f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"
+      },
+      "namespace": "TraitV1",
+      "module": [
+        "pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb",
+        "root"
+      ],
+      "path": [
+        "Comparable"
+      ]
+    },
+    "arguments": [],
+    "associated_types": [
+      {
+        "item_ordinal": 0,
+        "declaration_name": "Output",
+        "value": {
+          "kind": "LegacyTypeRefV2",
+          "value": {
+            "kind": "BuiltinTypeV1",
+            "name": "Int"
+          }
+        }
+      }
+    ],
+    "target": {
+      "kind": "NominalTypeV2",
+      "module": [
+        "pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb",
+        "root"
+      ],
+      "name": "Status",
+      "arguments": []
+    }
+  },
+  "associated_types": [
+    {
+      "ordinal": 0,
+      "declaration_name": "Output",
+      "value": {
+        "kind": "LegacyTypeRefV2",
+        "value": {
+          "kind": "BuiltinTypeV1",
+          "name": "Int"
+        }
+      },
+      "source": "TraitDefaultBindingV1"
+    }
+  ],
+  "methods": [],
+  "origin": {
+    "kind": "HandwrittenImplV1",
+    "origin": "foundation/declarations.cire:impl-comparable-box-int"
+  }
+}

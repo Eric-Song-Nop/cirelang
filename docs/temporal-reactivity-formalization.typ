@@ -54,14 +54,14 @@
 
 #align(center)[
   #text(size: 22pt, weight: "bold")[
-    Cire Temporal、Effect 与 Incremental Core
+    Cire v1.0：语言、Effect、Temporal 与 Incremental Core
   ]
 
   #v(5pt)
-  #text(size: 15pt)[版本化类型形式化、算法化检查与 PEG 语法]
+  #text(size: 15pt)[规范化 typed Core、算法化检查、wire schema 与 runtime protocol]
 
   #v(14pt)
-  #text(fill: luma(90))[Canonical design profile · $"Cire-TR"_0$ · 2026-08-01]
+  #text(fill: luma(90))[Canonical successor profile · `Cire-v1.0` · 2026-08-09]
 ]
 
 #v(18pt)
@@ -69,13 +69,16 @@
 #status(
   [文档状态],
   [
-    本文是 `Cire-TR₀/2026-08-01` 的 canonical semantic baseline。它固定术语、
-    judgment、规则边界、PEG 识别形状和待证明性质；仍开放的选择被显式参数化。
+    本文是 `Cire-v1.0` 的 canonical formal、typed-Core、wire-meaning 与 runtime
+    authority。它固定术语、judgment、closed schema、runtime transition 与待证明性质；
+    本 profile 没有由实现自由选择的 semantic parameter。
     其中的 theorem 是陈述或证明义务，不代表已经完成机械化证明。
 
-    仓库当前不包含编译器或 runtime。完整 concrete syntax 由
-    `surface-syntax.md` 的完整 grammar appendix定义；未来 parser 与 conformance tests必须服从规范，
-    不能反向定义语言。
+    `surface-syntax.md` 是唯一 token、PEG、precedence、CST 与 Surface-normalization
+    authority；本文只消费它产生的 normalized Surface HIR，不复制 recognizer。
+    `FunctionContractV2`、`PackedNextPackageV2` 与标成 legacy 的 TR0 段落只供旧 artifact
+    exact-decode，不属于 `Cire-v1.0` accepted producer language。未来 parser、checker、runtime
+    与 conformance tests 必须服从这两份唯一 authority，不能反向定义语言。
   ],
 )
 
@@ -84,11 +87,13 @@
 #status(
   [本轮模型选择],
   [
-    $"Cire-TR"_0$ 采用纯 `Next`、Fitch-style clock lock、world-indexed
+    `Cire-v1.0` 采用纯 `Next`、Fitch-style clock lock、world-indexed
     resumption、独立 suspension summary、handler-instance law、
-    Owner-bound one-shot disposition，以及动态 single-claim `CommitGate`。
+    Owner-bound one-shot disposition、sealed fixed-Epoch checkpoint runner、
+    以及动态 single-claim commit gate。
     它不加入一般 affine value calculus，也不把 `Task`、`Live` 与 `Next`
-    合并。
+    合并。普通语言 foundation、integrated first-party contract 和本文件旧 TR0
+    calculus 在下文的 successor 章节中一次性整合；冲突处 successor 规则优先。
   ],
 )
 
@@ -100,7 +105,7 @@
 
 == 目标
 
-本文把以下设计写成可以逐规则检查的候选 calculus：
+本文把以下设计写成可以逐规则检查的 canonical calculus：
 
 - generative named clock identity；
 - `Next[frame, A]`、`delay[frame] { ... }` 与 `advance(...)`；
@@ -111,7 +116,8 @@
 - `Source`、`Live`、`Event`、`Signal`、`Task`、`Resource` 的第一方契约；
 - fixed-Epoch、continuation cut、candidate replacement 与 Commit gate；
 - 一个结构递归、双向、算法化的 type checker；
-- 以 profile id导入 canonical surface grammar 的 elaboration boundary。
+- 完整普通语言 foundation、package/API exact schema、Component boundary；
+- 以 profile id 导入 canonical surface grammar 的唯一 elaboration boundary。
 
 == 非目标
 
@@ -124,33 +130,31 @@
 - 任意 effectful `Later`；
 - scheduler fairness 或宿主最终产生 frame 的证明；
 - 通用 Derived DAG 或 cycle convergence 语义；
-- 当前所有 MoonBit 风格表达式的完整语言规范。
+- native-async Component ABI、Wasm threads/GC/exception/stack-switching；
+- 通用 `Event::on` / `Event::on_async` 或 public generic Plan/Commit API。
 
-普通 Cire 语法仅形式化到本 calculus 所需的 fragment。未列出的 ADT、
-pattern、ordinary trait与 method-resolution细节在本文中是明确的
-out-of-semantic-scope surface nodes；本 profile不能引用已删除文档或所谓“现有语言
-设计”给它们补规则，也不对未写出的 behavior作 acceptance claim。需要这些规则的
-compiler-complete profile必须另行冻结并改变 profile id。本文实际使用的 nominal
-type/member facts必须作为 $K$ 中已解析的 opaque declaration-identity evidence输入，
-且不能产生本节未定义的 effect、ability或 temporal judgment。
+Surface spelling 由唯一 surface authority 固定；本文对其 normalized HIR 中所有
+`Cire-v1.0` declaration/expression/pattern 类别给出静态、wire 与 runtime meaning。
+任何未列入本 profile 的 spelling、schema tag、registry entry 或 host behavior 都是拒绝，
+不能由历史文档、实现惯例或所谓“现有语言设计”补齐。
 
-== 参数化的开放选择
+== 已冻结的 profile 选择
 
-本模型把仍未冻结的设计写成参数，而不是隐藏成假定：
+旧 TR0 的开放轴在 successor profile 中全部固定；下表是 exact profile fact，不是实现参数：
 
 #table(
   columns: (1.1fr, 2.5fr, 2.6fr),
   [*参数*], [*候选值*], [*本文使用方式*],
-  [`clock-repr`], [`singleton-cap` / `fresh-phantom`],
-  [规则写 `singleton-cap`；替换表示必须保持 freshness 与 escape theorem。],
-  [`checkpoint-profile`], [`trusted-ctl` / `sealed-checkpoint`],
-  [静态 surface 仍是 `ctl`；增量定理只对满足 sealed/trusted protocol 的 runner 成立。],
-  [`capture-refinement`], [`declared-max` / `lexical-handler`],
-  [基线按 operation 声明的最大 mode 检查；词法 specialization 是可选扩展。],
-  [`task-outcome`], [`Result` / effect / discontinuation],
-  [Core 使用抽象结果类型 $R$，不冻结 surface error channel。],
-  [`commit-linearity`], [`dynamic-claim` / future affine value],
-  [本模型只证明动态 claim 的 at-most-once，不声称 capability 静态线性。],
+  [`clock-repr`], [`restricted singleton capability`],
+  [Direct `app : F` binder 引入 fresh identity；surface 不使用 `cap` marker。],
+  [`checkpoint-profile`], [`sealed fixed-Epoch first-party runner`],
+  [Generic public checkpoint/Plan/Commit 不存在；runner 使用 private one-shot claim。],
+  [`capture-refinement`], [`declared-max`],
+  [按 operation 声明的最大 mode 检查；没有 lexical specialization profile。],
+  [`task-outcome`], [`TaskOutcome[A,E]`],
+  [`Task` 是 multi-waiter broadcast completion；cancel reason 与 result exact typed。],
+  [`commit-linearity`], [`sealed dynamic single-claim`],
+  [claim 是 runtime protocol authority，不作为一般 user affine value。],
 )
 
 = 记号、归纳对象与推导高度
@@ -198,7 +202,7 @@ $
 - 对 typing derivation 的性质使用 $"height"(D)$ 归纳；
 - 算法化 checker 对 AST 大小结构递归；
 - row normalization、kind checking 和 unification 使用独立的有限 worklist；
-- PEG repetition 必须消费至少一个 significant token，禁止无进展递归。
+- Surface progress由 imported canonical surface artifact及其 conformance proof承担；本文不定义 PEG。
 
 == 静态上下文
 
@@ -247,242 +251,39 @@ $
 计算。这样 `let x = use_cap(); 0` 的结果不必伪称 capture `cap`，而
 closure/checkpoint 真正保存 `cap` 时仍会被 boundary checker发现。
 
-= Token-oriented PEG 的形式语义 <peg-semantics>
 
-== 识别关系
-
-未来 parser 采用手写 token-oriented PEG。本文忽略 missing-token insertion
-与 recovery，仅形式化正常 recognition language。令 token stream 为
-$sigma = t_0 ... t_n$，parser expression 为 $p$，则：
-
-$
-  G ; sigma ⊢ p @ j ⇓ r
-$
-
-归纳对象为：
-
-$
-  p ::= epsilon_p | a | N | p_1 p_2 | p_1 / p_2
-      | &p | !p | p^* | "CUT"
-$
-
-其中 $a$ 是 significant terminal，$N$ 是 nonterminal。Sugar：
-
-$
-  p? = p / epsilon_p
-  quad
-  p^+ = p p^*
-$
-
-Grammar well-formedness $"WF"(G)$ 要求每个 nonterminal有唯一 body、
-不存在未推进 significant cursor就回到同一 nonterminal的 recursion cycle，
-并且 repetition body不 nullable；本 profile因此不接受任何直接或间接
-left recursion。实际 parser还用 active call key $(N,j,"flavor")$ 拒绝同
-rule/position/flavor 的递归重入，作为实现层保险。
-
-结果为：
-
-$
-  r ::= "ok"(j', c) | "fail"(j, X, c)
-$
-
-其中 $c in {0, 1}$ 表示当前 rule-local branch 是否已经经过 `CUT`；
-$X$ 是 expectation 集。Cursor 在匹配 terminal 前跳过 trivia，但消费成功时
-把 trivia 与 significant token 一并送入 lossless CST event stream。
-
-`CUT` 是一个零宽 parser meta-expression，而不是 Cire token。它把当前
-ordered-choice branch 的 commit bit 置为 $1$；sequence 会把该 bit 传播到
-后续失败。Lookahead 在 probe sandbox 中运行，既不消费 token，也不把
-probe 内部的 commit bit泄漏到外层。
-
-== 基本 PEG 规则
-
-#irule(
-  [PEG-Empty],
-  (),
-  [$G;sigma ⊢ epsilon_p @j ⇓ "ok"(j,0)$],
-)
-
-#irule(
-  [PEG-Terminal],
-  (
-    [$"nextSig"(sigma, j) = (j_s, t) quad "kind"(t) = a$],
-  ),
-  [$G; sigma ⊢ a @ j ⇓ "ok"(j_s + 1, 0)$],
-)
-
-#irule(
-  [PEG-Terminal-Fail],
-  (
-    [$"nextSig"(sigma,j)=(j_s,t)$],
-    [$"kind"(t) != a$],
-  ),
-  [$G;sigma ⊢ a @j ⇓ "fail"(j_s,{a},0)$],
-)
-
-#irule(
-  [PEG-Seq],
-  (
-    [$G; sigma ⊢ p_1 @ j ⇓ "ok"(j_1, c_1)$],
-    [$G; sigma ⊢ p_2 @ j_1 ⇓ "ok"(j_2, c_2)$],
-  ),
-  [$G; sigma ⊢ p_1 p_2 @ j ⇓ "ok"(j_2, c_1 or c_2)$],
-)
-
-#irule(
-  [PEG-Seq-Fail-L],
-  (
-    [$G;sigma ⊢ p_1 @j ⇓ "fail"(j_1,X,c_1)$],
-  ),
-  [$G;sigma ⊢ p_1 p_2 @j ⇓ "fail"(j_1,X,c_1)$],
-)
-
-#irule(
-  [PEG-Seq-Fail-R],
-  (
-    [$G;sigma ⊢ p_1 @j ⇓ "ok"(j_1,c_1)$],
-    [$G;sigma ⊢ p_2 @j_1 ⇓ "fail"(j_2,X,c_2)$],
-  ),
-  [$G;sigma ⊢ p_1 p_2 @j ⇓ "fail"(j_2,X,c_1 or c_2)$],
-)
-
-#irule(
-  [PEG-Choice-L],
-  (
-    [$G; sigma ⊢ p_1 @ j ⇓ "ok"(j', c)$],
-  ),
-  [$G; sigma ⊢ p_1 / p_2 @ j ⇓ "ok"(j', c)$],
-)
-
-#irule(
-  [PEG-Choice-R],
-  (
-    [$G; sigma ⊢ p_1 @ j ⇓ "fail"(j_1, X, 0)$],
-    [$G; sigma ⊢ p_2 @ j ⇓ r$],
-  ),
-  [$G; sigma ⊢ p_1 / p_2 @ j ⇓ r$],
-)
-
-#irule(
-  [PEG-Choice-Cut],
-  (
-    [$G; sigma ⊢ p_1 @ j ⇓ "fail"(j_1, X, 1)$],
-  ),
-  [$G; sigma ⊢ p_1 / p_2 @ j ⇓ "fail"(j_1, X, 1)$],
-)
-
-#irule(
-  [PEG-Cut],
-  (),
-  [$G; sigma ⊢ "CUT" @ j ⇓ "ok"(j,1)$],
-)
-
-#irule(
-  [PEG-Lookahead-OK],
-  (
-    [$G; sigma ⊢ p @ j ⇓ "ok"(j', c)$],
-  ),
-  [$G; sigma ⊢ &p @ j ⇓ "ok"(j, 0)$],
-)
-
-#irule(
-  [PEG-Lookahead-Fail],
-  (
-    [$G;sigma ⊢ p @j ⇓ "fail"(j',X,c)$],
-  ),
-  [$G;sigma ⊢ &p @j ⇓ "fail"(j,X,0)$],
-)
-
-#irule(
-  [PEG-Negative-OK],
-  (
-    [$G;sigma ⊢ p @j ⇓ "fail"(j',X,c)$],
-  ),
-  [$G;sigma ⊢ !p @j ⇓ "ok"(j,0)$],
-)
-
-#irule(
-  [PEG-Negative-Fail],
-  (
-    [$G;sigma ⊢ p @j ⇓ "ok"(j',c)$],
-  ),
-  [$G;sigma ⊢ !p @j ⇓ "fail"(j,emptyset,0)$],
-)
-
-#irule(
-  [PEG-Star-Stop],
-  (
-    [$G;sigma ⊢ p @j ⇓ "fail"(j',X,0)$],
-  ),
-  [$G;sigma ⊢ p^* @j ⇓ "ok"(j,0)$],
-)
-
-#irule(
-  [PEG-Star-Step],
-  (
-    [$G;sigma ⊢ p @j ⇓ "ok"(j_1,c_1) quad j_1 > j$],
-    [$G;sigma ⊢ p^* @j_1 ⇓ "ok"(j_2,c_2)$],
-  ),
-  [$G;sigma ⊢ p^* @j ⇓ "ok"(j_2,c_1 or c_2)$],
-)
-
-#irule(
-  [PEG-Star-Cut-Fail],
-  (
-    [$G;sigma ⊢ p @j ⇓ "fail"(j',X,1)$],
-  ),
-  [$G;sigma ⊢ p^* @j ⇓ "fail"(j',X,1)$],
-)
-
-#irule(
-  [PEG-Nonterminal],
-  (
-    [$G(N)=p$],
-    [$G;sigma ⊢ p @j ⇓ r$],
-    [$r'="leaveRule"(r)$],
-  ),
-  [$G;sigma ⊢ N @j ⇓ r'$],
-)
-
-Rule-local cut在成功返回 nonterminal时不能泄漏给 caller：
-
-$
-  "leaveRule"("ok"(j,c)) = "ok"(j,0)
-$
-
-$
-  "leaveRule"("fail"(j,X,c)) = "fail"(j,X,c)
-$
-
-失败保留 commit bit，成功则清零；这对应规范要求的 rule frame。若只想
-内联一个 expression而不建立 rule frame，应写 expression本身而不是
-`PEG-Nonterminal`。
-
-若 `PEG-Star-Step` 的第一次 premise成功但 $j_1=j$，parser 报
-no-progress bug而不是递归。EOF mismatch 与 token-stream末尾都视为
-`PEG-Terminal-Fail`。Expectation 的 farthest-position merge只影响诊断，
-不改变 success/failure 或 commit；为简洁未写进以上 recognition rules。
-两种 lookahead都在 probe sandbox中静默丢弃内部 commit；negative
-lookahead还丢弃内部 expectation。
-
-由有序选择可直接得到：
+= Surface grammar authority import <surface-authority-import>
 
 #status(
-  [PEG determinism],
+  [唯一 grammar authority],
   [
-    对固定 $G$、$sigma$、$p$ 与 $j$，recognition result 至多一个。
-    证明按 $p$ 的结构归纳；ordered choice 永远优先选择第一个成功且未被回滚的
-    branch。
+    `Cire-v1.0` 的 token、lexer mode、PEG、precedence、CUT、CST 与 recovery ownership
+    全部由 `surface-syntax.md` 的 `Cire-v1.0` profile 定义。本文不再包含第二个 PEG
+    judgment或历史 recognizer；producer、LSP与 conformance tooling只能消费 canonical
+    surface artifact产生的 normalized HIR。
   ],
 )
+
+本文的 parser boundary 只有一个输入 predicate：
+
+```text
+CanonicalSurfaceV1(profile, surface_hash, normalized_hir_hash, node)
+```
+
+它成立当且仅当 `profile == "Cire-v1.0"`，`surface_hash` 指向 exact-decode、NFC、JCS
+后通过 hash 验证的唯一 surface authority artifact，`normalized_hir_hash` 指向该 artifact
+按 closed normalization schema 生成的 HIR，并且 `node` 是该 HIR 的可达 node。
+Parser recovery node、legacy spelling 或未进入 normalized HIR 的 token sequence 不产生 semantic
+judgment。本文所有写成 `SurfaceV1(node)` 的 premise 都是这个 predicate 的缩写。
 
 = Canonical surface fragment 与 temporal delta
 
 == Calculus 使用的 canonical grammar import
 
-本 calculus 不复制第二份 PEG。它按 profile id
-`Cire-TR₀/2026-08-01` 导入 `surface-syntax.md` 的 token/rule table，并只对
-下列 canonical rule产生的 CST node定义 elaboration：
+本 calculus 不复制第二份 PEG。它按 profile id `Cire-v1.0` 导入
+`surface-syntax.md` 的 token/rule table、normalized Surface HIR 与已经生成的
+evidence-indexed Kernel，并只定义后两者的消费/WF judgment；下列旧 TR0 node 名只作为
+temporal 子集的兼容索引：
 
 ```text
 Declaration, GenericClauses, Type, RowExpr, FunctionDecl, OperationDecl,
@@ -493,52 +294,2959 @@ WithExpr, DelayExpr, Block
 因此 `GenericClauses` 的非空分支、`fn(value)` 的 inferred
 `LambdaParameter`、label-first lookahead、`RowUnion` 和 single-final-tail
 约束都由同一 canonical grammar裁决。形式化中的
-`SurfaceTR0(profile,node)` premise表示 node必须来自该 rule table；本文
+`SurfaceV1(profile,node)` premise表示 node必须来自该 rule table；本文
 没有第二个 recognizer，也没有“只比较成功语言”的兼容后门。
 
 == 目标 temporal surface
 
 `CAP`、`RESUMES`、`NEXT` 与 `MAY_SUSPEND` 是 canonical keyword token，
 不是 contextual `LowerIdent`。`delay`、`advance` 与 `Next` 保持 canonical
-grammar规定的 sealed prelude name：resolver只有在完整 intrinsic
+grammar规定的 sealed prelude name：Surface resolver只有在完整 intrinsic
 shape/evidence成立时才产生 `DelayExpr`、`advance` Kernel node 与 hidden
-`Next[i,A,L]` contract。这个 resolver delta不修改 token language。
+`Next[i,A,L]` contract；Formal只验证这些已产生节点的 typed-Core WF。这个
+Surface resolver delta不修改 token language。
 
 `advance(e)` 保持普通 call grammar。Resolver 只在 callee 绑定到 sealed
 prelude intrinsic 时降为 Core `advance`；同名用户函数仍是普通函数。
 
 `Next[frame, A]` 被识别为普通 type application。
-Kind/lowering 阶段只对 sealed `Next` constructor 把首个 lower-name argument
-重分类为 capability identity；这不是一般 dependent type。
+Surface 的 Kind/lowering boundary只对 sealed `Next` constructor把首个 lower-name
+argument重分类为 capability identity；Formal消费该 identity evidence，这不是一般
+dependent type。
 
-`cap FrameClock` 是 target capability binder/type marker；在 parameter位置
-lowering 会创建 restricted singleton identity quantifier。`Next` 只供
-resolver识别 sealed constructor，不另建 parser branch。
+历史 `cap FrameClock` 在 `Cire-v1.0` 稳定拒绝。Direct parameter `frame : FrameClock`
+由 Surface signature/elaboration创建 restricted singleton identity quantifier；普通 value
+parameter `c : Capability[FrameClock]` 不引入 identity。Formal只核对已产生 binder与对应
+row/type projection。`Next` 只供 Surface resolver识别 sealed constructor，不另建 parser branch。
 
 == Profile boundary
 
 #warning([
-  `Cire-TR₀/2026-08-01` 只接受 canonical `with ... in ...` chain，不接受历史
+  `Cire-v1.0` 只接受 canonical `with ... in ...` chain，不接受历史
   `with operand { block }` 形状。实现若需要迁移诊断，应把 legacy token
   sequence作为拒绝 case，而不是并行的语言 profile。
 ])
 
-建议新增的 CST node：
+下文为陈述 temporal rules 使用 `DelayExpr`、`OperationContractV1`、
+`ResumeTransitionV1`、`SuspensionSummaryV1` 与 `WithChainV1` 等说明性 HIR role；
+它们只是对 canonical normalized Surface HIR field 的短名，不是新增 CST production或
+第二套 parser schema。`Next` 仍由 canonical type application resolve，`advance` 仍由
+canonical call resolve；只有 exact sealed identity/evidence使 Surface生成专用 Kernel node，
+Formal仅接受并解释该 node。
+
+= Cire-v1.0 successor profile <cire-v1-profile>
+
+本章是 ordinary-language foundation、integrated first-party contract 与下文 TR0 calculus
+之间唯一的 integration layer。对 `profile == "Cire-v1.0"`：
+
+- 本章标成 *retain* 的旧 schema/rule 原样保留；
+- 本章标成 *replace* 的旧 schema/rule 只可 exact-decode legacy artifact；
+- 本章新增的 closed schema/tag 与 rule 是唯一 successor meaning；
+- 未列出的字段、tag、intrinsic、surface shortcut 与 runtime transition 全部拒绝。
+
+处理顺序固定为：`exact decode -> NFC fields -> JCS -> hash-edge verification ->
+package/profile check -> ContractWF -> semantic judgment`。Decode 或 hash 失败时不得进入后续
+阶段，也不得用 host object、side table 或旧 artifact 填缺字段。除另有说明，closed object
+只允许写出的 exact field set；array 的顺序是 semantic，不能按 producer map iteration 产生。
+
+`WireU32V1` 表示 exact unsigned integer range `0..4294967295`。Successor-only schema用这个
+别名书写新增 field，既保持与 `u32` 相同的 wire domain，也不污染 retained TR0 validator按
+历史 formal text提取的 frozen `: u32` field inventory。
+
+== Canonical successor rule anchors <successor-rule-anchors-v1>
+
+`Cire-v1.0` specification-model coverage 只能使用 authority owner发布的 stable rule ID。同一 ID 在
+authority coverage、mutation/control、runtime trace、diagnostic relation 与 review report 中必须 byte-equal；
+不得为同一 rule 临时创建 alias。下列恰是 Formal-owned 21 个 ID；每个 Typst anchor 是该 ID 的
+canonical normative landing point，后文 retained TR0 anchor 只是 proof dependency。
+
+另外 15 个 Surface-owned ID（`FND-control-structural`、`FND-explicit-named-rows`、
+`FND-local-inference-boundary`、`FND-method-resolution`、`FND-nominal-data`、
+`FND-pattern-matrix`、`FND-postfix-derive`、`FND-trait-coherence`、
+`R06-associated-ability-profile-boundary`、`R06-call-assembly`、`R06-capability-identity`、
+`R06-first-party-registry`、`R06-inline-handler`、`R06-no-generic-event-on` 与
+`R06-origin-arena`）只在 `surface-syntax.md` 暴露 canonical anchor；本文只引用，不重复
+`#metadata` 或 label。
+
+#metadata("FND-component-sync-v1") <rule-fnd-component-sync-v1>
+#metadata("FND-const-evaluation") <rule-fnd-const-evaluation>
+#metadata("FND-mutation-place-replay") <rule-fnd-mutation-place-replay>
+#metadata("FND-numeric-semantics") <rule-fnd-numeric-semantics>
+#metadata("FND-package-instance-identity") <rule-fnd-package-instance-identity>
+#metadata("FND-primitive-wire-forms") <rule-fnd-primitive-wire-forms>
+#metadata("FND-semantic-string-const-bytes") <rule-fnd-semantic-string-const-bytes>
+#metadata("FND-maytrap-defect-transition") <rule-fnd-maytrap-defect-transition>
+#metadata("R06-callable-hash-dag") <rule-r06-callable-hash-dag>
+#metadata("R06-cleanup-receipt-report") <rule-r06-cleanup-receipt-report>
+#metadata("R06-diagnostic-origin-stability") <rule-r06-diagnostic-origin-stability>
+#metadata("R06-packed-next") <rule-r06-packed-next>
+#metadata("R06-public-plan-commit-excluded") <rule-r06-public-plan-commit-excluded>
+#metadata("R06-resource-latest-retained") <rule-r06-resource-latest-retained>
+#metadata("R06-runtime-symbolic-replay") <rule-r06-runtime-symbolic-replay>
+#metadata("R06-sealed-checkpoint") <rule-r06-sealed-checkpoint>
+#metadata("R06-signal-tracking") <rule-r06-signal-tracking>
+#metadata("R06-task-multiwaiter-shareable") <rule-r06-task-multiwaiter-shareable>
+#metadata("R06-ui-action-flow") <rule-r06-ui-action-flow>
+#metadata("R06-ui-exact-occurrence") <rule-r06-ui-exact-occurrence>
+#metadata("R06-ui-generation-cleanup") <rule-r06-ui-generation-cleanup>
+
+#table(
+  columns: (1.7fr, 1.5fr, 3fr),
+  [*rule ID*], [*canonical anchor*], [*closed obligation*],
+  [`FND-component-sync-v1`], [@abi-hash-roots-v1 / @component-boundary-v1], [sync memory32/UTF-8 Component boundary 与三 hash roots],
+  [`FND-const-evaluation`], [@ordinary-foundation-v1], [ConstSafe domain、termination 与 definite defect],
+  [`FND-mutation-place-replay`], [@ordinary-foundation-v1], [place source order 与 replay/capture gate],
+  [`FND-numeric-semantics`], [@maytrap-defect-transition-v1], [numeric policies、canonical float 与 traps],
+  [`FND-package-instance-identity`], [@package-interface-v1 / @api-compatibility-v1], [acyclic lock Merkle identity 与 API evolution],
+  [`FND-primitive-wire-forms`], [@primitive-catalog-v1], [exact 16 identities 与 carrier canonicalization],
+  [`FND-semantic-string-const-bytes`], [@const-component-wire], [byte/scalar const payload],
+  [`FND-maytrap-defect-transition`], [@maytrap-defect-transition-v1], [ordinary MayTrap fact 与 post-cleanup defect],
+  [`R06-callable-hash-dag`], [@function-contract-v3], [Interface→V3 exact edge 与 transitive rehash],
+  [`R06-cleanup-receipt-report`], [@cleanup-ledger-v1], [receipt multiwaiter 与 ordered report],
+  [`R06-diagnostic-origin-stability`], [@successor-diagnostics], [six-field registry 与 causal precedence],
+  [`R06-packed-next`], [@packed-next-protocol-v1], [successor protocol; V2 profile-disjoint],
+  [`R06-public-plan-commit-excluded`], [@first-party-type-boundary-v1 / @checkpoint-runner-v1], [Plan/Commit private only],
+  [`R06-resource-latest-retained`], [@resource-protocol-v1], [switch-latest + keep-last-good],
+  [`R06-runtime-symbolic-replay`], [@successor-conformance-v1], [finite exact-checked protocol traces],
+  [`R06-sealed-checkpoint`], [@checkpoint-runner-v1], [fixed-Epoch sealed runner],
+  [`R06-signal-tracking`], [@signal-ui-protocol-v1], [recursive Signal tail 与 exact tracking],
+  [`R06-task-multiwaiter-shareable`], [@task-protocol-v1], [broadcast completion 与 independent waiter],
+  [`R06-ui-action-flow`], [@signal-ui-protocol-v1], [action full-flow/suspension contract],
+  [`R06-ui-exact-occurrence`], [@signal-ui-protocol-v1], [typed payload 与 same FIFO lease],
+  [`R06-ui-generation-cleanup`], [@signal-ui-protocol-v1], [single generation gate count 与 exactly-once release],
+)
+
+== Package identity 与 package-root interface <package-interface-v1>
+
+`CireLanguageInterfaceV1` 是 package 的唯一 public semantic root。Callable 不是 package root；
+每个 callable edge 必须先载入一个 `CallableInterfaceV1`，再沿其唯一
+`core_contract` edge 载入 `FunctionContractV3`。Foundation-only data、trait、const、impl、
+package 与 Component facts只出现在 package-level declaration/evidence artifact，绝不向
+`FunctionContractV3` 增加字段。
 
 ```text
-DelayExpression
-CapabilityType
-OperationContract
-ResumeTransition
-SuspensionAnnotation
-WithChain
-WithEntry
+Sha256V1 = "sha256:" + 64 lowercase hex
+PackageDigestV1 = 64 lowercase hex
+NfcSegmentV1 = NFC nonempty String without '/', '\\', '.', '..' or control
+
+PackageInstanceIdV1 = {
+  kind: "PackageInstanceIdV1",
+  digest: PackageDigestV1
+}
+
+PackageIdentityInputV1 = {
+  kind: "PackageIdentityInputV1",
+  source_identity: NFC nonempty String,
+  exact_version: NFC canonical SemVer String,
+  source_checksum: Sha256V1,
+  profile: "Cire-v1.0",
+  features: [NfcSegmentV1],
+  dependencies: [PackageDependencyIdentityV1]
+}
+
+PackageDependencyIdentityV1 = {
+  alias: NfcSegmentV1,
+  instance: PackageInstanceIdV1
+}
+
+PackageIdentityEvidenceV1 = {
+  kind: "PackageIdentityEvidenceV1",
+  instance: PackageInstanceIdV1,
+  input: PackageIdentityInputV1,
+  hash_algorithm: "sha256-jcs-nfc-v1"
+}
+
+PackageImportV1 = {
+  alias: NfcSegmentV1,
+  instance: PackageInstanceIdV1,
+  interface_hash: Sha256V1
+}
+
+DeclarationArtifactRefV1 =
+    { artifact: "DataDeclarationV1",
+      hash_algorithm: "sha256-jcs-nfc-v1", artifact_hash: Sha256V1 }
+  | { artifact: "TraitDeclarationV1",
+      hash_algorithm: "sha256-jcs-nfc-v1", artifact_hash: Sha256V1 }
+  | { artifact: "AbilityDeclarationV1",
+      hash_algorithm: "sha256-jcs-nfc-v1", artifact_hash: Sha256V1 }
+  | { artifact: "EffectDeclarationV1",
+      hash_algorithm: "sha256-jcs-nfc-v1", artifact_hash: Sha256V1 }
+  | { artifact: "ConstDeclarationV1",
+      hash_algorithm: "sha256-jcs-nfc-v1", artifact_hash: Sha256V1 }
+
+EvidenceArtifactRefV1 =
+    { artifact: "ImplEvidenceV1",
+      hash_algorithm: "sha256-jcs-nfc-v1", artifact_hash: Sha256V1 }
+  | { artifact: "CallableContractFactEvidenceV1",
+      hash_algorithm: "sha256-jcs-nfc-v1", artifact_hash: Sha256V1 }
+
+PrimitiveCatalogArtifactRefV1 = {
+  artifact: "PrimitiveCatalogV1",
+  hash_algorithm: "sha256-jcs-nfc-v1",
+  artifact_hash: Sha256V1
+}
+
+IntrinsicRegistryRootArtifactRefV1 = {
+  artifact: "IntrinsicRegistryRootV1",
+  hash_algorithm: "sha256-jcs-nfc-v1",
+  artifact_hash: Sha256V1
+}
+
+PackageDeclarationEdgeV1 = {
+  identity: DeclarationIdentityV1,
+  declaration: DeclarationArtifactRefV1
+}
+
+PackageEvidenceEdgeV1 = {
+  identity: EvidenceIdentityV1,
+  evidence: EvidenceArtifactRefV1
+}
+
+PackageCallableEdgeV1 = {
+  module: PackageModulePathV1,
+  export_path: [NfcSegmentV1],
+  callable_interface: {
+    artifact: "CallableInterfaceV1",
+    hash_algorithm: "sha256-jcs-nfc-v1",
+    artifact_hash: Sha256V1
+  }
+}
+
+PackageComponentEdgeV1 = {
+  name: NfcSegmentV1,
+  manifest: {
+    artifact: "ComponentManifestV1",
+    hash_algorithm: "sha256-jcs-nfc-v1",
+    artifact_hash: Sha256V1
+  }
+}
+
+CireLanguageInterfaceV1 = {
+  artifact: "CireLanguageInterfaceV1",
+  profile: "Cire-v1.0",
+  schema_version: 1,
+  package_identity: PackageIdentityEvidenceV1,
+  package_instance_id: PackageInstanceIdV1,
+  imports: [PackageImportV1],
+  declarations: [PackageDeclarationEdgeV1],
+  evidence: [PackageEvidenceEdgeV1],
+  callables: [PackageCallableEdgeV1],
+  components: [PackageComponentEdgeV1],
+  primitive_catalog: PrimitiveCatalogArtifactRefV1 | null,
+  intrinsic_registry: IntrinsicRegistryRootArtifactRefV1 | null
+}
 ```
 
-`Next` 可继续使用 `TypeReference/TypeArgumentList`；`advance` 可继续使用
-`CallExpression`，由 resolver 产生专用 Kernel HIR。
+`package_instance_id` 必须 exact equal于 `package_identity.instance`。`PackageIdentityInputV1.features`
+按 NFC UTF-8 bytes 严格递增且无重复；dependencies 与
+imports 都按 alias 的 NFC UTF-8 bytes 严格递增、alias 无重复，且两者的 `(alias,instance)`
+集合 exact equal。Profile lock 必须是有限有向无环图：以 package instance 为 node、
+dependency identity 为 edge，所有 root 可达 node必须只有一个 exact lock entry；按 dependency alias
+UTF-8 order 的 DFS 必须在回到 gray node前结束。Cycle、infinite/unresolved edge 或同一 instance 的
+conflicting lock entry 稳定返回 `package-import-not-locked`，`dependency-instance-id` note写入第一个
+canonical DFS back-edge 的 target。
 
-= Surface 到 Core 的语法与 elaboration
+`PackageInstanceIdV1.digest` 按该 DAG 的 reverse topological order计算，恰是本 node
+`input` 的 NFC+JCS bytes 的 SHA-256 裸 64-hex digest；因而身份是 well-founded、与遍历调度无关。
+Package root 的 declaration/evidence/callable/component arrays 分别按其
+完整 identity object 的 NFC+JCS bytes 严格递增，且必须是 package 自己的 exact semantic validation
+closure；它不 flatten任何 import。Closure从全部 public declarations/callables、下述 importer-visible
+coherent impl/derive evidence与 component selections
+出发，递归跟随其 V3/default/const/type/trait/ability/effect/impl refs，只要 target由当前 package拥有就
+必须加入对应 declaration/evidence/callable edge，直到 fixed point；unreachable private artifact不加入。
+`visibility=PackageV1` 的 support entry可被 importer用于 exact kind/contract WF，但绝不进入 source
+resolver、method candidate、wildcard或 export lookup。每个
+declaration/evidence identity、callable module prefix与 component manifest package都必须 exact equal
+`package_instance_id`；foreign declaration只通过 `imports[].interface_hash`进入其 own package root验证。
+每个 `PackageComponentEdgeV1.name` 必须 exact equal其 hash载入的
+`ComponentManifestV1.name`；同一 package 的 component names按 NFC UTF-8 bytes pairwise unique，不能用
+两个不同 manifest hash共享外层 name。Name equality/injectivity在 component sort、adapter preidentity与
+API pairing前验证。
+Schema/closed-field/order failure在 package semantic validation之前停于 `Decode`，不伪造一个
+未注册 umbrella diagnostic；identity/hash 错误用 `package-instance-hash-mismatch`，未 lock/cycle
+用 `package-import-not-locked`，duplicate instance 用 `duplicate-package-instance`，callable hash edge
+错误用 `callable-interface-contract-mismatch`。
+
+Membership按 source class closed决定：public struct/enum/newtype/alias/opaque、trait、ability、effect与
+const分别贡献一个 matching declaration edge；它们的 associated items/operations/variants/fields嵌在
+该 artifact，不另建 top-level edge。Public free/extension callable各贡献一个 callable edge与一个
+Public callable fact；public inherent callable只有在 owner `TypeV1` declaration也 public时可导出，否则
+只能作 support。Bodyless trait method没有 callable edge；每个已 included trait artifact的 non-null default
+body与每个已 included impl evidence的 explicit method body贡献一个 resolver-hidden support callable edge/fact，并由 owning trait/impl artifact
+反向引用。每个 handwritten/derived impl只要 normalized trait goal的 trait、target与所有 outward
+requirements均 public/exact-importable，就贡献一个 importer-visible `ImplEvidenceV1`；否则仅在被 public
+Core/support artifact引用时进入 resolver-hidden support closure。每个 included callable（public或 support）
+恰有一个 matching callable fact；lambda、local declaration、local rank-1 scheme与 operation signature永不
+成为 package callable/declaration edge，分别只在 V3 local table或 ability/effect artifact内。Component
+只由 manifest selection进入 `components`。任何其它 private artifact只有 fixed-point traversal可达时加入，
+不可用 directory scan补齐；public fact若引用 private owner/receiver/signature fact则直接 API WF失败，不能
+降级成 hidden public name。
+
+```text
+PackageModulePathV1 = [NfcSegmentV1; length >= 2]
+
+PackageModuleWF(instance,module) iff
+  module[0] == "pkg-" + instance.digest
+  and every later segment is NfcSegmentV1
+
+DeclarationIdentityV1 = {
+  package: PackageInstanceIdV1,
+  namespace: "TypeV1" | "ValueV1" | "TraitV1" | "EffectV1"
+           | "AbilityV1",
+  module: PackageModulePathV1,
+  path: [NfcSegmentV1]
+}
+
+EvidenceIdentityV1 = {
+  package: PackageInstanceIdV1,
+  kind: "ImplEvidenceV1" | "ProtocolEvidenceV1",
+  ordinal: WireU32V1
+}
+```
+
+Source grammar没有 module declaration或 file-to-module convention。对普通 user declaration，唯一
+`CanonicalSourceModuleV1(P) = ["pkg-" + P.digest,"root"]`；file path、directory、visitor与 import alias
+都不得改变它。每个 `DeclarationIdentityV1.path` 与 `PackageCallableEdgeV1.export_path` 必须 nonempty。
+Top-level data/type alias/trait/ability/effect/const以及 free/extension callable的 source path恰是其单个
+declared name；inherent member使用 owner path后追加 member。Sealed core/first-party producer可使用本规范
+另列的 reserved module segments，但 user source不能伪造它们。
+
+任一 nominal Struct/Enum/Newtype/Opaque `TypeV1` declaration identity $D$ 与 semantic nominal reference的
+可逆投影唯一为：
+
+```text
+NominalRef(D,args) = NominalTypeV2 {
+  module: D.module ++ D.path[0 .. length-1),
+  name: D.path[length-1],
+  arguments: args
+}
+```
+
+反投影把 final module/name split恢复为同一 $D$；empty path、另一 split或 foreign package prefix拒绝。
+`TransparentAliasV1` 虽有 package declaration/source key，但绝无 nominal constructor identity：它在进入
+M3/type serialization前递归展开为 target，cycle已先拒绝，不能调用 `NominalRef`制造第二 wire image。
+Trait/Ability identity只出现在各自 kinded goal/reference；`EffectFamilyRefV2` 的 nominal branch对
+`EffectV1` declaration使用同一 module/path split与反投影，不能另猜 boundary。
+
+Package edge dispatch是 closed 且双向 exact：`TypeV1 -> DataDeclarationV1`、
+`TraitV1 -> TraitDeclarationV1`、`AbilityV1 -> AbilityDeclarationV1`、
+`EffectV1 -> EffectDeclarationV1`、`ValueV1 -> ConstDeclarationV1`；
+`ImplEvidenceV1 -> ImplEvidenceV1`、`ProtocolEvidenceV1 ->
+CallableContractFactEvidenceV1`。载入 object的内嵌 `identity` 必须与 edge identity exact equal，
+artifact tag/hash也必须 exact。Const是 Value declaration；derive使用
+`ImplEvidenceV1.origin=DerivedImplV1`；Component只走 `components` manifest edge。因此没有
+`ConstEvidenceV1`/`DeriveEvidenceV1`/`ComponentEvidenceV1` 或 `ComponentV1` declaration namespace，
+也没有 arbitrary `ArtifactRefV1` escape hatch。Unknown pairing在 declaration/evidence semantic WF前
+Decode拒绝。
+
+`EvidenceIdentityV1.ordinal` 不由 map iteration、source filename或 hash table产生；两个 evidence
+kind各自从 0 连续分配且允许数值重叠。`ProtocolEvidenceV1` 先把 package root 的 `callables` 按
+完整 `PackageCallableEdgeV1` NFC+JCS bytes 排序，其 zero-based index就是对应且唯一
+`CallableContractFactEvidenceV1` 的 ordinal。`ImplEvidenceV1` 先为每个 impl/derive形成
+`ImplPreidentityKeyV1`：取完整 `ImplEvidenceV1` semantic payload，但删去顶层 `identity`；其中
+resolved trait/target/header、binders/requirements、total associated/method vectors与完整 handwritten/
+derived origin仍全部保留。按该 key 的 NFC+JCS bytes严格排序后，zero-based index就是 impl ordinal；
+两个相同 preidentity key 是 duplicate impl evidence并在分配前拒绝，不能靠 ordinal消歧。
+Package evidence array必须对两个 kind分别 exact覆盖 `0..n-1`、无 gap/duplicate/foreign package，
+并与上述重算结果 exact equal；随后才按完整 `EvidenceIdentityV1` bytes进入 package root排序与 hash。
+
+所有 module vector，包括 callable envelope/dependency、nominal type、trait/effect reference、
+component manifest 与 diagnostic canonical subject 的 resolved module，都必须满足
+`PackageModuleWF`。第一段因此不是人类 package alias，也不是旧 `['cire', ...]`；它是
+`pkg-<PackageInstanceId digest>`。Source 中的 `@alias` 只参与 resolver，绝不进入 semantic
+identity。两个 locked version 即使后续 path 相同也不相等。
+
+`FirstPartySourceV1.module` 与 `FirstPartyTypeTemplateV1.module` 是 registry closed logical
+namespace（其 schema刻意不是 `PackageModulePathV1`），为保持 exact 21-entry registry bytes可写
+`["cire", ...]`/`temporal` 等 locked symbol。Surface 的 `instantiate_first_party` 已用 profile lock
+生成其 package-qualified output；Formal 仅当 logical namespace 可唯一解析为 exact package
+instance，且每个已产生 M3 nominal/callable Core reference 都写入
+`PackageModulePathV1` 时接受该 output。logical namespace绝不能直接漏进 public interface或 TypeRef。
+
+== PrimitiveCatalogV1 与 source builtin identity <primitive-catalog-v1>
+
+`PrimitiveCatalogV1` 是 source builtin 的唯一 resolver input。Legacy
+`Unit/Never/Bool/Int/String` 保留旧 `TypeRefV2` exact form；其余 builtin 不扩写
+`BuiltinTypeV1.name`，而是 locked core package 下的 sealed zero-argument nominal reference。
+
+```text
+PrimitiveCatalogV1 = {
+  artifact: "PrimitiveCatalogV1",
+  profile: "Cire-v1.0",
+  schema_version: 1,
+  core_package: PackageInstanceIdV1,
+  entries: [PrimitiveEntryV1; 16]
+}
+
+PrimitiveEntryV1 = {
+  source_name: "Unit" | "Never" | "Bool"
+             | "Int8" | "Int16" | "Int" | "Int64"
+             | "UInt8" | "UInt16" | "UInt" | "UInt64"
+             | "Float32" | "Float" | "Char" | "String" | "Bytes",
+  type: M3(TypeRefV2),
+  carrier: "NoneV1" | "I32V1" | "I64V1" | "F32V1" | "F64V1"
+         | "PrivateManagedV1"
+}
+
+LegacyPrimitive(name) =
+  LegacyTypeRefV2 { value: BuiltinTypeV1 { name: name } }
+
+CorePrimitive(core,name) =
+  NominalTypeV2 {
+    module: ["pkg-" + core.digest, "core", "primitive"],
+    name: name,
+    arguments: []
+  }
+```
+
+entries 的 canonical source-name order固定为：
+
+```text
+Unit, Never, Bool,
+Int8, Int16, Int, Int64,
+UInt8, UInt16, UInt, UInt64,
+Float32, Float, Char, String, Bytes
+```
+
+其 exact mapping 为：`Unit/Never/Bool/Int/String -> LegacyPrimitive(same name)`；
+`Int8/Int16/Int64/UInt8/UInt16/UInt/UInt64/Float32/Float/Char/Bytes ->
+CorePrimitive(core_package,same name)`。Carriers 为：Unit/Never=`NoneV1`；Bool、Int8、
+Int16、Int、UInt8、UInt16、UInt、Char=`I32V1`；Int64、UInt64=`I64V1`；
+Float32=`F32V1`；Float=`F64V1`；String、Bytes=`PrivateManagedV1`。
+Catalog 必须恰含上述 16 项（5 个 legacy exact form 与 11 个 sealed nominal form）且
+`core_package` 等于 profile lock 中 core dependency；source
+resolver 对任一 builtin 只读这个 catalog。`Byte`、pointer-sized integer、raw pointer、SIMD 或
+user shadow identity 都不是 builtin。
+
+Carrier ingress/egress 也是 catalog contract，不是 backend freedom：`Int8/Int16` 的 i32
+carrier在每个 ingress 验证高位为 canonical sign extension，`UInt8/UInt16` 验证 canonical
+zero extension，每个 result/export 用同一规则重建 carrier；`Bool` 只接受并产生 i32
+0/1；`Char` 的 i32 恰是一个非-surrogate Unicode scalar。非 canonical ingress 必须在进入
+typed Core 前拒绝，不准依赖截断、truthiness 或 host 容忍。
+
+== Package-level declaration 与 evidence schema <foundation-declaration-wire>
+
+以下 artifact承载 ordinary foundation facts。它们不嵌入 callable V3 root，也不能通过
+`M3` 增加 V2 object field。
+
+```text
+VisibilityV1 = "PackageV1" | "PublicV1"
+OpenVisibilityV1 = "PackageV1" | "PublicSealedV1" | "PublicOpenV1"
+
+AssociatedArgumentValueV1 =
+    { kind: "TypeAssociatedArgumentV1", value: M3(TypeRefV2) }
+  | { kind: "EffectAssociatedArgumentV1", value: M3(TypeRefV2) }
+  | { kind: "RowAssociatedArgumentV1", value: RowExprV1 }
+
+AssociatedArgumentBindingV1 = {
+  item_ordinal: WireU32V1,
+  declaration_name: NfcSegmentV1,
+  value: AssociatedArgumentValueV1
+}
+
+GenericTraitAssociatedTypeV1 = {
+  item_ordinal: WireU32V1,
+  declaration_name: NfcSegmentV1,
+  binder_slot: WireU32V1,
+  equality: M3(TypeRefV2) | null
+}
+
+TraitRequirementOriginV1 =
+    { kind: "SourceTraitRequirementV1" }
+  | { kind: "OwningTraitSelfV1" }
+  | { kind: "AssociatedConstraintEntailmentV1",
+      parent_requirement_ordinal: WireU32V1,
+      associated_item_ordinal: WireU32V1,
+      constraint_ordinal: WireU32V1 }
+
+GenericTraitRequirementV1 = {
+  requirement_ordinal: WireU32V1,
+  origin: TraitRequirementOriginV1,
+  binder_slot: WireU32V1,
+  trait: DeclarationIdentityV1,
+  arguments: [M3(TypeRefV2)],
+  associated_types: [GenericTraitAssociatedTypeV1]
+}
+
+GenericAbilityAssociatedItemV1 = {
+  item_ordinal: WireU32V1,
+  declaration_name: NfcSegmentV1,
+  binder_slot: WireU32V1,
+  equality: AssociatedArgumentValueV1 | null
+}
+
+GenericAbilityRequirementV1 = {
+  ability: DeclarationIdentityV1,
+  arguments: [M3(TypeRefV2)],
+  associated_items: [GenericAbilityAssociatedItemV1]
+}
+
+GenericEffectParameterV1 = {
+  binder_slot: WireU32V1,
+  constructor_arity: WireU32V1,
+  abilities: [GenericAbilityRequirementV1]
+}
+
+DeclarationRequirementsV1 = {
+  ordinary_traits: [GenericTraitRequirementV1],
+  effect_parameters: [GenericEffectParameterV1]
+}
+
+StoredFieldV1 = {
+  ordinal: WireU32V1,
+  name: NfcSegmentV1,
+  visibility: VisibilityV1,
+  type: M3(TypeRefV2),
+  default_value: ConstValueV1 | null
+}
+
+VariantPayloadV1 =
+    { kind: "UnitVariantV1" }
+  | { kind: "TupleVariantV1", elements: [M3(TypeRefV2)] }
+  | { kind: "RecordVariantV1", fields: [StoredFieldV1] }
+
+EnumVariantV1 = {
+  ordinal: WireU32V1,
+  name: NfcSegmentV1,
+  payload: VariantPayloadV1
+}
+
+DataBodyV1 =
+    { kind: "StructV1", fields: [StoredFieldV1] }
+  | { kind: "EnumV1", variants: [EnumVariantV1] }
+  | { kind: "NewtypeV1", field: StoredFieldV1 }
+  | { kind: "OpaqueTypeV1", representation: M3(TypeRefV2) | null }
+  | { kind: "TransparentAliasV1", target: M3(TypeRefV2) }
+
+DataDeclarationV1 = {
+  artifact: "DataDeclarationV1",
+  profile: "Cire-v1.0",
+  schema_version: 1,
+  identity: DeclarationIdentityV1,
+  visibility: VisibilityV1,
+  binders: M3(DeclarationBindersV2),
+  requirements: DeclarationRequirementsV1,
+  body: DataBodyV1,
+  derives: [DeclarationIdentityV1]
+}
+
+AssociatedTypeDeclarationV1 = {
+  ordinal: WireU32V1,
+  name: NfcSegmentV1,
+  binder_slot: WireU32V1,
+  constraints: [TraitGoalV1],
+  default_type: M3(TypeRefV2) | null
+}
+
+TraitMethodSignatureV1 = {
+  binders: M3(DeclarationBindersV2),
+  requirements: DeclarationRequirementsV1,
+  surface_signature: CallableSurfaceSignatureV1,
+  declaration_kind: M3(FunctionContractKindV2),
+  default_program: TraitDefaultPrologueProgramV1
+}
+
+TraitMethodDeclarationV1 = {
+  ordinal: WireU32V1,
+  name: NfcSegmentV1,
+  signature: TraitMethodSignatureV1,
+  default_body: PackageCallableEdgeV1 | null
+}
+
+TraitDeclarationV1 = {
+  artifact: "TraitDeclarationV1",
+  profile: "Cire-v1.0",
+  schema_version: 1,
+  identity: DeclarationIdentityV1,
+  visibility: OpenVisibilityV1,
+  binders: M3(DeclarationBindersV2),
+  self_binder_slot: WireU32V1,
+  requirements: DeclarationRequirementsV1,
+  associated_types: [AssociatedTypeDeclarationV1],
+  methods: [TraitMethodDeclarationV1]
+}
+
+AssociatedTypeBindingV1 = {
+  ordinal: WireU32V1,
+  declaration_name: NfcSegmentV1,
+  value: M3(TypeRefV2),
+  source: "ExplicitImplBindingV1" | "TraitDefaultBindingV1"
+}
+
+ImplMethodBindingV1 = {
+  trait_method_ordinal: WireU32V1,
+  source: "ExplicitImplMethodV1" | "TraitDefaultMethodV1",
+  callable: PackageCallableEdgeV1
+}
+
+ImplOriginV1 =
+    { kind: "HandwrittenImplV1", origin: SourceOriginV1 }
+  | { kind: "DerivedImplV1", trait: DeclarationIdentityV1,
+      origin_id: WireU32V1, intrinsic_id: "Cire-v1.0/structural/derive" }
+
+ImplEvidenceV1 = {
+  artifact: "ImplEvidenceV1",
+  profile: "Cire-v1.0",
+  schema_version: 1,
+  identity: EvidenceIdentityV1,
+  binders: M3(DeclarationBindersV2),
+  requirements: DeclarationRequirementsV1,
+  trait: DeclarationIdentityV1,
+  target: M3(TypeRefV2),
+  header: TraitGoalV1,
+  associated_types: [AssociatedTypeBindingV1],
+  methods: [ImplMethodBindingV1],
+  origin: ImplOriginV1
+}
+
+CallableDeclarationKindV1 =
+    { kind: "FreeCallableV1" }
+  | { kind: "InherentCallableV1", owner: DeclarationIdentityV1,
+      receiver: M3(TypeRefV2) | null }
+  | { kind: "ExtensionCallableV1", receiver: M3(TypeRefV2) }
+  | { kind: "TraitDefaultCallableV1", trait: DeclarationIdentityV1,
+      method_ordinal: WireU32V1, receiver: M3(TypeRefV2) | null }
+  | { kind: "ImplMethodCallableV1", impl: EvidenceIdentityV1,
+      trait: DeclarationIdentityV1, method_ordinal: WireU32V1,
+      receiver: M3(TypeRefV2) | null }
+  | { kind: "ManifestAdapterCallableV1",
+      manifest_name: NfcSegmentV1,
+      manifest_hash: Sha256V1,
+      wit_path: [NfcSegmentV1],
+      source_binding: [NfcSegmentV1] }
+
+CallableSourceIdentityV1 =
+    { kind: "FreeSourceV1", declaration: DeclarationIdentityV1 }
+  | { kind: "InherentSourceV1", owner: DeclarationIdentityV1,
+      member: NfcSegmentV1 }
+  | { kind: "ExtensionSourceV1", declaration: DeclarationIdentityV1 }
+  | { kind: "TraitDefaultSourceV1", trait: DeclarationIdentityV1,
+      method_ordinal: WireU32V1 }
+  | { kind: "ImplMethodSourceV1", impl: EvidenceIdentityV1,
+      trait_method_ordinal: WireU32V1 }
+  | { kind: "ManifestAdapterSourceV1",
+      manifest_name: NfcSegmentV1,
+      manifest_hash: Sha256V1,
+      wit_path: [NfcSegmentV1],
+      source_binding: [NfcSegmentV1] }
+
+TraitMethodUseEvidenceV1 = {
+  declaration_slot: WireU32V1,
+  application_slot: WireU32V1,
+  requirement_ordinal: WireU32V1,
+  target_type_binder_slot: WireU32V1,
+  trait: DeclarationIdentityV1,
+  method_ordinal: WireU32V1,
+  method_instantiation: M3(ContractSubstitutionV2),
+  contract_slot: WireU32V1
+}
+
+CallableRequirementScopeV1 = {
+  declaration_slot: WireU32V1,
+  requirements: DeclarationRequirementsV1
+}
+
+TraitDefaultPrologueProgramV1 = {
+  kind: "TraitDefaultPrologueProgramV1",
+  root_declaration_slot: WireU32V1,
+  callable_dependencies: [ImportedCallableRefV3],
+  local_declarations: [LocalFunctionDeclarationV3],
+  default_prologues: [DefaultPrologueV1],
+  applications: [M3(AppliedContractV2)],
+  closure_environment: [M3(EnvironmentBindingV2)],
+  requirement_scopes: [CallableRequirementScopeV1],
+  trait_method_uses: [TraitMethodUseEvidenceV1]
+}
+
+CallableContractFactEvidenceV1 = {
+  artifact: "CallableContractFactEvidenceV1",
+  profile: "Cire-v1.0",
+  schema_version: 1,
+  identity: EvidenceIdentityV1,
+  package: PackageInstanceIdV1,
+  callable: PackageCallableEdgeV1,
+  source_identity: CallableSourceIdentityV1,
+  declaration_kind: CallableDeclarationKindV1,
+  visibility: VisibilityV1,
+  requirement_scopes: [CallableRequirementScopeV1],
+  trait_method_uses: [TraitMethodUseEvidenceV1],
+  const_safety: "RuntimeCallableV1" | "ConstSafeV1",
+  protocol_purity: "OrdinaryCallableV1" | "ProtocolPureV1",
+  trap: "NoTrapV1" | "MayTrapV1"
+}
+
+TraitAssociatedTypeEqualityV1 = {
+  item_ordinal: WireU32V1,
+  declaration_name: NfcSegmentV1,
+  value: M3(TypeRefV2)
+}
+
+TraitGoalV1 = {
+  trait: DeclarationIdentityV1,
+  arguments: [M3(TypeRefV2)],
+  associated_types: [TraitAssociatedTypeEqualityV1],
+  target: M3(TypeRefV2)
+}
+
+AbilityAssociatedItemV1 =
+    { kind: "AbilityAssociatedTypeV1", ordinal: WireU32V1,
+      name: NfcSegmentV1, binder_slot: WireU32V1,
+      default_type: M3(TypeRefV2) | null }
+  | { kind: "AbilityAssociatedEffectV1", ordinal: WireU32V1,
+      name: NfcSegmentV1, binder_slot: WireU32V1,
+      default_effect: M3(TypeRefV2) | null }
+  | { kind: "AbilityAssociatedRowV1", ordinal: WireU32V1,
+      name: NfcSegmentV1, binder_slot: WireU32V1,
+      default_row: RowExprV1 | null }
+
+OperationDeclarationV1 = {
+  ordinal: WireU32V1,
+  name: NfcSegmentV1,
+  binders: M3(DeclarationBindersV2),
+  requirements: DeclarationRequirementsV1,
+  surface_signature: CallableSurfaceSignatureV1,
+  signature: M3(OperationSignatureV2)
+}
+
+AbilityDeclarationV1 = {
+  artifact: "AbilityDeclarationV1",
+  profile: "Cire-v1.0",
+  schema_version: 1,
+  identity: DeclarationIdentityV1,
+  visibility: OpenVisibilityV1,
+  binders: M3(DeclarationBindersV2),
+  requirements: DeclarationRequirementsV1,
+  associated_items: [AbilityAssociatedItemV1],
+  operations: [OperationDeclarationV1]
+}
+
+AbilityConformanceV1 = {
+  ability: DeclarationIdentityV1,
+  arguments: [M3(TypeRefV2)],
+  associated_arguments: [AssociatedArgumentBindingV1]
+}
+
+EffectDeclarationV1 = {
+  artifact: "EffectDeclarationV1",
+  profile: "Cire-v1.0",
+  schema_version: 1,
+  identity: DeclarationIdentityV1,
+  visibility: OpenVisibilityV1,
+  binders: M3(DeclarationBindersV2),
+  requirements: DeclarationRequirementsV1,
+  conformances: [AbilityConformanceV1],
+  declared_operations: [OperationDeclarationV1]
+}
+```
+
+Ordinal arrays从 0 连续、严格递增且无重复。Data identity namespace必须为 `TypeV1`；
+trait/ability/effect identity必须分别为 `TraitV1`/`AbilityV1`/`EffectV1`；impl identity
+package必须是当前 package。`NewtypeV1.field`
+的 ordinal 必须为 0，且 body恰一个 named stored field。Alias graph无 cycle；newtype
+representation cycle必须穿过显式 indirection。Public enum的 variant set是 closed API。
+`PublicOpenV1` 只允许 trait/ability/effect declaration，data 不允许。
+
+Declared-name lookup在 ordinal/vector validation后还要求 injective：每个 struct/newtype/record-variant的
+stored field name唯一；每个 enum的 variant name唯一；每个 trait的 associated-Type names各自唯一且
+method names各自唯一；每个 ability的 associated Type/Effect/EffectRow三种 item共享一个 associated-name
+namespace并唯一，operation names在独立 operation namespace唯一；每个 effect的 own
+`declared_operations` name唯一。Trait associated Type与 method、ability associated item与 operation可因
+kind/lookup syntax不同而同 spelling，但不能跨各自上述 namespace冒充。Duplicate在 declaration
+publication/impl matching前确定性拒绝；effect conformance中来自不同 ability或 own declaration的同名
+operation仍只按下述 exact-signature merge rule处理，不算 declaration内 duplicate。
+
+每个 `TraitGoalV1` occurrence先通过同一 global WF：`trait` 必须解析为 exact
+`TraitV1 -> TraitDeclarationV1`，`arguments` 的 arity/kind恰等于 trait source binders，`target`是当前
+scope中的 Type；`associated_types` 是 partial equality map，按 item ordinal严格递增、
+unique/in-range，`declaration_name` exact equal对应 zero-arity associated Type，value kind=Type。
+Unknown/duplicate/wrong-name/wrong-kind equality不得因该 goal出现在 impl、constraint或 method scope而改变规则。
+`AssociatedTypeDeclarationV1.constraints` 是逻辑 conjunction，因而每个 goal先做上述 normalization，
+再按完整 semantic goal的 NFC+JCS bytes严格递增且无重复；source constraint order不得改变
+artifact bytes。Associated normalization cycle/termination在此 sort前检查。
+
+`DeclarationRequirementsV1` 是 source generic requirement、trait-method lexical scope唯一的
+owning-trait Self seed，及其 ordinary-trait associated-constraint entailment closure的唯一 successor
+wire projection，不是可由 importer重建的注释。
+`ordinary_traits` 中 `origin=SourceTraitRequirementV1` 的 row恰是 source constraints；对每个这样的
+normalized goal，producer把 resolved trait每个 associated Type的 declared constraints用该 goal的
+target/arguments/associated hidden vector做 capture-avoiding substitution，生成
+`AssociatedConstraintEntailmentV1(parent,item,constraint)` row，并递归到 fixed point。Derived row的
+`binder_slot` 恰是 parent `associated_types[item].binder_slot`；source row的 `binder_slot` 必须解析为
+enclosing `DeclarationBindersV2.type_binders` 中 kind=`Type` 的 source binder。两者的语义 target都恰是该 slot的
+`TypeParameterV2`。
+
+每个 `TraitMethodSignatureV1.requirements` 还必须恰含一个
+`origin=OwningTraitSelfV1` root。它的 `binder_slot` exact等于 enclosing
+`TraitDeclarationV1.self_binder_slot`，`trait` exact等于 enclosing trait identity，`arguments` 是该
+trait全部 source Type binder的同序 `TypeParameterV2` vector；`associated_types` exact覆盖 enclosing
+trait全部 associated Type，并把 `binder_slot` 指向对应 `AssociatedTypeDeclarationV1.binder_slot`、
+`equality` 写为同一个 `TypeParameterV2`。这个 root不是 source-spelled supertrait，也不进入
+`TraitDeclarationV1.requirements`；它只表达 trait method lexical scope中已知的
+`Self : OwningTrait[args, Assoc = Self::Assoc...]`，使 sibling method call与 associated-Type declared
+constraint有唯一 evidence root。Free/inherent/extension/impl/operation requirements不得伪造
+`OwningTraitSelfV1`。
+
+Closure先在不含任何待分配 slot/ordinal的 semantic graph上完成。
+`RequirementPreallocationKeyV1` 包含 target semantic binder（source row为 source binder identity，
+owning-Self row为 enclosing trait identity + Self structural binder identity，derived row为
+`parent semantic key + associated item ordinal`）、resolved trait identity、positional arguments、
+explicit/derived associated equality vector，以及递归展开的 derivation path semantic keys（不含
+`parent_requirement_ordinal`）。同一 normalized goal经多条路径可达时，只保留 domain order
+`Source < OwningTraitSelf < AssociatedDerived`、再按 derivation-path NFC+JCS bytes最小的路径；两个显式 source
+duplicate仍拒绝。Goal-key/derivation cycle、不终止或无限 closure在 slot allocation前拒绝。
+完成 closure后按 prekey严格递增排序，分配 exact连续
+`requirement_ordinal=0..n-1`，再把 derived origin的 `parent_requirement_ordinal` 回填为已排序 parent；
+decoder必须重建该 graph并 exact复算这些值。
+
+`effect_parameters` 对每个 source `F`/`F[_]` binder恰有一项，其 slot必须解析为
+enclosing `M3(DeclarationBindersV2)` 中 atomic `Effect` 或 `EffectConstructorBinderV3`；
+`constructor_arity` 分别为 0/underscore count并与 binder exact交叉核对，不会把 higher-kinded
+constructor信息丢掉。Effect-parameter rows按其不含 allocated slot的 semantic key严格递增，每个
+effect parameter的 `abilities` 也按相同 key严格递增。`constructor_arity > 0` 时 `abilities`
+必须为空：本 profile没有 `F[_] : Ability` 的 pointwise higher-kinded evidence；只有 arity 0
+的 atomic `F` 可携带 ability requirements。所有 method-use用 final requirement ordinal消除同一
+binder/trait不同 arguments或 derived path的歧义。同一
+effect binder的 `abilities` 中同一个 resolved ability identity最多出现一次，即使 arguments不同也
+拒绝第二项；否则 `F::operation` 没有唯一 evidence selector。同一 source constraint重复出现不是 dedup hint，而是 declaration
+WF failure。Trait/ability identity必须从 exact package declaration closure解析，generic arguments
+kind/arity exact。`GenericTraitRequirementV1.associated_types` 是 resolved trait全部 zero-arity Type item
+的 total ordinal vector。`SourceTraitRequirementV1` 与
+`AssociatedConstraintEntailmentV1` 的每项各有一个 deterministic requirement-hidden Type binder；source
+row的显式 named equality写入 `equality`，omitted为 `null`，derived row则写入 associated constraint
+goal实例化后的 exact equality/null。`OwningTraitSelfV1` 是唯一例外：它不再分配 binder，而是逐项复用
+已经分配的 enclosing `AssociatedTypeDeclarationV1.binder_slot`，并按上文写入同 slot的 exact
+`TypeParameterV2` equality。
+Trait method evidence不在这里伪装成一个 monomorphic binder；每个实际
+method invocation由下述 `TraitMethodUseEvidenceV1` 单独实例化。Unknown、duplicate、wrong-kind或缺项
+使用 `associated-contract-mismatch`。Generic ability 的 `associated_items` 是 ability全部
+associated item的 total ordinal vector，按 declared kind指向 deterministic hidden Type/Effect/Row
+binder；source partial explicit map只写入 nullable `equality`，omitted保持 symbolic。Concrete
+`AbilityConformanceV1.associated_arguments` 则是应用 default 后的 total vector，必须恰含 ability
+每个 associated item一次。两种 context 都要求 ordinal、name、value tag与 declared kind exact。
+`RowParam` 不另复制 companion field：每个 source `..E` 与其完整 `Lacks` set已由 enclosing
+`DeclarationBindersV2.row_binders` 一一保存并交叉核对。
+
+Hidden evidence allocation对每个 declaration scope与每个 namespace只运行一次，并使用同一个
+noncircular顺序。先保留全部 explicit source slots；再分配 declaration-structural slots（trait 的
+Self、own associated Type，或 ability 的 own associated item，均按 item ordinal）；随后把
+ordinary-trait associated Type、generic-ability associated Type/Effect、generic-ability associated Row
+按 `(domain order OrdinaryTraitV1 < AbilityV1, RequirementPreallocationKeyV1, item ordinal)` 排序，
+其中 OrdinaryTraitV1 只含 `SourceTraitRequirementV1` 与
+`AssociatedConstraintEntailmentV1`；`OwningTraitSelfV1` 已复用 structural slots，绝不进入这个待分配
+集合。在对应 Type/Row namespace从当前最大 slot加一连续分配。Contract namespace先保留显式/source
+contract slots，再按 normalized-HIR lexical application preorder为每个 direct trait-method call分配
+一个 `FunctionContractBinderV2`；同一 method在两个 type instantiation或两个 call site出现时是两个
+slot，不共享一个伪多态 contract。任何 visitor/map/source constraint顺序不得改变 slot。
+每个 call-site binder的 parameter/result/visible-row是 `TraitMethodSignatureV1.declaration_kind` 对
+Self、trait arguments、total associated hidden vector及该 call的 method-local substitution后的 exact
+monomorphic值。Allocator collision、u32耗尽、wrong-kind slot或 companion↔binder drift都在进入
+application前拒绝。
+
+Data/trait/ability/effect 的 `requirements` 恰是各自 `TypeHead TypeParams` 的 normalized projection；
+impl 的同名 field恰是其 own `GenericClauses` projection；`TraitMethodSignatureV1.requirements` 则恰为
+method-own `GenericClauses` 的 source roots、唯一 `OwningTraitSelfV1` root与由两者重算的 associated
+constraint closure；operation
+只有 unconstrained `OperationTypeParams`，其 `requirements` 恰是两个 empty arrays；
+`CallableContractFactEvidenceV1.requirement_scopes` 则保存下述每个 root/local scope的 complete lexical
+closure。`ImplEvidenceV1.header`
+恰是 source impl header 的一个 normalized `TraitGoalV1`；其 `trait`/`target` 必须分别 exact equal
+sibling `ImplEvidenceV1.trait/target`，arguments与 source-spelled associated equality不得省略、漂移或藏进
+`requirements`。`header.associated_types` 是 source header equality的 partial map，必须按 item ordinal
+严格递增、unique/in-range，`declaration_name` exact equal trait item，且每项 value exact equal
+`ImplEvidenceV1.associated_types[item_ordinal].value`；未在 header显式出现的 item才由 impl body或 trait default
+完成。该 partial→total cross-check在 `ImplPreidentityKeyV1`、evidence ordinal 与 coherence overlap计算之前完成。
+Package-private/local declaration在 typed HIR 中保留同一 requirement set直到
+每个 application选定 exact impl/callable evidence；它们必须在 producer内全部 discharge并降为
+direct typed edges，不能靠 importer source重建。对所有 scope（包括 local declaration、lambda 与
+允许的 local rank-1 scheme），Surface把普通 trait requirement唯一结构化为上述 hidden
+associated-type binder；每个 direct method use再产生一个 monomorphic call-site
+`FunctionContractBinderV2`。Generic application用 impl的 associated type与该 method callable exact
+填充 `TypeSubstitutionV2`/`ContractSubstitutionEntryV2`。所以 local/nested requirement即使不另存
+source trait name也没有丢可执行 evidence：其每个实际 use已在 binder/substitution中；
+unresolved或 partial substitution稳定 `callable-interface-contract-mismatch`。Exported root
+callable 的 open requirements则必须完整写入其 package-level
+`CallableContractFactEvidenceV1.requirement_scopes` 并与 V3 root/local binder table交叉核对；这保持 R6 的 exact
+`FunctionContractV3` field set不变，同时不丢 generic API fact。
+
+`TraitDeclarationV1.binders` 先含 source Type binders，再分配一个 `self_binder_slot`，随后按
+associated-type ordinal分配每个 `AssociatedTypeDeclarationV1.binder_slot`，最后才按上述 prekey分配
+trait自身 TypeHead constraints导出的 hidden requirement slots；这些部分在同一 Type namespace连续且互异，
+对应 hidden binder的 kind都为 Type。Trait declaration内的 `Self`、`Self::Item`、
+associated constraint target/equality/default与 method signature全部分别改写为这些
+`TypeParameterV2` slot，不能保留 source projection或猜 short name。`TraitMethodSignatureV1.binders`
+以该完整 trait binder table为 lexical prefix，再追加 method自己的 explicit generic binders，最后按
+同一 combined allocator追加 method-own requirements导出的 hidden slots；impl evidence以
+target替换 Self slot、以 exact `AssociatedTypeBindingV1`/default替换每个 associated slot，缺失、重复、
+wrong ordinal/name或未关闭 constraint都在载入 impl method前拒绝。
+
+`TraitMethodSignatureV1` 是 required/default trait method共有的 signature-only contract；它不要求
+也不伪造 executable computation。`default_body=null` 表示 bodyless required method；非 null edge
+必须载入一个 `CallableInterfaceV1 -> FunctionContractV3`，其 surface signature、declaration kind、
+method-own source requirements、上述唯一 owning-Self root与 derived closure都与本 signature exact equal；其 callable fact还必须加入
+enclosing trait lexical requirements。
+
+`TraitDefaultPrologueProgramV1` 是该 signature中唯一 executable 的局部子程序，不是 method body。
+`root_declaration_slot` 必须为 0，root binder table恰为 sibling `TraitMethodSignatureV1.binders`；
+`requirement_scopes[0]` 恰为 owning `TraitDeclarationV1.requirements` 与
+`TraitMethodSignatureV1.requirements` 的 `CompleteCallableRequirementsV1` closure，不能只复制 method-own
+array。`local_declarations` 按 lexical preorder连续分配
+`1..n`。`callable_dependencies`、`applications`、`closure_environment`、
+`requirement_scopes` 与 `trait_method_uses` 共同对每个 default computation及其 reachable local/lambda
+closure做 exact closure：每个 ref used且 in-range，没有 orphan/missing/foreign table entry；scopes exact-cover
+root与每个 local declaration，trait-method use按 application slot与 requirement ordinal交叉核对。所以
+bodyless signature的 default仍可合法调用 module callable、创建 local lambda、并使用 enclosing/method-own
+ordinary-trait requirement，不依赖未存在的 body fact。这些 dependency edges参与同一
+callee-before-caller DAG 与 package support closure。
+
+Signature-level `default_prologues` 按 parameter slot严格递增，只能对应
+`surface_signature.defaultable=true` 的 named slot；其 scope恰含 module/generic facts与此前已完成的
+simple parameter，求值 order与 ordinary callable default rule相同。
+`ProjectTraitDefaultProgramV1(V3,fact)` 从 concrete default/impl callable的 `V3.default_prologues`为 roots，
+只取可达 dependency/local/application/environment/scope/method-use closure，然后按独立 program的
+lexical/callee-before-caller规则重新分配局部 slots。Trait default callable在 generic trait scope中的该 object
+必须 raw exact equal `TraitMethodSignatureV1.default_program`。Explicit impl callable则先用当前
+`ImplEvidenceV1.header` 的 trait arguments/target与 completed `associated_types` 对 signature program做与
+method signature相同的 capture-avoiding Self/trait/associated substitution（method-own generic binders仍保持为 scheme），
+得到 `InstantiateTraitDefaultProgramV1(signature,impl)`；重排 slots后的 projection必须与该 instantiated
+NFC+JCS object exact equal。Body-only entries不得混入 projection，同一语义也不得用另一套
+slot/hash编码。Bodyless method因此仍有完整 call-assembly semantics而没有伪造 body。
+Explicit impl method不能另写或改变 parameter default；其 concrete callable必须投影为该 exact-instantiated program。
+Impl method仍由 `ImplMethodBindingV1` 从 method ordinal
+指向自己的 concrete callable。因此 bodyless trait declaration、default implementation与 impl body
+是三个不同 identity/evidence role，不能用空 computation互换。
+
+`ImplEvidenceV1.associated_types` 与 `methods` 都是 trait item ordinal的 total vector。每个 associated
+Type优先采用唯一 explicit impl binding；若没有则采用 declaration的 non-null `default_type`；两者皆无
+即拒绝。每个 method同样优先采用唯一 explicit impl body；否则采用 trait declaration的 non-null
+`default_body`；两者皆无即拒绝。`source` 必须精确记录所选分支，default分支的 value/callable必须
+exact equal trait artifact，explicit分支必须来自当前 impl；header中的每个 explicit associated equality还必须
+exact equal这个 completed vector的同 ordinal/name/value。Unknown/duplicate/extra item、同一 item同时
+给两个 explicit binding/body、required item遗漏或 default漂移都在 coherence publication前拒绝。
+
+每个 completed associated binding（explicit 或 trait default）还必须对 declaration的每个
+`AssociatedTypeDeclarationV1.constraints[k]` 运行 `AssociatedConstraintProofV1`：先用当前
+impl target/trait arguments/完整 associated vector实例化并 normalize该 goal。若当前
+`ImplEvidenceV1.requirements.ordinary_traits` entailment closure中有恰一个 semantic-equal row，则使用该
+local generic proof；否则在 exact package/import roots中选择恰一个 coherent applicable
+`ImplEvidenceV1`，并递归证明它的 own requirements。Current-package selected evidence必须由 fixed-point
+加入 resolver-hidden/public evidence edge，foreign evidence必须来自 matching locked import root；重算的
+identity/header/associated bindings必须 exact。Local proof优先于 global impl，全局 coherence保证后者至多一个。
+以 normalized goal key建立 proof dependency graph，cycle/nontermination/no proof 均在发布当前 impl前拒绝。
+因为该 selection 是由 normalized goal + exact package graph唯一复算，wire不再嵌一个会与
+`EvidenceIdentityV1.ordinal` 分配形成循环的自申报 proof vector。
+方法 callable的 lexical binders、requirements、surface slots、result/row与 declaration kind必须在
+Self/trait arguments/total associated substitution后逐字段等于 `TraitMethodSignatureV1`；generic method
+保持 method-local scheme binders，不能预先单态化或用另一个 free callable冒充。
+
+`AbilityDeclarationV1.binders` 先含 source Type binders，再按 associated-item ordinal为每个 item
+确定分配 hidden binder：Type/Effect item进入对应 kind的 type-binder namespace，EffectRow item进入
+row-binder namespace并携带其唯一允许的 `Lacks` set；item的 `binder_slot` 必须指向该 exact hidden
+binder；随后才按 prekey分配 ability自身 TypeHead constraints导出的 hidden requirement slots。没有
+ability inheritance或隐式 parent closure。`OperationDeclarationV1.binders` 是 enclosing
+declaration lexical binders（含这些 hidden associated binders）加 operation自身 source Type binders的
+complete scope；operation-own Type binders全部 unconstrained，不追加 requirement-derived hidden slots；
+`signature.type_binders` 必须与其中 type-binder table exact equal，signature内所有
+type/row/identity reference都在该 complete scope重做 WF。Operation parameter surface slots与
+signature parameters一一对应且 `defaultable=false`。更精确地，operation不允许
+`ImplicitReceiverV1`；每个 source simple parameter唯一产生
+`NamedOrPositionalV1(public_label=source name,defaultable=false)`，每个 irrefutable pattern parameter唯一
+产生 `PositionalOnlyV1`。Surface slots、`binders.parameter_binders` 与
+`OperationSignatureV2.parameters` 三个 vectors必须在 slot set、declaration order与 instantiated type上
+逐项 equal；slot缺失/重复/reorder、receiver、label/default或 type drift都在 operation publication前拒绝。
+Operation自己的 `requirements` 必须 exact为
+`{ordinary_traits:[],effect_parameters:[]}`；它不能声明 ordinary-trait constraint、
+Effect/constructor/Row generic或 parameter default。这样 performed/forwarded/latent operation site不需要一个
+`OperationSignatureV2` 中并不存在的 contract-evidence substitution edge。
+
+`EffectDeclarationV1.declared_operations` 只保存 source body declarations；完整 operation environment
+是它们与所有 `conformances` 所引用 ability operations在 total associated substitution后的 deterministic
+union。Conformance按 resolved ability identity的 NFC+JCS bytes严格递增、无重复；同名 operation只有
+在 `InstantiatedOperationComparisonV1` 中的完整 declaration contract exact equal才合并。该 view先把
+ability parent Type/associated binders用当前 `AbilityConformanceV1` 的 arguments/associated bindings
+capture-avoiding substitute到 effect lexical scope，再把 operation-local Type binders按它们的 declaration order
+连续分配到 effect prefix之后，重写 requirements/surface/Core signature中的所有 refs。Effect own
+declaration按同一 prefix/local allocator normalization；两边 name必须相同，只忽略各自 declaration-local
+operation ordinal。然后比较 `binders`、
+`requirements`、`surface_signature` 与 `M3(OperationSignatureV2)` 的每一 field（parameters/result、
+mode、secondary sites/row、transition、result transformer、world/suspension、required phase、obligation IDs）
+都必须相等；不得直接比较两个不同 enclosing scope的 raw slot numbers，也不得仅比较 surface shape，
+否则 `effect-header-conformance-mismatch`。Effect family arity恰是其 source Type binder数。
+Successor producer/importer只能从 package graph中 exact-decoded `EffectDeclarationV1` 得到 nominal
+Effect identity、arity与 operation table；retained `EffectFamilyDeclarationsV1` 仅是 profile-disjoint
+TR0 fixture，不能成为 Cire-v1 declaration environment。
+
+`CompleteCallableRequirementsV1(c,d)` 对 root/local declaration slot $d$ 由 lexical owner与 callable
+source role确定，不能只取 method自己的
+`GenericClauses`：free/inherent/extension使用 own requirements；trait default使用 owning trait
+requirements与 `TraitMethodSignatureV1.requirements` 的 union；impl method使用 owning
+`ImplEvidenceV1.requirements`、该 trait method requirements在 Self/associated/header substitution后的
+projection与 method own requirements的 union；manifest adapter没有 source/generic/local declaration，
+其 root scope必须 exact为 `{ordinary_traits:[],effect_parameters:[]}`、`local_declarations=[]`、
+`trait_method_uses=[]`。Union先按 lexical parent→method顺序解析 binder scope。
+Generic trait signature/default scope保留 signature中唯一 `OwningTraitSelfV1` root；其它 role不得产生它。
+随后只取各输入 `SourceTraitRequirementV1` roots、该 optional owning-Self root与 effect-parameter roots，再在合并后 scope上重跑完整
+associated-constraint entailment fixed point；不直接 union两组已分配 parent ordinal的 derived rows。
+随后以 `RequirementPreallocationKeyV1` 排序并重分配本 callable closure内连续
+`requirement_ordinal`，同时重写每个 derived parent link；相同 semantic source requirement exact dedup只在它来自
+parent与required signature的同一 source obligation时允许，其余 source duplicate仍拒绝。每个 row保留原 binder slot，因而同 shape但
+不同 parent identity不能合并。`requirement_scopes` 必须按 declaration slot严格递增并 exact覆盖 root slot
+与每个 `LocalFunctionDeclarationV3.declaration_slot`（empty closure也保留一项）；每项 requirements必须
+exact equal `CompleteCallableRequirementsV1(c,d)`，并与该 declaration可达的 hidden binders/uses双向
+exact。Nested local/lambda scope继承其 lexical parent仍 live的 requirements，再加入 own
+`GenericClauses`，按相同 prekey重排并只在该 scope内重分 requirement ordinal；相同 slot number跨
+declaration不 alias。Package-private/local producer
+使用同一 closure算法但在 enclosing boundary内 discharge。这样 trait default/impl body可引用 parent
+`A: Eq`，而 importer不重读 parent source。
+
+`ManifestAdapterCallableV1` 的 `CallableContractFactEvidenceV1.requirement_scopes` 因而必须恰为一项
+`{declaration_slot:0,requirements:{ordinary_traits:[],effect_parameters:[]}}`，并与 adapter V3 的
+`root_declaration_slot=0`/empty binders exact交叉核对；missing/extra scope、local/lambda、trait use或任一
+generic binder都拒绝，不能借 generated status跳过 complete-scope gate。
+
+将 trait signature/default program实例化到某个 exact `ImplEvidenceV1 I` 时，
+`OwningTraitSelfV1` 不作为 open requirement复制到 concrete impl callable：它必须由 $I$ 的
+trait/target/header/total associated vector exact discharge。所有以该 root选择 sibling method的
+`TraitMethodUseEvidenceV1` 都改写为 `I.methods` 中对应 ordinal的唯一 concrete/default callable edge；
+所有由该 root派生的 associated-constraint row都改写为 `AssociatedConstraintProofV1` 选中的 exact
+local requirement或 package/import impl evidence。完成改写后 synthetic Self root及只服务于它的 generic
+use row从 concrete scope消失；missing/wrong impl、method inverse link、associated proof或仍悬空的
+`OwningTraitSelfV1` 一律 `callable-interface-contract-mismatch`。因此 generic trait body可以对 `self`
+调用 sibling required/default method，也可使用 `Self::Assoc : Bound`，而 concrete impl仍没有伪造的
+open Self obligation。
+
+`CallableContractFactEvidenceV1.identity.kind` 必须为 `ProtocolEvidenceV1`，其 package与顶层
+`package` exact equal；`callable` 必须 exact equal package root中的一个 callable edge，并且
+每个 edge恰有一个这样的 evidence edge。对 source-backed kind，`visibility` exact等于 source
+declaration；manifest adapter没有 source declaration且固定 `PackageV1`。只有
+`PublicV1` fact进入 dependent source resolver，`PackageV1` fact只作为 semantic support。Trait default/
+impl body support fact固定 `PackageV1`，由 trait/impl method selection间接到达，不产生独立 source name。
+`declaration_kind` 是 method lookup所需的完整
+public classification：free callable不进入 dot lookup；inherent owner必须是当前 package拥有的
+`TypeV1` nominal，且 declaration kind只能是 `StructV1 | EnumV1 | NewtypeV1 | OpaqueV1`；
+`TransparentAliasV1` 已在 M3/type serialization前展开，绝无 inherent-owner identity。
+`receiver=null` 表示 qualification-only associated function，否则 receiver必须与
+首个 `self` slot exact；extension receiver必须与其 mandatory首个 `self` slot exact；trait-method
+default identity/ordinal必须回指同 package closure的 `TraitDeclarationV1.methods`，impl method还必须
+回指 exact `ImplEvidenceV1`；其 nullable receiver同样区分 associated function与 method。Importer不得从
+export-path spelling、file path或 source text猜
+这些 facts。Manifest adapter是唯一非 source declaration的 callable kind；它只能由 component manifest
+import反向证明，不能伪装 free callable，并固定 `const_safety=RuntimeCallableV1`、
+`protocol_purity=OrdinaryCallableV1`；其 `trap` 仍从 exact host contract/trap policy重算。
+其它 kind的 `const_safety=ConstSafeV1` 当且仅当 declaration是 `const def` 且通过 ConstSafe；
+`protocol_purity=ProtocolPureV1` 当且仅当 sealed standard-protocol obligation成立；`trap` 是完整
+MayTrap join。三者互不推出，也不能从空 row猜测。
+
+每个 included `ComponentManifestV1.imports` row还唯一产生一个 resolver-hidden manifest-adapter
+callable edge与 `PackageV1` fact。它是 generated wire class，不是第 22 种 accepted source declaration；
+没有 source `def`，也不会进入 value namespace collision或 ordinary method lookup。其
+source/classification只按下述 manifest preidentity与 post-hash inverse link建立。
+
+`source_identity` 与 `declaration_kind` 是 closed bijection，并唯一生成 callable edge：
+
+```text
+CanonicalCallableExport(FreeSourceV1(D))      = (D.module, D.path)
+CanonicalCallableExport(ExtensionSourceV1(D)) = (D.module, D.path)
+CanonicalCallableExport(InherentSourceV1(O,m))
+  = (O.module, O.path ++ [m])
+CanonicalCallableExport(TraitDefaultSourceV1(T,k))
+  = (T.module, T.path ++ ["~trait-default-v1", CanonicalNatSegment(k)])
+CanonicalCallableExport(ImplMethodSourceV1(I,k))
+  = (CanonicalSourceModuleV1(I.package),
+     ["~impl-method-v1", ImplHeaderDigestV1(I), CanonicalNatSegment(k)])
+CanonicalCallableExport(ManifestAdapterSourceV1(n,h,w,s))
+  = (["pkg-" + P.digest, "~component-import-v1", n], s)
+```
+
+`CanonicalNatSegment` 是无前导零 decimal u32。`ImplHeaderDigestV1(I)` 是 owning
+`ImplEvidenceV1` 的
+`SelfRelativeV1(I.package,{package:I.package,binders,requirements,header})` NFC+JCS bytes SHA-256，
+刻意不含
+identity ordinal、method callable/hash或 source location，因而没有 identity/hash cycle；coherence在
+此 digest前已拒绝相同 normalized header。Free/extension source declaration必须是当前 package的
+`ValueV1` identity；inherent owner必须是当前 package未实例化的
+`StructV1 | EnumV1 | NewtypeV1 | OpaqueV1` declaration，不得是 `TransparentAliasV1`，source
+`FunctionOwner`不能带 TypeArgs；trait default与 impl method分别只允许对应 kind。Fact的 callable
+`(module,export_path)` 必须 exact等于此函数结果，反投影也必须回到唯一 source identity。Reserved
+`~trait-default-v1`/`~impl-method-v1`/`~component-import-v1` segments不属于 user identifier grammar。
+Manifest adapter case中的 $P$ 是 fact owning package，$n$、$w$、$s$ 是 manifest name、nonempty import
+`wit_path` 与 explicit `source_binding`；$(P,n,w,s)$ preidentity决定 callable module/export，绝不读取 $h$。完成
+`ComponentManifestV1`（它已经包含该 callable edge）并求 hash 后，producer才把 final hash写入
+`ManifestAdapterSourceV1.manifest_hash` 与 matching
+`ManifestAdapterCallableV1.manifest_hash`。两者的
+`(manifest_name,manifest_hash,wit_path,source_binding)` 必须 exact
+equal，并唯一反向定位 package root中一个 manifest及其中一个 import；hash/name/path drift、missing或
+multiple inverse link都拒绝。这样没有 `manifest_hash -> callable edge/interface/V3 -> manifest_hash`
+cycle。
+`FreeSourceV1.declaration`/`ExtensionSourceV1.declaration` 的 `ValueV1` object在这里是 source
+namespace key，不进入 `PackageDeclarationEdgeV1`；只有实际出现在 declarations array中的 `ValueV1`
+identity才由 closed dispatcher指向 `ConstDeclarationV1`。两者共享 collision domain但不共享 artifact role。
+
+同一 package 的 source value namespace在 declarations/callables之间全局唯一：`ValueV1` const的
+`(module,path)` 与 free/extension callable的 canonical key不能相等，free与 extension也不能共享一项；
+inherent/default/impl reserved paths仍参与全局 `(module,export_path)` uniqueness。碰撞统一稳定
+`public-overload-requires-distinct-export-path`，不能靠 declaration-vs-callable array或 receiver type分流。
+每个 non-null trait `default_body` 必须被恰一个 `TraitDefaultCallableV1` fact反向引用；每个
+`ImplMethodBindingV1{source=ExplicitImplMethodV1}` 必须被恰一个同 impl identity/ordinal的
+`ImplMethodCallableV1` fact反向引用；default-selected impl item直接引用 trait default edge，不创建第二
+impl-body fact。每个 manifest import同样必须被恰一个 `ManifestAdapterCallableV1` /
+`ManifestAdapterSourceV1` fact反向引用，且其 callable edge就是 manifest item；adapter fact固定
+`visibility=PackageV1`，永不进入 source resolver或 dot/UFCS candidate。Missing、extra或多重 inverse
+link一律拒绝。
+
+`trait_method_uses` 按 `(declaration_slot,application_slot)` 严格递增，并 exact覆盖该 V3 root及全部
+`local_declarations` 中每个经 ordinary-trait evidence解析的 direct method application；其它 call不在
+此 array。每项先用 `declaration_slot` exact定位 `requirement_scopes` 中一项，再用
+`requirement_ordinal` 定位该 scope的 `requirements.ordinary_traits` 中一项，并且
+`target_type_binder_slot` + trait与该 row exact equal；它可直接选中 source row，也可选中由
+associated-Type constraint entailment生成的 derived row，后者的 origin/parent/item/constraint 必须已在同
+requirement closure内 exact验证。
+method ordinal定位该 trait declaration；`method_instantiation` 对 method自己的 Type/Effect/Row/
+contract binders total、kind-correct且与同 application的 substitution逐项 equal。`contract_slot` 必须
+解析到 containing declaration的唯一 `FunctionContractBinderV2`，其 kind等于 trait signature在
+Self、trait/associated facts与本 method instantiation后的 monomorphic kind；该 application的 callee
+必须是此 `ContractParameterRefV2`。在 enclosing callable应用时，impl evidence选出的 generic method
+callable进入该 slot的 `ContractSubstitutionEntryV2`，method application再用自己的完整 substitution
+实例化 concrete callable；结果 kind必须 exact equal call-site binder。同一 generic method以不同 type
+argument调用会有不同 use row/contract slot；不允许 method value逃入 field/parameter/result或以一个
+共享 monomorphic slot伪装 rank-2 evidence。Missing/extra/reused use、wrong method/impl、partial
+substitution或 application↔slot drift稳定 `callable-interface-contract-mismatch`。
+
+对每个 public declaration/callable/impl 定义有限 `OutwardSurfaceClosureV1`：
+
+- 所有 public data/trait/ability/effect declaration 的 own `DeclarationRequirementsV1`；
+- public alias target，public struct/newtype/record-variant中每个 public stored field的
+  type/default，以及 public enum的每个 tuple-variant element；hidden stored field不进入 outward set；
+- public trait associated-Type constraint/default、method binders/requirements/parameter/result/row/surface labels；
+  default-program 内部 dependency/body-only type不因此自动对 source可见；
+- public ability的 associated item default/constraint 与每个 operation完整 surface/signature/requirements；
+  public effect的 conformance ability/arguments/associated bindings与每个 declared/merged operation完整 contract；
+- public callable的 parameter/result/defaultable/row/generic requirement/direct-capability surface facts，public const的
+  type/value，以及 importer-visible impl的 header/requirements/associated binding/method signature facts。
+
+该 closure的 transitive type/evidence reference都只能指向 public 或 exact-importable identity；任一
+package-private type/evidence泄漏使 package interface WF失败。Resolver-hidden `PackageV1` support
+closure只能验证 serialized computation/default/body的内部 reference，绝不能使 outward occurrence合法化。
+Public data的 postfix derive trait identity本身不是 source-visible type/signature occurrence；它若指向
+package-private trait，对应 `DerivedImplV1` 与 trait artifact只能进入 resolver-hidden support closure，
+不使下游可命名该 trait。只有下述 importer-visible impl predicate成立时才发布为 public coherence fact。
+`OpaqueTypeV1` 的 public artifact 只导出 nominal identity、binders与 public trait/operation facts，
+且 `representation` 必须 exact为 `null`；owner-package-private declaration payload中该 field必须为
+non-null representation。Reachable package-private declaration可作为上述 support edge进入
+`CireLanguageInterfaceV1.declarations`，但 visibility gate使它只参与已序列化 Core的 WF，不可被依赖
+source命名；unreachable private payload不进入 root。Public opaque的 `representation`
+不进入 importer declaration edge、
+const value、Component type mapping 或 diagnostic note。Importer不得用 layout/link artifact反向揭示该
+representation。
+
+`derives` 是 source postfix `} derive(Trait, ...)` 经 resolve 后的 declaration identities，按
+source order且无重复；它只允许 `StructV1 | EnumV1 | NewtypeV1`，
+`OpaqueTypeV1 | TransparentAliasV1` 的 `derives` 必须 exact为 `[]`。Prefix attribute 或另一 derive spelling不进入 HIR。每个 derive 必须产生
+恰一个 `DerivedImplV1`，其 origin是 `SealedIntrinsicV1`，并通过普通 orphan/overlap gate。
+Handwritten与 derived 的同一 `(trait,target)` 是 overlap。组件 adapter 不产生 `DerivedImplV1`
+也不进入 source origin DAG；其 provenance只来自下述 manifest edge。
+
+每个 `CireLanguageInterfaceV1.callables` member（public或 resolver-hidden support）必须有恰一个
+`CallableContractFactEvidenceV1` package evidence，其 `callable` object与该 edge exact equal；只有未被
+closure收录成 edge的 private/local callable，其同一 fact才由 typed computation在 enclosing declaration
+boundary内计算并在所有 local use discharge。该 evidence是 package-level ordinary contract fact，不是
+`FunctionContractV3` 的第 13 个 field，也不改变 CallableInterface→V3 edge。
+
+== Const exact value 与 Component manifest <const-component-wire>
+
+```text
+ConstScalarV1 =
+    { kind: "UnitConstV1" }
+  | { kind: "BoolConstV1", value: Bool }
+  | { kind: "SignedIntConstV1", width: 8 | 16 | 32 | 64,
+      twos_complement_be: [u8] }
+  | { kind: "UnsignedIntConstV1", width: 8 | 16 | 32 | 64,
+      magnitude_be: [u8] }
+  | { kind: "FloatBitsConstV1", width: 32 | 64, ieee_be: [u8] }
+  | { kind: "CharConstV1", unicode_scalar: WireU32V1 }
+  | { kind: "StringConstV1", utf8: [u8] }
+  | { kind: "BytesConstV1", octets: [u8] }
+
+ConstValueV1 =
+    { kind: "ScalarConstV1", scalar: ConstScalarV1 }
+  | { kind: "TupleConstV1", elements: [ConstValueV1] }
+  | { kind: "ArrayConstV1", elements: [ConstValueV1] }
+  | { kind: "BuiltinVariantConstV1",
+      constructor: "OptionV1" | "ResultV1",
+      variant: "NoneV1" | "SomeV1" | "OkV1" | "ErrV1",
+      fields: [ConstValueV1] }
+  | { kind: "NominalConstV1", declaration: DeclarationIdentityV1,
+      variant_ordinal: WireU32V1 | null, fields: [ConstFieldValueV1] }
+
+ConstFieldValueV1 = { ordinal: WireU32V1, value: ConstValueV1 }
+
+ConstDeclarationV1 = {
+  artifact: "ConstDeclarationV1",
+  profile: "Cire-v1.0",
+  schema_version: 1,
+  identity: DeclarationIdentityV1,
+  visibility: VisibilityV1,
+  type: M3(TypeRefV2),
+  value: ConstValueV1,
+  evaluator: "CireConstEvaluatorV1"
+}
+
+ComponentItemRefV1 =
+    { kind: "CallableComponentItemV1", callable: PackageCallableEdgeV1 }
+  | { kind: "DataComponentItemV1", declaration: DeclarationIdentityV1 }
+  | { kind: "ResourceComponentItemV1", declaration: DeclarationIdentityV1 }
+
+ComponentImportV1 = {
+  wit_path: [NfcSegmentV1],
+  source_binding: [NfcSegmentV1],
+  item: ComponentItemRefV1,
+  generated_capability: DeclarationIdentityV1
+}
+
+ComponentExportV1 = {
+  wit_path: [NfcSegmentV1],
+  item: ComponentItemRefV1
+}
+
+ComponentManifestV1 = {
+  artifact: "ComponentManifestV1",
+  profile: "Cire-v1.0",
+  schema_version: 1,
+  package: PackageInstanceIdV1,
+  name: NfcSegmentV1,
+  imports: [ComponentImportV1],
+  exports: [ComponentExportV1]
+}
+```
+
+`StoredFieldV1.default_value` 直接内嵌已求值的 `ConstValueV1`，不是指向一个不存在的 hidden
+`ConstDeclarationV1`。Producer在 enclosing data declaration的完整 binder scope下，以 field type检查
+source default，再用 `CireConstEvaluatorV1`求值得到该 value；generic parameter可出现在 expected type，
+但 value本身只能是对任意合法 instantiation都相同的 parametric const constructor（例如 `None`），不能
+读取或 case-analyze未知 type。Importer用同一 field type/binders重验 value shape。没有 hidden const
+identity、额外 package declaration edge或 bare hash；default presence/value变化直接改变 data artifact/API
+hash。
+
+`ConstValueWF(expected,value)` 是每个 `ConstDeclarationV1.value` 与 `StoredFieldV1.default_value`
+的 recursive total judgment，不只检查 outer tag。先展开 transparent alias并应用 enclosing type
+substitution：
+
+- scalar branch必须 exact匹配 Unit/Bool/fixed-width int/float/Char/String/Bytes expected primitive；
+- tuple/array branch的 length 与每个 child expected type exact；
+- `BuiltinVariantConstV1` 只对 `Option[T]`/`Result[T,E]`；None=0 fields，Some/Ok/Err=1 field，
+  variant与 payload expected type由 constructor唯一决定；
+- `NominalConstV1.declaration` 必须 exact equal expected nominal identity。Struct/Newtype的
+  `variant_ordinal=null`，fields必须按 declaration ordinal exact total覆盖所有 stored fields；Enum的
+  variant必须 non-null/in-range，unit恰 0 fields，tuple/record payload恰按 element/field ordinal exact total覆盖；
+  每个 child在 nominal type arguments substitution后递归通过 WF。
+
+Missing/extra/duplicate/reordered field、wrong declaration/variant/body kind 或 child type drift都在应用 hash/API
+comparison前拒绝。`OpaqueTypeV1` 没有不泄露 representation的 const payload branch，因而任何要求
+将 opaque expected type序列化为 `ConstValueV1`（public/private const或 field default）都稳定
+`const-operation-not-safe`，`offending-operation=serialize-opaque-const-v1`。Runtime opaque value仍可在 owner
+package构造/使用，只是不能借 const artifact暴露 representation。对 generic expected type，只接受对每个
+legal instantiation都通过该 symbolic judgment的 parametric constructor（例如 `None`）。
+
+`StringConstV1.utf8`、`BytesConstV1.octets` 与 `CharConstV1.unicode_scalar` 是
+semantic payload；它们永不编码成 raw JSON string。NFC 只处理 schema/identity string，不能改变
+这些 bytes/scalar。String bytes必须是 canonical valid UTF-8但不做 normalization；Char必须是非 surrogate
+Unicode scalar；Bytes任意 0..255。Integer/float byte vector长度必须恰等 width/8；NaN只能是对应
+width 的唯一 positive quiet NaN encoding。
+
+Component imports/exports 只由 `cire.toml` 选择并生成 `ComponentManifestV1`；source 没有
+`extern` keyword。Manifest arrays按 `wit_path` 的 canonical tuple order严格递增且无重复；export
+必须指向 package root 已导出的 exact declaration/callable，import必须生成 sealed host effect/capability
+identity与 HostObservable callable contract。所有会进入 adapter CallableInterface/V3 bytes的 identity与
+origin只由 prehash key
+`ComponentManifestPreidentityV1(package,manifest_name,wit_path,source_binding)` 产生；具体是
+`ComponentManifestPreoriginV1(package,manifest_name,wit_path,source_binding)`，不是
+`ElaborationOriginV1` Derived node。
+Final manifest hash只能在 callable interface/hash已经确定后写入 package-level
+`ManifestAdapterSourceV1`/`ManifestAdapterCallableV1` fact并形成 post-hash
+`ComponentManifestOriginV1(manifest_hash,wit_path)` inverse evidence；它不得回写 V3、CallableInterface、
+generated identity或 manifest item，否则形成 hash cycle。
+
+`ComponentManifestPreoriginV1(P,n,w,s)` 到 retained `SourceOriginV1=file:subject` bytes的投影唯一为：
+先对每个 segment独立使用 Surface A.12 的 uppercase `%HH` UTF-8 byte escape（仅
+`[A-Za-z0-9._@#-]` 不 escape），再令
+`file = component-manifest-v1/<P.digest>/<enc(n)>/<enc(w[0])>/...`，
+`subject = host-import/<enc(s[0])>/...`，最后以唯一未编码 `:` 连接。$w,s$ 均 nonempty，digest是
+lowercase 64-hex；segment内的 `/`/`:` 已被 `%2F`/`%3A`，所以 projection可逆且无另一 split。
+Adapter V3/Q/Lambda/Core site只保存这份 preorigin；final manifest hash只存在上述 post-hash fact。
+
+`ComponentManifestV1.name` 必须是可用于 `@alias` 的 exact non-keyword `LowerIdent`，并与该
+package lock/import alias set互斥。每个 import的 `source_binding` 是 nonempty source `Name` token vector
+（最后一段必须为 `LowerIdent`，不是任意 WIT/kebab segment），在 manifest内按完整 vector injective，且不能使用 compiler-reserved
+segment；producer不得从 `wit_path` 猜大小写、escape或分词。Source resolver只把
+`@manifest_name::source_binding` 同时登记在 local manifest Value namespace与 Effect namespace；前者指向
+generated adapter callable，后者指向其 generated host Effect。这个 projection只对 owning package
+source可见，不是 dependency alias或 public package export。
+
+=== Language API、Cire link ABI 与 Component interface 三个 hash root <abi-hash-roots-v1>
+
+`ComponentManifestV1` 只是 target-independent selection；memory、encoding、calling convention与
+runtime epoch 不准写入 manifest 或 `CireLanguageInterfaceV1`。目标/runtime-specific
+lowering必须另外产生下列 closed roots：
+
+```text
+LanguageInterfaceArtifactRefV1 = {
+  artifact: "CireLanguageInterfaceV1",
+  hash_algorithm: "sha256-jcs-nfc-v1",
+  artifact_hash: Sha256V1
+}
+
+ComponentManifestArtifactRefV1 = {
+  artifact: "ComponentManifestV1",
+  hash_algorithm: "sha256-jcs-nfc-v1",
+  artifact_hash: Sha256V1
+}
+
+CireLinkAbiArtifactRefV1 = {
+  artifact: "CireLinkAbiV1",
+  hash_algorithm: "sha256-jcs-nfc-v1",
+  artifact_hash: Sha256V1
+}
+
+CireWasmTargetV1 = {
+  validation: "Wasm3.0V1",
+  memory: "Memory32V1",
+  memory_sharing: "NonSharedV1",
+  multi_value: true,
+  bulk_memory: true,
+  indirect_calls: "OrdinaryV1",
+  memory64: false,
+  gc_identity: false,
+  exception_handling: false,
+  native_continuations: false,
+  stack_switching: false,
+  tail_call_semantics: false,
+  simd: false,
+  relaxed_simd: false,
+  threads: false,
+  atomics: false
+}
+
+CireCallableLinkEntryV1 = {
+  module: PackageModulePathV1,
+  export_path: [NfcSegmentV1],
+  callable_interface_hash: Sha256V1,
+  core_wasm_signature_hash: Sha256V1
+}
+
+CireDataLayoutEntryV1 = {
+  declaration: DeclarationIdentityV1,
+  private_layout_hash: Sha256V1
+}
+
+CireLinkAbiV1 = {
+  artifact: "CireLinkAbiV1",
+  profile: "Cire-v1.0",
+  schema_version: 1,
+  package_instance_id: PackageInstanceIdV1,
+  language_interface: LanguageInterfaceArtifactRefV1,
+  compiler_abi_epoch: NfcSegmentV1,
+  runtime_abi_epoch: NfcSegmentV1,
+  target: CireWasmTargetV1,
+  calling_convention: "CirePrivateWasmCallV1",
+  callable_layouts: [CireCallableLinkEntryV1],
+  data_layouts: [CireDataLayoutEntryV1]
+}
+
+ComponentScalarV1 = "BoolV1" | "S8V1" | "S16V1" | "S32V1" | "S64V1"
+                  | "U8V1" | "U16V1" | "U32V1" | "U64V1"
+                  | "F32V1" | "F64V1" | "CharV1"
+
+ComponentRecordFieldV1 = {
+  ordinal: WireU32V1,
+  name: NfcSegmentV1,
+  type: ComponentAbiTypeV1
+}
+
+ComponentVariantCaseV1 = {
+  ordinal: WireU32V1,
+  name: NfcSegmentV1,
+  payload: ComponentAbiTypeV1 | null
+}
+
+ComponentAbiTypeV1 =
+    { kind: "ScalarV1", scalar: ComponentScalarV1 }
+  | { kind: "StringV1", encoding: "Utf8V1" }
+  | { kind: "ListV1", element: ComponentAbiTypeV1 }
+  | { kind: "TupleV1", elements: [ComponentAbiTypeV1] }
+  | { kind: "RecordV1", source: M3(TypeRefV2),
+      declaration: DeclarationIdentityV1,
+      fields: [ComponentRecordFieldV1] }
+  | { kind: "RecordPayloadV1", fields: [ComponentRecordFieldV1] }
+  | { kind: "VariantV1", source: M3(TypeRefV2),
+      declaration: DeclarationIdentityV1,
+      cases: [ComponentVariantCaseV1] }
+  | { kind: "OptionV1", value: ComponentAbiTypeV1 }
+  | { kind: "ResultV1", ok: ComponentAbiTypeV1 | null,
+      error: ComponentAbiTypeV1 | null }
+  | { kind: "ResourceV1", source: M3(TypeRefV2),
+      declaration: DeclarationIdentityV1 }
+
+ComponentTypeMappingV1 = {
+  source: M3(TypeRefV2),
+  canonical_abi: ComponentAbiTypeV1
+}
+
+ComponentParameterAbiV1 = {
+  ordinal: WireU32V1,
+  name: NfcSegmentV1,
+  type: ComponentAbiTypeV1,
+  passing: "ValueV1" | "BorrowResourceV1"
+}
+
+ComponentImportAbiV1 = {
+  wit_path: [NfcSegmentV1],
+  source_binding: [NfcSegmentV1],
+  manifest_item: ComponentItemRefV1,
+  parameters: [ComponentParameterAbiV1],
+  result: ComponentAbiTypeV1 | null,
+  result_passing: "NoResultV1" | "ValueV1" | "OwnResourceV1",
+  generated_capability: DeclarationIdentityV1,
+  semantic_summary: "HostObservableV1"
+}
+
+ComponentExportAbiV1 = {
+  wit_path: [NfcSegmentV1],
+  callable: PackageCallableEdgeV1,
+  parameters: [ComponentParameterAbiV1],
+  result: ComponentAbiTypeV1 | null,
+  result_passing: "NoResultV1" | "ValueV1" | "OwnResourceV1",
+  owner_policy: "PerCallChildOwnerV1",
+  terminal_close_policy: "EveryCireReturnsOrAbortsV1"
+}
+
+ComponentResourceAbiV1 = {
+  wit_path: [NfcSegmentV1],
+  declaration: DeclarationIdentityV1,
+  ownership: "BorrowInputOwnResultV1",
+  runtime_identity: "InstanceHandleTableAndOwnerGenerationV1",
+  destruction: "SealedOwnerCloseV1"
+}
+
+ComponentBorrowPolicyV1 = {
+  provenance: "CallbackOrFfiV1",
+  escape: false,
+  suspend: false,
+  store_without_owned_copy: false
+}
+
+ComponentTrapPolicyV1 = {
+  cire_defect: "DefectTransitionV1AfterSuffixRetirementV1",
+  host_or_engine_trap: "CatastrophicInstanceFailureV1",
+  catchable_as_raise: false,
+  convert_to_result: false
+}
+
+CireComponentInterfaceV1 = {
+  artifact: "CireComponentInterfaceV1",
+  profile: "Cire-v1.0",
+  schema_version: 1,
+  package_instance_id: PackageInstanceIdV1,
+  manifest: ComponentManifestArtifactRefV1,
+  link_abi: CireLinkAbiArtifactRefV1,
+  component_abi_epoch: "cire-component-memory32-utf8-sync-v1",
+  memory: "Memory32V1",
+  string_encoding: "Utf8V1",
+  native_async: false,
+  type_mappings: [ComponentTypeMappingV1],
+  imports: [ComponentImportAbiV1],
+  exports: [ComponentExportAbiV1],
+  resources: [ComponentResourceAbiV1],
+  borrow_policy: ComponentBorrowPolicyV1,
+  trap_policy: ComponentTrapPolicyV1
+}
+```
+
+`CireLinkAbiV1.language_interface` 必须指向同一 package instance 的 exact
+`CireLanguageInterfaceV1`；callable/data arrays分别按完整 semantic identity bytes严格递增，
+且恰是当前 link unit的 reachable exported closure。`CireComponentInterfaceV1.manifest`必须
+指向 package root 中同名 manifest edge，`link_abi` 必须指向同 package instance 的 exact link
+root。
+
+`CanonicalComponentTypeV1(T,M)` 是 manifest $M$ 下的唯一 recursive mapping；先展开 transparent
+alias，要求 $T$ closed/monomorphic/ComponentSafe，然后：
+
+- `Unit -> TupleV1([])`；Bool；Int8/16/32/64；UInt8/16/32/64；Float32/64；Char分别
+  exact映射 `BoolV1,S8/S16/S32/S64,U8/U16/U32/U64,F32/F64,CharV1`；`Never`拒绝；
+- `String -> StringV1(Utf8V1)`，`Bytes -> ListV1(ScalarV1(U8V1))`；Bytes不能当 raw
+  pointer/borrowed view；`Array[T] -> ListV1(map(T))`，tuple按 element order递归；
+- `Option[T] -> OptionV1(map(T))`，`Result[T,E] -> ResultV1(payload(T),payload(E))`，其中
+  `payload(Unit)=null`，其余 `payload(X)=map(X)`；
+- exact nominal Struct/Newtype 映射 `RecordV1(source,declaration,fields)`，要求所有 stored fields
+  `PublicV1`，fields按 declaration ordinal exact total，name exact，type在 nominal arguments substitution后递归；
+- exact nominal Enum 映射 `VariantV1(source,declaration,cases)`，cases按 declaration ordinal/name exact total。
+  Unit payload与 zero-element tuple payload都为 null；单 element tuple payload为该 element mapping，
+  多 element tuple payload为 `TupleV1`；record payload为
+  `RecordPayloadV1`，其所有 fields也必须 public并按 ordinal/name exact total；
+- 通常 `OpaqueTypeV1` 拒绝。唯一 resource例外是 manifest 中 exact
+  `ResourceComponentItemV1(D)`：$D$ 必须是 public、zero-binder、empty-requirement opaque declaration，
+  并有同一 manifest/link root产生的 Owner-backed handle adapter；此时唯一 mapping为
+  `ResourceV1(source,D)`。
+
+Non-resource nominal recursion按 declaration/type-argument DFS 检测，cycle在 Component boundary拒绝；不展开为
+infinite ABI tree。`type_mappings` 按 complete source `M3(TypeRefV2)` NFC+JCS bytes严格递增，且
+exact-cover manifest选定 callable/data/resource所有 parameter/result/payload的 transitive unique source-type set；
+每项 `canonical_abi` 必须 deep-equal上述函数结果。因此 Int→F64、record→tuple、错 field/case
+name/order、generic/opaque laundering或 missing/extra mapping都拒绝。
+
+Resource mapping只允许出现在 callable的 direct top-level parameter或 result，不能嵌入 list/tuple/record/
+variant/Option/Result；否则 v1没有唯一 nested own/borrow direction而拒绝 ComponentSafe。每个 direct
+resource parameter的 `ComponentParameterAbiV1.passing` 固定 `BorrowResourceV1`，non-resource固定
+`ValueV1`；Unit result固定 `(result=null,result_passing=NoResultV1)`，direct resource result固定
+`OwnResourceV1`，其它 non-Unit result固定 `ValueV1`。v1没有 own-resource input、borrowed result或
+nested resource；未来增加必须改 profile/schema。`ComponentResourceAbiV1.ownership` 因而固定
+`BorrowInputOwnResultV1`，而不是容许 producer自行选择的 “OwnOrBorrow”。
+
+Manifest/interface partition也是 exact：每个 `ComponentImportV1.item` 必须是
+`CallableComponentItemV1`，对应恰一 `ComponentImportAbiV1`；manifest exports 中 callable恰进入
+`exports`，resource恰进入 `resources`，data item只作 type-mapping root。
+`DataComponentItemV1(D)` 必须 exact解析为 public `DataDeclarationV1`，body kind只能是
+`StructV1 | EnumV1 | NewtypeV1`，binders与 requirements全空；其唯一 mapping root是
+`NominalRef(D,[])`。Generic declaration因 manifest没有 type-argument field而拒绝，
+`TransparentAliasV1` 已在 M3前展开、没有 nominal source ref且不能被选择，`OpaqueTypeV1` 只能使用
+`ResourceComponentItemV1`。
+
+对 import preidentity $(P,n,w,s)$，唯一 generated authority family是
+`CanonicalHostEffectV1(P,n,w,s)`：一个 `EffectV1` identity，module为
+`["pkg-" + P.digest,"~component-import-v1",n]`、path exact为 $s$。
+`ComponentImportV1.generated_capability` 必须 exact equal该 identity，并反向解析 package support closure中
+唯一 `EffectDeclarationV1`；该 declaration固定 `visibility=PackageV1`、zero binders、empty requirements、
+empty conformances与 empty declared operations。它是 sealed host authority row marker，不是 direct `Cap`
+value、ordinary Ability或用户可声明/handle的 operation family；唯一 source name是上文 local manifest
+Effect-namespace projection `@n::s`。每个 import有不同 preidentity/Effect identity，同一 generated
+identity不得被两个 import复用。
+
+Matching manifest adapter是 existing wire的确定构造，不新增 Core/M3 tag。其 `CallableInterfaceV1`
+module/export exact为 `CanonicalCallableExport(ManifestAdapterSourceV1(n,h,w,s))`，surface slots与 selected
+Component import signature exact equal且全部 non-defaulted named slots。V3固定 root slot 0、zero generic/
+row/contract/local binders，只有 exact parameter binders；callable dependencies、local declarations、default
+prologues、applications、closure environment全空。`declaration_kind.visible_row` 是 exact closed singleton
+`AnonV1(CanonicalHostEffectV1(P,n,w,s))`，无 row tail。
+
+其 `computation` 是一个 canonical `LiteralPathsV2` singleton：唯一 `ReturnsV2` path有
+`residual_row` equal上述 singleton、empty demand/usage/Q/LatentSite、suspension
+`{atoms:[],grade:NoSuspend}`、same-world transition、non-Pure allowed phase与 exact sealed
+`HostObservableV1` summary；result transformer由 total
+`CanonicalComponentReturnProjectionV1(result,result_passing)` 产生（ordinary owned ComponentSafe value与
+Unit为 Stable/NoCapture，`OwnResourceV1` 使用同 component instance Owner/generation的 sealed resource
+provenance/capture）。Host/engine trap仍走 component catastrophic terminal policy，不伪造 Cire Abort path。
+每个 origin字段使用同一个 `ComponentManifestPreoriginV1(P,n,w,s)` projection。由于
+`ContractComputationV2` 是 contract/path summary而不是 backend dispatch opcode，这个 object无需也禁止
+`ComponentHostCall` 新 tag；CireLink/Component lowering只在 exact manifest adapter fact + import inverse
+link成立时把该 callable dispatch到对应 WIT import。Source Value-namespace的 `@n::s(...)` 只解析这一个
+adapter，调用后 row保留上述 Host Effect且 summary仍为 HostObservable。
+
+每个 selected callable必须 zero-generic、NoSuspend。Component export callable可为 `PublicV1` 或
+manifest-selection所 root 的 `PackageV1` callable；ordinary `pub` 不自动导出 Component，Component
+selection也不把 PackageV1 callable变成 public Cire API。Export visible row必须 closed，且每个 entry要么
+empty，要么 exact为同一 manifest某个 import的 `AnonV1(CanonicalHostEffectV1(...))`；其它 effect、Named
+selector或 row tail拒绝。Outer component adapter为这些 entries逐一安装 sealed manifest dispatch并要求
+complete/no-extra coverage，向 ABI外部不暴露 Cire row，但 HostObservable summary不能被洗成
+ProtocolPure/ConstSafe。Import adapter本身必须是上述 sealed HostObservable contract并与
+`generated_capability` exact双向关联。所有 callable
+surface slots必须为 `NamedOrPositionalV1`，不允许 receiver/destructuring/capability ABI parameter。
+`parameters` 按 slot ordinal exact total，name恰为 `public_label`，type恰为 Core parameter output type的
+`CanonicalComponentTypeV1`，`passing`按上段唯一决定；defaultable slot也保留为必传 ABI parameter，adapter总是传 `ProvidedV1`。
+`result`/`result_passing` 按上段由 Cire result type唯一决定。`wit_path`、`source_binding`、manifest item、
+generated capability/resource identity与全部 vectors双向 exact，不得由 host/WIT spelling重新猜 signature。
+Interface的 `imports`、`exports`、`resources` 三个 arrays分别按 matching manifest `wit_path` 的 canonical
+tuple order严格递增且无重复，且与 manifest partition逐项 exact equal；集合相等但 array permutation不接受。
+
+三个 root 分别对自己的 complete NFC+JCS object（包括 distinct `artifact` domain tag）求 hash。
+Language hash、link hash 与 component hash的 typed reference不可交换；即使 raw digest bytes
+偶然相同，artifact tag不同也不相等。Language root没有 target/layout/ABI field；link root可变而
+language root不变；component root 必须嵌 manifest+link 两条 typed hash edge并重算自己的 hash，
+绝不 alias任一 child hash。Ordinary `pub` 不自动成为 Component export。
+
+=== API evolution judgment <api-compatibility-v1>
+
+`ApiCompatibilityV1(old,new)` 先 exact-decode两边。`SelfRelativeV1(P,x)` 递归把恰好属于 owning
+package $P$ 的 `PackageInstanceIdV1` 换成 sentinel `SelfPackageV1`，把其 module首段换成
+`pkg-self`；dependency/import package identity与 module prefix保持原值。所有 declaration/evidence/
+callable/component payload、requirement/header/nominal/effect refs、source identity与 nested artifact都先作
+这个 replacement，再用 `(namespace,module-tail,path)` 与 callable `(module-tail,export_path)`建立稳定
+key；因此 source checksum/version变化不会把 unchanged self declaration误判为 remove+add，而 dependency
+变化仍可见。两边必须 same source_identity与 `Cire-v1.0` profile，否则不进入 source comparison。
+
+Compatibility matching按一个固定 order进行，不能先用尚未 normalized 的 ordinal/path/hash配对后层对象。
+Trait item ordinal只是 raw declaration-order wire identity，不是 compatibility identity。完成 self-rebase后：
+
+0. 先按 stable component name配对 package-owned manifest edges；其中的
+   `ManifestAdapterSourceV1`/`ManifestAdapterCallableV1` 再按
+   `(manifest_name,source_binding,wit_path)` 配对，并只在
+   compatibility view把 paired `manifest_hash` 换成 `ManifestStableV1(manifest_name)` sentinel。Adapter
+   fact固定 PackageV1，不作为 public source callable classification delta；它的 manifest/component ABI
+   变化仍改变 raw hashes并由 component exact recheck处理。Unmatched manifest/import adapter保持真实
+   add/remove，绝不靠 final hash配对。
+
+1. 先对同一 stable trait key的 old/new associated Types在 associated namespace按 injective `name`
+   配对，methods在 method namespace按 injective `name` 配对；仅在 compatibility view中把每对
+   item ordinal及所有 `TraitGoalV1`、associated/method binding、trait-method use、
+   `TraitDefaultCallableV1`、`TraitDefaultSourceV1`、`ImplMethodCallableV1`、`ImplMethodSourceV1`
+   与 reserved export-path ordinal segment替换为
+   `TraitItemStableV1(trait-key,namespace,name)` sentinel。
+2. 在该 item-normalized view上重算 `ImplHeaderDigestV1`，再按 digest一一配对 impl evidence；
+   然后把每对 impl `EvidenceIdentityV1` 及 nested refs替换为
+   `ImplStableEvidenceV1(header-digest)` sentinel。
+3. 使用已 normalized 的 trait-item/impl refs 与 reserved paths建立 callable stable key，配对 callables；
+   再按该 callable key配对 protocol facts，把每对 protocol `EvidenceIdentityV1` 及 nested refs替换为
+   `ProtocolStableEvidenceV1(callable-key)` sentinel。
+
+Unmatched trait item/impl/callable/fact 仍是真实 add/remove。这使 sealed trait中
+新插入一个带 total default的 earlier-sorting item不会伪装成后续 method remove+add；未配对的
+required item、rename 或 `pub(open)` item变化仍按下表 breaking。Raw trait/impl/callable ordinals、export paths、
+hashes与 runtime artifacts绝不使用 sentinel，每次 source build仍按 declaration order重算。
+
+Classification按以下 ordered total procedure，不能留 unclassified hash drift：schema/profile/source identity
+失败先 `IncompatibleProfileV1`；complete raw bytes+typed root hash相等则 `ExactEqualV1`；任一列举的 breaking
+delta成立则 `BreakingV1`；其余变化把所有 old public consumer在 new exact import下重做完整
+resolve/kind/coherence/type/row/handler/flow/capture/usage/world/phase/Owner/ContractWF，全部成功才
+`SourceCompatibleAfterRecheckV1`，否则 `BreakingV1`。
+
+#table(
+  columns: (1.4fr, 3.4fr),
+  [*result*], [*exact condition*],
+  [`ExactEqualV1`], [两个 complete language-interface bytes 与 typed root hash exact equal。],
+  [`BreakingV1`], [任一 public export removal/rename；callable public label/order/default-presence、free/inherent/extension/trait-default/impl-method classification、receiver、ConstSafe/ProtocolPure/trap fact变化；effect row、suspension、phase/authority/capture/Owner requirement 变强；新增 generic binder/trait-or-ability constraint/associated equality/required evidence；public field/data shape 改变；public enum variant 增删改；`pub(open)` trait 新增或改变 required item；任一 stable public ability 的 `associated_items`/`operations` bytes改变，或任一 stable public effect 的 `conformances`/`declared_operations` bytes改变（包括 set/name/order/binders/requirements/surface slots/secondary contract/row/transition/result transformer/phase/obligation fields）；public const type/value改变。],
+  [`SourceCompatibleAfterRecheckV1`], [没有上述 breaking delta的其余变化（包括 body/Core hash变化、新增 unrelated export/defaulted sealed-trait item或缩小 requirement），且所有原 consumer在 new exact imports下通过完整 recheck。],
+  [`IncompatibleProfileV1`], [source identity/profile不同或任一 artifact不能 exact-decode；不作源兼容推断。],
+)
+
+任一 semantic root 的 bytes 变化都改变 exact language hash；
+`SourceCompatibleAfterRecheckV1` 不是 hash/binary compatibility，也不允许复用 old evidence。SemVer
+只是 package identity input，绝不覆盖 exact `PackageInstanceId`、hash edge 或 importer recheck。
+
+== CallableInterfaceV1 与 FunctionContractV3 <function-contract-v3>
+
+```text
+CallableInterfaceV1 = {
+  artifact: "CallableInterfaceV1",
+  profile: "Cire-v1.0",
+  schema_version: 1,
+  module: PackageModulePathV1,
+  export_path: [NfcSegmentV1],
+  core_contract: {
+    artifact: "FunctionContractV3",
+    hash_algorithm: "sha256-jcs-nfc-v1",
+    artifact_hash: Sha256V1
+  },
+  surface_signature: CallableSurfaceSignatureV1
+}
+
+CallableSurfaceSignatureV1 = {
+  kind: "CallableSurfaceSignatureV1",
+  slots: [ParameterSurfaceSlotV1]
+}
+
+ParameterSurfaceSlotV1 =
+    { slot: u32, passing: "ImplicitReceiverV1" }
+  | { slot: u32, passing: "PositionalOnlyV1" }
+  | { slot: u32, passing: "NamedOrPositionalV1",
+      public_label: NFC nonempty String, defaultable: Bool }
+
+ImportedCallableRefV3 = {
+  import_slot: WireU32V1,
+  module: PackageModulePathV1,
+  export_path: [NfcSegmentV1],
+  interface_hash: Sha256V1
+}
+
+FunctionContractV3 = {
+  artifact: "FunctionContractV3",
+  profile: "Cire-v1.0",
+  schema_version: 3,
+  root_declaration_slot: WireU32V1,
+  declaration_kind: M3(FunctionContractKindV2) | null,
+  binders: M3(DeclarationBindersV2),
+  callable_dependencies: [ImportedCallableRefV3],
+  local_declarations: [LocalFunctionDeclarationV3],
+  default_prologues: [DefaultPrologueV1],
+  applications: [M3(AppliedContractV2)],
+  computation: M3(ContractComputationV2),
+  closure_environment: [M3(EnvironmentBindingV2)]
+}
+
+LocalFunctionDeclarationV3 = {
+  declaration_slot: u32,
+  declaration_kind: M3(FunctionContractKindV2),
+  binders: M3(DeclarationBindersV2),
+  default_prologues: [DefaultPrologueV1],
+  applications: [M3(AppliedContractV2)],
+  computation: M3(ContractComputationV2),
+  closure_environment: [M3(EnvironmentBindingV2)]
+}
+
+DefaultPrologueV1 = {
+  kind: "DefaultPrologueV1",
+  parameter_slot: WireU32V1,
+  input_type: M3(TypeRefV2),
+  output_type: M3(TypeRefV2),
+  computation: M3(ContractComputationV2),
+  origin: SourceOriginV1
+}
+
+ContractRefV3 =
+    ContractParameterRefV2 { parameter: M3(ContractParameterV2) }
+  | ImportedCallableSlotRefV3 { import_slot: WireU32V1 }
+  | LocalFunctionRefV2 { declaration_slot: u32 }
+
+TypeBinderV3 =
+    TypeBinderV1 { slot: u32, kind: Type | Effect | OwnerRegion }
+  | EffectConstructorBinderV3 {
+      slot: u32,
+      kind: "EffectConstructorV3",
+      constructor_arity: WireU32V1
+    }
+
+EffectConstructorActualV1 =
+    { kind: "NominalEffectConstructorActualV1",
+      effect: DeclarationIdentityV1,
+      constructor_arity: WireU32V1 }
+  | { kind: "EffectConstructorParameterActualV1",
+      binder_slot: WireU32V1,
+      constructor_arity: WireU32V1 }
+
+TypeSubstitutionV3 =
+    TypeSubstitutionV2 { binder_slot: u32, value: M3(TypeRefV2) }
+  | EffectConstructorSubstitutionV3 {
+      binder_slot: WireU32V1,
+      constructor: EffectConstructorActualV1
+    }
+
+TypeConstructorRefV3 =
+    BuiltinConstructorV1 { name: Array | Option | Result }
+  | NominalConstructorV1 {
+      module: ModulePathV1,
+      name: IdentifierV1
+    }
+  | EffectParameterConstructorV3 {
+      binder_slot: WireU32V1,
+      constructor_arity: WireU32V1
+    }
+```
+
+`FunctionContractV3` 上述 12 个 fields 是 exact set；没有 `module`、`export_path`、
+`package`、trait/const facts、`imports` 或 `dependencies` alias。`M3` 是 schema
+migration function，不是 wire tag：它结构递归保留每个 approved V2 object/union/list 的 field、
+tag、order 与 scalar shape；非恒等式恰是：
+
+```text
+M3(FunctionContractV2) = FunctionContractV3
+M3(ContractRefV2)      = ContractRefV3
+M3(DeclarationBindersV2.type_binders[*]: TypeBinderV1) = TypeBinderV3
+M3(ContractSubstitutionV2.type_arguments[*]: TypeSubstitutionV2) = TypeSubstitutionV3
+M3(ApplyTypeV2.constructor: TypeConstructorRefV1) = TypeConstructorRefV3
+```
+
+所以 applications、substitution、function type、nested contract、closure、handler、resumption、
+computation 与 type tree 中任意深度的 V2 contract/ref nonterminal都必须递归迁移；raw
+`ImportedFunctionRefV2` 或 raw Core hash 在 V3 中稳定
+`callable-interface-contract-mismatch`。
+后两个 delta共同关闭 source `F[_]` 的既有 kind domain：每个 declaration scope（root、local、lambda
+与允许的 local scheme）都把 `F[_]` 写成 `EffectConstructorBinderV3`；atomic `F` 仍是 retained
+`TypeBinderV1{kind:Effect}`。Constructor arity必须大于 0，slot与同 scope的其它 type binder互异。
+`M3(ApplyTypeV2.constructor)` 可用 `EffectParameterConstructorV3`，其 slot必须解析为 enclosing
+`M3(DeclarationBindersV2).type_binders` 中 exact `EffectConstructorBinderV3`；exported/named declaration
+还必须与 `DeclarationRequirementsV1.effect_parameters` 的同 slot/arity交叉核对。Application argument
+count恰等于该 arity。Atomic `F`、Type binder、Row binder、unbound slot或 arity drift
+稳定 `contract-component-kind-mismatch`；builtin/nominal constructor的 retained shape不变。该 tag不能
+出现在 raw V2/TR0 artifact，也不能作为 ordinary term/type parameter constructor。
+
+`M3(ContractSubstitutionV2).type_arguments` 对 ordinary Type/atomic Effect继续使用 retained
+`TypeSubstitutionV2{value}` branch；target是 `EffectConstructorBinderV3` 时必须且只能使用
+`EffectConstructorSubstitutionV3`。Nominal actual的 `effect` 必须解析为 exact `EffectDeclarationV1`，
+其 source Type-binder arity等于 `constructor_arity`；parameter actual必须解析 caller scope中另一个
+`EffectConstructorBinderV3`，且 arity exact。Substitution递归把 target slot的每个
+`EffectParameterConstructorV3` 替为 nominal `NominalConstructorV1`（按该 effect identity的唯一
+module/path projection）或 caller parameter constructor，然后才应用其 arguments并重跑 Effect kind/WF。
+不允许 partial application、ordinary nominal type、atomic Effect value、self-asserted occurrence arity或
+new tag藏入 `LegacyTypeRefV2.value`；missing/duplicate/wrong branch稳定
+`contract-component-kind-mismatch`。
+
+Root declaration slot固定 0。每个 source `LambdaExpr`（ordinary 或 generic）恰好 lift一次为
+最近 local/evidence boundary 的 `LocalFunctionDeclarationV3`：ordinary callable body使用 enclosing
+V3，trait-method signature default computation使用 sibling `TraitDefaultPrologueProgramV1`。Expression 使用 `LocalFunctionRefV2`并保留 exact
+closure environment；ordinary lambda的 binder仍 monomorphic，generic lambda只按上述 local rank-1 gate成为 scheme。
+Normalized Surface HIR lexical declaration preorder为所有 reachable local def/lambda连续分配 `1..n`；同 node内多个 synthesized
+declaration用 `(schema-field-ordinal,list-index)` 排序。`local_declarations` 必须按 slot严格为
+`1..n`，exact reachable、无 missing/unused；`LocalFunctionRefV2` 只解析最近 V3 或
+`TraitDefaultPrologueProgramV1` boundary，绝不跨过任一 root slot 0。Program boundary使用自己的
+callable dependency/application/closure/requirement-scope/trait-method-use tables做与 V3 相同的 exact
+allocation与双向 coverage。
+Source lambda不允许另嵌一个重置 slot 0的 `FunctionContractV3`，因而
+`CallableContractFactEvidenceV1.requirement_scopes/trait_method_uses` 的 declaration slot在 lambda内仍唯一。
+每个 named `def` row，包括 package-private、method、extension、trait default、impl method 与
+`const def`，必须显式 source-spell result与 `! row`；pure 也写 `! {}`。省略稳定
+`named-function-effect-row-required`，绝不触发全局 API inference。
+
+Dependencies先从 symbolic `(module,export_path)` public graph建立；imported frozen node也须
+exact-decode并解开其 lexical slot tables来恢复全部 nested edge。Imported self-edge或 SCC 大于 1
+稳定 `recursive-public-callable-scc-not-in-v1`；same-module recursion只用 local declaration slot。
+DAG通过后按 callee-before-caller填 hash，再对每个 V3 boundary把 distinct
+`{module,export_path,interface_hash}` 的 NFC+JCS bytes严格排序并连续分配 `import_slot=0..n-1`。
+每个 dependency必须 used且每个 ref in range；非 source-lambda的独立 imported/sealed V3 boundary仍重置 lexical dependency table但不截断
+public graph extraction。
+
+Interface slots按 numeric slot严格递增，exact equal于 Core call-entry binder slots。Implicit receiver
+与 destructuring parameter分别只能是 `ImplicitReceiverV1` 与 `PositionalOnlyV1`；simple parameter
+是 `NamedOrPositionalV1`。每个 `CallableSurfaceSignatureV1`（包括 callable、trait method 与
+ability/effect operation）内所有 `NamedOrPositionalV1.public_label` 必须 pairwise distinct；slot或 type
+不同不能使同名 label变得可分辨。Defaultable slot的 Core input恰为
+`ProvidedOrOmitted[output_type]`，prologue按 parameter slot递增且 exact equal于 defaultable slots；
+caller先按 source order求值 callee、全部 explicit arguments与 trailing closure，callee再按 declaration
+order求值 omitted defaults。Direct capability binder永不 defaultable。
+
+`PackageCallableEdgeV1.module/export_path`、载入的 `CallableInterfaceV1` identity及其 hash必须
+三者 exact equal。Public import永远指 interface hash，随后只沿该 envelope 的 V3 edge；没有
+`CireLanguageInterfaceV1 -> raw FunctionContractV3` shortcut。
+
+每个 user public `(module,export_path)` 恰一 callable；user source 不依参数类型或返回类型
+overload。Sealed first-party member/intrinsic 即使共享 source member spelling，也必须有 distinct
+stable export paths/registry IDs；冲突稳定 `public-overload-requires-distinct-export-path`，同 key
+来自两个 source root 则 `callable-source-import-collision`。
+
+Hash differential是强制的：public label rename 改变 callee `CallableSurfaceSignatureV1` 及
+interface hash；若 typed binder/Core computation 未变，callee `FunctionContractV3` bytes 可保持不变，
+但每个 caller 的 `ImportedCallableRefV3.interface_hash`、V3 root 及自身 interface hash都必须沿 DAG
+逐层重算。Default add/remove/change 同时改变 surface slot与 callee `default_prologues`，因而
+callee interface/Core 两个 hash都改变，再以同一 dependency edge 规则传播到所有 transitive caller。
+任一 producer 只改 envelope 而不重算 caller，或只改 prologue 而沿用 old interface hash，均稳定
+`callable-interface-contract-mismatch`。
+
+== Elaboration origin 的 typed-Core consumption <successor-origin-registry>
+
+Frontend 固定阶段为：
+
+```text
+UTF-8 source -> lossless tokens -> lossless CST -> syntax validation
+ -> resolved Surface HIR -> normalized Surface HIR
+ -> signature/kind Surface HIR -> evidence-indexed Kernel HIR
+ -> typed Core + Q/Lambda/package interface
+```
+
+Normalize 与 Kernel 是可审计 structural rewrite；后续阶段不能重新 parse、改变 CST branch、
+重排 source evaluation 或重新选择 lowering。`surface-syntax.md` 的
+`rule-r06-origin-arena` 是 `ElaborationOriginV1`、13 项 `DerivedKindV1`、4 项
+`OriginRoleV1`、arena allocation、site map 与 percent-encoded `SourceOriginV1` projection 的
+唯一 normative producer authority；本章不复制第二份 origin schema、enum order、allocation 或
+projection algorithm。
+
+形式化只消费同一 frontend snapshot 产生的 exact map。令
+
+$
+  "OriginMapWF"("surface", "normalized-HIR", "kernel", "core", O)
+$
+
+当且仅当：$O$ 已按上述 Surface rule exact-decode；每个 evidence-indexed Kernel/typed-Core
+diagnostic-capable site恰有一个 `CanonicalSiteIdV1 -> OriginId` edge；site 的 root slot、
+Kernel preorder、role 与 field path exact equal于被检查的 Core field；所有 synthesized Core node
+只使用 Surface allocation 已给出的 Derived origin；投影到既有
+`SourceOriginV1=file:subject` 后，Core、Q、Lambda、diagnostic 与 source-map artifact保存同一 bytes。
+形式化不得补分配 origin、沿 parent猜 primary、把 Component manifest adapter伪造成 source DAG node，
+或在 alpha-renaming 后改变 public parameter label/origin。任一缺失、重复、错 role、错 field path、
+noncanonical projection或 snapshot drift稳定 `origin-map-noncanonical`。因此 Surface拥有
+origin construction，Formal只拥有 typed-Core consumption/WF；两者没有重叠 authority。
+
+== Intrinsic registry 的 formal evidence/Kernel consumption <intrinsic-registry-root-v1>
+
+`surface-syntax.md` 的 `rule-r06-first-party-registry` 与其 `8.4.2` 是
+`FirstPartyRegistryV1` closed schema/21-entry generation contract、
+`StructuralIntrinsicRegistryV1` exact 2-entry contract、`IntrinsicRegistryRootV1` child hashes及
+BuildString/finalizer surface lowering的唯一 normative producer authority。本章不维护第二张
+entry表、第二份 child/root schema或第二套 lowering contract。Formal只在 root与两个 child均已按
+Surface authority exact-decode/hash-check后消费它们；任一 child被并入另一 array、hash漂移或按名字
+重建都稳定 `intrinsic-registry-root-mismatch`。
+
+Formal消费 Surface生成的 binding时使用 judgment
+
+$
+  K; I; Phi; Omega@Theta; Gamma |- "FirstPartyEvidenceWF"(b, sigma, e)
+$
+
+其中 $b$ 是已 exact-decode 的 Surface binding、$sigma$ 是 direct-call与 callback-entry的 rigid
+generic/fresh substitution、$e$ 是该 binding 按 declaration order给出的 evidence array。
+它不是通过 type name自动成立的 marker。各 predicate 的唯一 formal意义分组如下：
+
+- `CurrentOwnerV1`、`OwnerAuthorityV1` 与 `ChildOwnerV1` 分别要求当前 phase owner exact、
+  该 Owner live authority可用、child是同一 parent的 sealed direct child；它们由
+  @cleanup-ledger-v1、@task-protocol-v1、@resource-protocol-v1 与 @signal-ui-protocol-v1 消费。
+- `FrameClockNextSummaryCoherenceV1`、`PrivateIdentityOutwardGateV1`、
+  `PackedNextPackageLeaseV1`、`ExactPackedNextOverloadV1`、
+  `ExactPackagePrivateScopeV1` 与 `PrivateFrameBuilderNonescapeV1` 要求同一 package的
+  clock/Next/summary、overload、lease及 private-scope tuple exact，所有 terminal path通过
+  @packed-next-protocol-v1 的 nonescape/release gate。
+- `ShareableV1`、`AsyncBoundarySafeV1`、`SuspensionStableV1`、
+  `DuplicableEnvironmentV1`、`BoundarySafeCaptureV1`、
+  `TemporalStableCaptureV1`、`CrossWorldSafeCaptureV1` 与 `OutlivesV1`
+  是对完整 value/capture summary 的 structural proof，不得由 nominal whitelist或空 capture猜测；
+  suspend/retention sites分别在 @task-protocol-v1、@resource-protocol-v1 与
+  @signal-ui-protocol-v1 重新核对。
+- `OwnerBoundParkingV1`、`ExactOutcomeTaskV1`、`ExactTaskRegionGenerationV1` 与
+  `ExactCloseCellIdentityV1` 将 park/outcome/waiter/receipt绑定同一 Owner region、generation与
+  close cell；它们不授权第二 waiter、foreign cancellation或隐式 cleanup。
+- `OwnerStorageProvenanceV1`、`ExactResourceRootV1`、`ExactBuilderRootV1`、
+  `CompleteDependencyTraceV1`、`ContextualNonescapeV1`、`FixedSnapshotV1`、
+  `NoDependencyRegistrationV1`、`InvalidatingDependencyV1` 与 `ProjectionNonescapeV1`
+  分别证明 storage/root/trace/context/snapshot/dependency/projection的 exact tuple，不能只比较
+  nominal type或 ambient current owner。
+- `ExactCoalesceLatestV1`、`ExactGenerationRevisionBindingV1`、
+  `ActionSafeRowV1`、`EventEntryDischargeOnlyV1`、
+  `EventOccurrenceStorageV1`、`ExactMountRootV1`、`ExactOwnerV1`、
+  `ExactBackpressureArgumentV1` 与 `CandidatePlanCaptureNonescapeV1` 共同闭合
+  @signal-ui-protocol-v1 的 generation/revision、typed event occurrence、action flow、FIFO lease与
+  close/stale/dispatch exactly-once release；其中任一 proof都不能由另一个隐含。
+- `RetainedCallbackContractV1`、`ResourceLoaderContractV1`、
+  `SignalTailContractEvidenceV1` 与 `ActionPlanContractV1` 是 Surface registry中的 special
+  evidence object；Formal将其 callback、owner、scope、type与完整 contract substitution作为一个
+  atomic tuple核对。它们不会替代同一 array中明列的 ordinary proof predicates。
+
+Surface 已由其 `rule-r06-first-party-registry` 定义的唯一
+`instantiate_first_party` 总函数产生 binding 声明的
+evidence-indexed Kernel tag 与 M3 typed-Core/Q/Lambda objects。Formal 只在 root/child hash、
+Surface binding WF、`OriginMapWF`、每个 evidence object与 direct/callback contract全部成立时接受该
+exact output；本章不再生成、重选或改写其 Kernel/Core/Q/Lambda projection。Callback entry owner、
+captured/generated fresh set与 special contract必须 exact等于 Surface binding；每个 evidence恰
+discharge一次。漏证据、重复证据、kind/slot/scope drift、foreign owner或 runtime-name dispatch分别稳定
+使用已注册的 `first-party-*` / `intrinsic-registry-root-mismatch` diagnostic；不得发明简化 wire。
+Kernel/Core tag的静态与动态意义由下述 PackedNext、Task、Resource、Signal/UI、checkpoint rules给出。
+
+对于 Surface-owned structural child，Formal仅解释已生成 Kernel node：`BuildStringV1` 的每个 literal
+byte segment与 hole computation按 Surface origin/source-order edge执行一次，hole保留自身
+effect/flow，locked-core `Show` format step满足 ProtocolPure，最终构造一次 String；不存在隐式
+Show。`ControlFinallyV1` 在 @cleanup-ledger-v1 中登记一个 sealed suffix责任；body 的任一
+Returns/Aborts/Transfers先执行或移交该 responsibility并保留原 terminal tag。Cleanup本身
+NoSuspend、Returns Unit、无 outward Abort/Transfer且在 finalization point满足
+phase/Owner/capture/usage；multi-shot duplication只在 Replayable时允许。它不是 user destructor、
+`defer`、catchable error或新的 flow aggregation model。Derive使用 Surface分配的
+`SealedIntrinsicV1` origin但不生成第三个 structural binding，其 semantic evidence仍由
+`ImplEvidenceV1` 与 ordinary coherence闭合。
+
+== Diagnostic stage 与 stable rejection <successor-diagnostics>
+
+本 profile 的 stable diagnostic root是 exact closed artifact：
+
+```text
+DiagnosticEntryV3 = {
+  id: NFC nonempty kebab String,
+  stage: "Decode" | "Lex" | "Parse" | "Syntax" | "Resolve" | "Kind"
+       | "Type" | "Row" | "HandlerWF" | "Flow" | "Capture" | "Usage"
+       | "World" | "Phase" | "Owner" | "ContractWF",
+  causal_cluster: NFC nonempty String,
+  primary_origin_role: "PrincipalV1" | "ArgumentV1" | "DeclarationV1"
+                     | "SynthesisBasisV1",
+  required_notes: [NFC nonempty kebab String],
+  fix_safety: "None" | "Manual" | "MachineApplicable" | "MaybeIncorrect"
+}
+
+CireDiagnosticsV3 = {
+  artifact: "CireDiagnosticsV3",
+  profile: "Cire-v1.0",
+  schema_version: 3,
+  diagnostics: [DiagnosticEntryV3; 133]
+}
+```
+
+同一 causal defect/origin cluster 的 primary precedence按“最早可确定且能阻止后阶段”固定为
+`Decode > Lex > Parse > Syntax > Resolve > Kind > Type > Row > HandlerWF > Flow > Capture >
+Usage > World > Phase > Owner > ContractWF`。这是唯一 stage enum/order；Interface、
+Elaboration、Coherence、Effect、Const、Component、Runtime 可作 causal-cluster 名称但不是
+stage literal。Raw JSON/container/JCS/hash failure停在 Decode；已 exact-decode 但 semantic/hash-edge/
+protocol WF 失败在最早可确定的 Resolve/Kind/Type/.../ContractWF 阶段拒绝，不伪造
+未注册的 `*-schema-mismatch` umbrella ID。
+
+下列 tuple 按 id UTF-8 bytes 严格递增，恰是 133 个 entries 的全部六字段；未列出 ID
+不属于 `CireDiagnosticsV3`：
+
+```text
+id | stage | causal_cluster | primary_origin_role | required_notes | fix_safety
+abort-has-no-resume-transition | ContractWF | AbortTransition | DeclarationV1 | [abort-operation,forbidden-resume-transition] | None
+application-argument-type-mismatch | ContractWF | CallableApplication | ArgumentV1 | [actual-argument-type,expected-parameter-type,parameter-index] | Manual
+application-arity-mismatch | ContractWF | CallableApplication | ArgumentV1 | [actual-arity,expected-arity] | Manual
+associated-contract-mismatch | Kind | AssociatedContract | DeclarationV1 | [expected-contract,observed-contract] | None
+associated-declaration-constraint-not-in-profile | Kind | AssociatedDeclarationConstraint | DeclarationV1 | [remove-associated-constraint] | None
+associated-parameterization-not-in-profile | Kind | AssociatedParameterization | DeclarationV1 | [remove-associated-parameters] | None
+associated-type-normalization-cycle | Type | TraitNormalization | DeclarationV1 | [projection-cycle] | Manual
+byte-literal-out-of-range | Type | LiteralRange | ArgumentV1 | [valid-range-0-through-255] | MachineApplicable
+call-obligation-unsatisfied | ContractWF | CallObligation | PrincipalV1 | [obligation-id,obligation-stage,unsatisfied-predicate] | Manual
+callable-interface-contract-mismatch | ContractWF | InterfaceHash | PrincipalV1 | [expected-contract-hash,observed-contract-hash] | None
+callable-source-import-collision | Resolve | InterfaceGraph | PrincipalV1 | [conflicting-source,module-export-key] | None
+capability-binder-default-not-in-v1 | Kind | CapabilityBinder | DeclarationV1 | [remove-default] | MachineApplicable
+capability-identity-required | Kind | CapabilityIdentity | DeclarationV1 | [introduce-direct-capability-binder] | Manual
+clock-package-family-not-clock-indexing | Kind | ClockFamily | SynthesisBasisV1 | [actual-family,expected-clock-indexing-family] | None
+clock-package-path-observer-mismatch | ContractWF | ClockPathObserver | SynthesisBasisV1 | [expected-path-observer,observed-path-observer,path-index] | None
+clock-package-private-identity-escape | Capture | ClockIdentityEscape | SynthesisBasisV1 | [clock-slot,escaping-obligation-id] | None
+clock-package-transfer-captures-private-identity | Capture | ClockTransferCapture | SynthesisBasisV1 | [clock-slot,transfer-site] | None
+component-native-async-not-in-v1 | ContractWF | ComponentBoundary | PrincipalV1 | [use-owner-backed-resource-adapter] | None
+component-public-type-not-safe | Type | ComponentBoundary | PrincipalV1 | [offending-public-type] | Manual
+const-definite-trap | ContractWF | ConstEvaluation | PrincipalV1 | [defect-transition] | None
+const-evaluation-did-not-terminate | ContractWF | ConstEvaluation | PrincipalV1 | [evaluation-budget] | None
+const-operation-not-safe | ContractWF | ConstEvaluation | DeclarationV1 | [offending-operation] | Manual
+const-safe-requirement-failed | ContractWF | ConstEvaluation | DeclarationV1 | [offending-operation] | None
+const-termination-not-proven | ContractWF | ConstEvaluation | DeclarationV1 | [recursive-call-cycle] | None
+contract-component-kind-mismatch | ContractWF | ContractComponentKind | PrincipalV1 | [component-path,expected-kind,observed-kind] | None
+contract-parameter-inconsistent-instantiation | ContractWF | ContractInstantiation | ArgumentV1 | [contract-parameter-slot,expected-instantiation,observed-instantiation] | None
+contract-projection-escapes-scope | Capture | ContractProjectionScope | PrincipalV1 | [binder-slot,escaping-projection] | None
+contract-term-cycle | ContractWF | ContractDependencyCycle | DeclarationV1 | [contract-parameter-slot,cycle-path] | None
+data-field-not-public | Type | NominalVisibility | ArgumentV1 | [hidden-field] | Manual
+defer-not-in-cire-v1 | Syntax | RemovedSurface | PrincipalV1 | [use-sealed-finally] | MaybeIncorrect
+delegates-outside-handler-clause | ContractWF | HandlerProjectionContext | SynthesisBasisV1 | [delegates-site,expected-handler-clause] | None
+dispose-report-schema-mismatch | ContractWF | DisposeReport | PrincipalV1 | [expected-role-order] | None
+duplicate-package-instance | ContractWF | PackageGraph | PrincipalV1 | [package-instance-id] | None
+effect-header-conformance-mismatch | Resolve | EffectHeaderConformance | DeclarationV1 | [declared-operation-signature,implemented-operation-signature] | None
+extension-resolution-ambiguous | Resolve | ExtensionResolution | PrincipalV1 | [candidate-identities] | Manual
+extension-self-parameter-required | Syntax | ExtensionSelfParameter | DeclarationV1 | [expected-self-first-parameter] | MachineApplicable
+first-party-action-occurrence-contract-mismatch | ContractWF | FirstPartyOccurrence | SynthesisBasisV1 | [event-payload-type,occurrence-id] | None
+first-party-callback-entry-owner-mismatch | ContractWF | FirstPartyCallback | SynthesisBasisV1 | [callback-owner,entry-owner] | None
+first-party-callback-scheme-mismatch | ContractWF | FirstPartyCallback | SynthesisBasisV1 | [binding-id,callback-slot] | None
+first-party-projection-namespace-mismatch | ContractWF | FirstPartyProjection | SynthesisBasisV1 | [projection-namespace] | None
+first-party-registry-contract-nonunique | ContractWF | FirstPartyRegistry | PrincipalV1 | [binding-id,conflicting-contracts] | None
+first-party-registry-noncanonical-order | ContractWF | FirstPartyRegistry | PrincipalV1 | [first-out-of-order-id] | None
+first-party-retained-callback-contract-mismatch | ContractWF | FirstPartyRetention | SynthesisBasisV1 | [callback-contract,retained-revision] | None
+first-party-static-scope-escape | ContractWF | FirstPartyScope | SynthesisBasisV1 | [escaping-slot] | None
+first-party-type-template-kind-mismatch | Kind | FirstPartyKind | PrincipalV1 | [expected-kind,template-slot] | None
+float-pattern-not-in-cire-v1 | Syntax | PatternGrammar | ArgumentV1 | [use-guard-or-ordinary-comparison] | MaybeIncorrect
+forward-application-arity-type-mismatch | ContractWF | ForwardApplication | ArgumentV1 | [actual-argument-types,expected-parameter-types,forward-site] | None
+forward-disposition-quantity-mismatch | Usage | ForwardDisposition | SynthesisBasisV1 | [available-quantity,forward-site,required-quantity] | None
+forward-obligation-projection-mismatch | ContractWF | ForwardObligationProjection | SynthesisBasisV1 | [forward-site,obligation-id,projection-stage] | None
+forward-operation-mismatch | Resolve | ForwardOperation | SynthesisBasisV1 | [actual-operation,expected-operation,forward-site] | None
+forward-route-mismatch | Resolve | ForwardRoute | SynthesisBasisV1 | [actual-route,expected-route,forward-site] | None
+handler-clause-mode-required | Syntax | InlineHandlerRecovery | DeclarationV1 | [expected-abort-fun-once-or-ctl] | MachineApplicable
+handler-disposition-escapes-scope | Capture | HandlerDispositionScope | DeclarationV1 | [disposition-binder,escaping-site] | None
+hof-complete-path-observer-mismatch | ContractWF | HigherOrderPathObserver | SynthesisBasisV1 | [expected-path-observers,observed-path-observers,path-index] | None
+impl-visibility-not-allowed | Syntax | ImplVisibility | DeclarationV1 | [remove-visibility-modifier] | MachineApplicable
+imported-function-export-mismatch | Resolve | ImportedCallableResolution | DeclarationV1 | [actual-export-path,artifact-hash,expected-export-path] | None
+independent-ability-impl-not-in-profile | Kind | AbilityCoherence | DeclarationV1 | [abilities-use-handlers-not-trait-impls] | None
+integer-conversion-out-of-range | Type | NumericConversion | ArgumentV1 | [destination-range,source-value] | Manual
+interpolation-evidence-not-unique | Resolve | StringInterpolation | ArgumentV1 | [show-candidates] | Manual
+intrinsic-registry-root-mismatch | ContractWF | IntrinsicRegistry | PrincipalV1 | [expected-child-registry] | None
+local-function-evaluation-mismatch | ContractWF | LocalCallableEvaluation | DeclarationV1 | [expected-path-contracts,local-declaration-slot,observed-path-contracts] | None
+local-function-ref-unresolved | Resolve | LocalCallableResolution | PrincipalV1 | [declaration-slot,reference-site] | None
+maytrap-not-an-effect | Row | DefectTransition | PrincipalV1 | [model-as-ordinary-fact] | MachineApplicable
+method-candidate-ambiguous | Resolve | MethodResolution | PrincipalV1 | [candidate-identities] | Manual
+multi-shot-captures-one-shot-resumption | Usage | ResumptionUsage | PrincipalV1 | [captured-resumption-slot,closure-site,resumption-quantity] | Manual
+named-call-requires-static-signature | Kind | StaticCallMetadata | ArgumentV1 | [callee-type] | Manual
+named-capability-escapes | Capture | CapabilityIdentityEscape | PrincipalV1 | [capability-binder,escaping-site] | Manual
+named-function-effect-row-required | Syntax | NamedFunctionBoundary | DeclarationV1 | [insert-explicit-row] | MachineApplicable
+newtype-representation-cycle | Type | NominalLayout | DeclarationV1 | [unbroken-recursion] | Manual
+no-matching-clock-lock | World | ClockLock | PrincipalV1 | [available-clock-locks,required-clock] | Manual
+non-exhaustive-match | Type | PatternMatrix | PrincipalV1 | [missing-witness-pattern] | Manual
+open-visibility-not-applicable | Kind | Visibility | DeclarationV1 | [allowed-declaration-kinds] | MachineApplicable
+operation-secondary-row-must-be-closed | ContractWF | OperationSecondaryRow | DeclarationV1 | [close-operation-secondary-row] | MachineApplicable
+origin-map-noncanonical | ContractWF | ElaborationOrigin | SynthesisBasisV1 | [first-invalid-origin-id] | None
+package-import-not-locked | Resolve | PackageImport | PrincipalV1 | [dependency-instance-id] | Manual
+package-instance-hash-mismatch | ContractWF | PackageIdentity | PrincipalV1 | [expected-package-id,observed-package-id] | None
+packed-next-builder-result-mismatch | ContractWF | PackedNextBuilder | SynthesisBasisV1 | [actual-builder-result,expected-packed-next-type] | None
+packed-next-control-protocol-mismatch | ContractWF | PackedNextControlProtocol | SynthesisBasisV1 | [actual-control-protocol,expected-control-protocol] | None
+packed-next-observer-trust-mismatch | ContractWF | PackedNextObserver | SynthesisBasisV1 | [expected-observer-summary,observed-observer-summary,path-index] | None
+packed-next-owner-scope-mismatch | Owner | PackedNextOwnerScope | SynthesisBasisV1 | [owner-slot,package-site] | None
+packed-next-pack-phase-mismatch | Phase | PackedNextPhase | SynthesisBasisV1 | [actual-phase-requirement,expected-pack-phase,path-index] | None
+packed-next-package-header-mismatch | Decode | PackedNextPackageHeader | PrincipalV1 | [expected-artifact-profile-version,observed-artifact-profile-version] | None
+packed-next-runtime-protocol-mismatch | ContractWF | PackedNextRuntimeProtocol | SynthesisBasisV1 | [expected-transition-table,first-invalid-transition,runtime-trace] | None
+packed-next-sealed-origin-mismatch | ContractWF | PackedNextSealedOrigin | SynthesisBasisV1 | [expected-sealed-origin,observed-sealed-origin] | None
+packed-next-storage-owner-mismatch | Owner | PackedNextStorageOwner | SynthesisBasisV1 | [owner-scope,storage-owner] | None
+park-disposition-protocol-mismatch | ContractWF | ParkDisposition | SynthesisBasisV1 | [actual-disposition,expected-one-shot-disposition,park-site] | None
+park-generation-protocol-mismatch | ContractWF | ParkGeneration | SynthesisBasisV1 | [actual-generation,expected-generation,park-site] | None
+park-owner-outlives-missing | Owner | ParkOwnerScope | SynthesisBasisV1 | [park-owner,required-outlives-edge,resumption-owner] | None
+park-path-observer-mismatch | ContractWF | ParkPathObserver | SynthesisBasisV1 | [expected-path-observer,observed-path-observer,park-site] | None
+park-required-phase-mismatch | Phase | ParkPhase | PrincipalV1 | [actual-phase-requirement,park-site,required-phase] | None
+park-resumption-type-mismatch | ContractWF | ParkResumptionType | SynthesisBasisV1 | [continuation-answer-type,park-site,resumption-answer-type] | None
+park-source-payload-mismatch | ContractWF | ParkPayloadType | ArgumentV1 | [completion-port-type,park-source-type,resumption-argument-type] | None
+path-bind-literal-prefix-forbidden | ContractWF | PathBindPrefix | SynthesisBasisV1 | [path-bind-site,prefix-outcome] | None
+path-bind-observer-composition-mismatch | ContractWF | PathBindObserver | SynthesisBasisV1 | [composed-observer,expected-observer,path-bind-site] | None
+path-bind-return-binder-mismatch | ContractWF | PathBindReturnBinder | SynthesisBasisV1 | [binder-type,path-bind-site,returned-type] | None
+path-bind-terminal-not-preserved | ContractWF | PathBindTerminal | SynthesisBasisV1 | [observed-terminal-policy,path-bind-site,required-terminal-policy] | None
+positional-after-labelled | Parse | CallAssembly | ArgumentV1 | [argument-index,first-labelled-index] | Manual
+postfix-derive-required | Syntax | DerivedPlacement | DeclarationV1 | [move-derive-after-declaration] | MachineApplicable
+projected-latent-site-key-mismatch | ContractWF | LatentSiteProjection | SynthesisBasisV1 | [application-slot,latent-site-key,projected-source-site] | None
+projected-obligation-stage-lost | ContractWF | ObligationProjection | SynthesisBasisV1 | [obligation-id,projected-stage,source-stage] | None
+public-overload-requires-distinct-export-path | Resolve | PublicCallableGraph | DeclarationV1 | [conflicting-export-path] | None
+qualified-local-id-space-exhausted | ContractWF | QualifiedLocalId | SynthesisBasisV1 | [application-slot,exhausted-u32-domain,local-id] | None
+record-construction-missing-field | Type | NominalConstruction | ArgumentV1 | [missing-fields] | Manual
+record-update-base-not-final | Syntax | NominalUpdate | ArgumentV1 | [move-update-base-to-final-position] | Manual
+recursive-public-callable-scc-not-in-v1 | ContractWF | PublicCallableGraph | DeclarationV1 | [recursive-export-cycle] | None
+return-projection-does-not-match-flow | ContractWF | ReturnFlowProjection | SynthesisBasisV1 | [expected-flow-projection,observed-return-projection] | None
+row-literal-has-multiple-tails | Row | RowLiteralTail | PrincipalV1 | [retain-one-row-tail] | MachineApplicable
+row-predicate-not-in-profile | Kind | RowPredicateProfile | DeclarationV1 | [allowed-predicates] | None
+runtime-protocol-trace-mismatch | ContractWF | RuntimeProtocol | PrincipalV1 | [first-invalid-transition,trace-id] | None
+sealed-checkpoint-contract-mismatch | ContractWF | Checkpoint | SynthesisBasisV1 | [checkpoint-site,expected-transition] | None
+semantic-string-payload-mismatch | ContractWF | SemanticConstPayload | PrincipalV1 | [unicode-scalars,utf8-bytes] | None
+semantic-summary-not-normalized | ContractWF | SemanticSummaryNormalization | PrincipalV1 | [expected-normal-form,observed-summary] | None
+signal-track-builder-root-mismatch | ContractWF | SignalBuilder | SynthesisBasisV1 | [builder-root,tracking-owner] | None
+surface-cap-marker-removed | Syntax | RemovedSurface | PrincipalV1 | [remove-cap-marker] | MaybeIncorrect
+surface-tilde-label-removed | Syntax | RemovedSurface | PrincipalV1 | [replace-with-name-equals-expression] | MachineApplicable
+term-actual-source-unavailable | ContractWF | TermActualSource | ArgumentV1 | [formal-parameter-slot,surviving-projection] | None
+term-actual-substitution-mismatch | ContractWF | TermActualSubstitution | ArgumentV1 | [actual-summary,formal-parameter-slot,projected-observer] | None
+terminal-transfer-has-no-value | Flow | TerminalFlow | PrincipalV1 | [terminal-outcome,value-context] | None
+trailing-lambda-target-not-callable | Kind | TrailingLambda | ArgumentV1 | [final-nonreceiver-parameter] | Manual
+trait-impl-orphan-violation | Type | TraitCoherence | DeclarationV1 | [trait-package,type-package] | None
+trait-impl-overlap | Type | TraitCoherence | DeclarationV1 | [conflicting-impl-identities] | None
+trait-orphan-impl | Type | TraitCoherence | DeclarationV1 | [trait-package,type-package] | None
+type-alias-cycle | Type | NominalLayout | DeclarationV1 | [alias-cycle] | Manual
+ui-action-must-return | Flow | UiActionFlow | SynthesisBasisV1 | [observed-terminal-flow] | Manual
+ui-action-suspend-policy-required | Phase | UiActionSuspension | SynthesisBasisV1 | [action-policy,suspending-site] | Manual
+unknown-contract-computation-variant | Decode | ContractComputationVariant | PrincipalV1 | [computation-tag,contract-path] | None
+unknown-obligation-stage | Decode | ObligationStage | PrincipalV1 | [obligation-id,observed-stage] | None
+unknown-obligation-variant | Decode | ObligationVariant | PrincipalV1 | [obligation-id,obligation-tag] | None
+unknown-path-outcome-v2 | Decode | PathOutcomeVariant | PrincipalV1 | [outcome-tag,path-index] | None
+unknown-resumption-primitive | Resolve | ResumptionPrimitive | PrincipalV1 | [allowed-primitives,observed-primitive] | Manual
+unreachable-pattern | Type | PatternMatrix | PrincipalV1 | [subsuming-arm,warning] | None
+unsupported-contract-schema-version | Decode | ContractSchemaVersion | PrincipalV1 | [observed-schema-version,supported-schema-version] | None
+wire-u32-out-of-range | Decode | WireU32 | PrincipalV1 | [field-path,observed-value,valid-range] | None
+```
+
+Recovery CST 不进入 semantics；后阶段错误只能做 secondary note，不能替换更早 primary。Component
+manifest diagnostic使用 manifest path，不能伪造 source origin。`trait-impl-orphan-violation`
+与 `trait-orphan-impl` 作为冻结的两个 distinct ID 都保留，producer不能自行 alias；其余历史
+umbrella spelling 都不属于本 registry。
+
+== Ordinary typing、inference、data 与 control judgments <ordinary-foundation-v1>
+
+本节只给出 Surface-owned source decision 进入 Kernel 后的 typed-Core judgment 与 wire/runtime
+enforcement；source declaration WF、local-inference boundary、nominal/pattern spelling 与
+trait/extension method resolution仍由 Surface 的对应 `FND-*` anchors唯一决定。本节不得作为
+第二份 source grammar、lookup或 elaboration规则。
+
+Successor 在下文既有 judgment product上增加普通 constraint集合 $C_o$ 与 trap fact $t$：
+
+$
+  K;I;Phi;Omega@Theta;Gamma |- e => A ! epsilon ; s ; chi ; u ; pi ; f ; C_o ; t
+$
+
+其中 $t in {"NoTrap","MayTrap"}$；它不是 row member或 `Flow` variant。既有 row、flow、world、
+capture、usage、Owner rules原样组合，普通 rule不得擦除这些分量。
+
+=== Local rank-1 inference
+
+Immutable local `let` 可 generalize Type、EffectRow、coherent principal ordinary-trait constraint与
+一个完整 atomic hidden `FnContract` binder；永不只 generalize function contract 的 row projection。
+Generalization同时要求：initializer为 non-expansive pure construction、empty authority capture、stable
+duplicable environment、`ManyCallSafe`、无 reachable mutable cell/borrow/resumption/claim/non-replayable
+cleanup、无 generative identity/Owner/clock quantification、constraints closed。否则 metas保持 weak
+monomorphic。Lambda construction可 pure/generalize，即使 body effectful；执行 effectful initializer不可。
+没有 higher-rank/impredicative inference、polymorphic recursion、global API inference或 implicit conversion。
+Surface `GenericFunctionType` 只在 immutable simple-name let的完整 annotation形成一个 local rank-1
+scheme，且 initializer是 matching generic lambda；它唯一物化为 `LocalFunctionDeclarationV3`，每次 use
+fresh实例化其 `M3(DeclarationBindersV2)` 与完整 hidden contract。该 node不得递归出现在 field、parameter、
+result、type argument、container、alias、mutable let或 outward value type，也不得 store/pass/return generic
+lambda；因此 package declaration无需递归 scheme artifact，`FunctionTypeV2` 也不承载 rank-2 binder。
+
+=== Data、construction 与 patterns
+
+`struct/enum/newtype/opaque type` 是 nominal；`type` alias transparent且无 constructor/orphan identity。
+不存在 anonymous structural record type。Construction必须解析 exact nominal constructor；tuple/
+field initializer各求值一次、严格 source order；written field无重复，missing field只使用 declaration中
+pure const default，所有 initializer成功后才 publish。Functional update恰一个 final `..base`：explicit
+fields先 source-order、base最后一次；omitted fields只 projection，不重跑 default；enum不 update。
+
+Pattern pure且 type-directed，不调用 Eq/trait/extension/effect。Constructor arity与 record visibility/
+coverage exact；float literal pattern拒绝；or-pattern alternatives必须绑定同名、同 type、同 quantity并
+join原 provenance/capture/usage。Refutable pattern只允许 match；let、parameter、for、handler operation/
+return clause都要求 irrefutable。Alias spelling保持既有 postfix：`pattern as name`；prefix
+`name @ pattern` 或新 alias grammar不属于 v1。每个 match运行 constructor-matrix usefulness/
+exhaustiveness；guard不贡献 coverage。
+
+=== Ordinary traits、extensions 与 resolution
+
+Ordinary trait是 coherent static evidence，不是 ability/effect/handler/cleanup/error channel。Associated
+item只允许 zero-arity Type；其 `AssociatedTypeDeclarationV1.constraints` 可以包含 ordinary
+`TraitGoalV1`（例如 `IntoIterator` 对关联 `Item` 的 constraint），并按普通 coherence/normalization
+检查。它不触发 ability-only 的 `associated-declaration-constraint-not-in-profile` 或
+`associated-parameterization-not-in-profile`。无 GAT、trait object、Drop、Try、specialization、negative impl。
+Ordinary trait 与 ability inheritance/supertrait clause同样不属于 v1；
+`TraitDeclarationV1` 与 `AbilityDeclarationV1` 都没有 supertrait field，Formal不合成
+supertrait entailment。Effect 对 ability 的实现关系只来自 exact effect-header conformance，
+不是 declaration inheritance，也不能作为 ordinary-trait requirement的替代。
+`pub trait` package-sealed，`pub(open) trait` downstream-open。透明 alias expansion后，impl package必须
+拥有 exact trait或 target最外层 nominal constructor；builtin/array/tuple/function为 foreign head。
+两个 header只要 first-order unification可使 exact trait args与 target相等即 overlap；constraint、result、
+effect、import、specificity都不消歧。
+
+`ImplDecl` 及其 associated type/method items 都不能带任何 visibility modifier；impl 本身不是
+source export identity，可见性由 trait/type openness、orphan/coherence 与 package-level `ImplEvidenceV1`
+closure决定。任一 `pub`/`pub(open)` 或其他 visibility token 稳定
+`impl-visibility-not-allowed`，不得将它降级为 ignored modifier。
+
+Dot resolution先合成 receiver type。Matching named-capability operation走 ability dispatch；否则
+accessible inherent method胜出；再否则 in-scope trait method与显式 enabled extension形成一个 candidate
+set，必须恰一 declaration identity。Expected result、ambient row、handler、conversion、proximity/import
+order不消歧；无 autoderef/autoref。Trait UFCS与 qualified extension call可显式选择。`extend def`仍是
+ordinary named function，完整 explicit row，不生成 impl/evidence或 privileged access；dependency extension
+只由 exact `use @pkg::name [as alias]`启用，无 wildcard/package scan/re-export。
+
+能进入 dot candidate set 的 inherent/trait/extension method必须恰有第一个 parameter
+`self : Self`；trait/inherent 的 `Self` 是所属 nominal/trait receiver，extension 的 `Self` 在
+declaration WF 时固定为 resolved extended receiver type。第一 slot 名称、位置或 type 不 exact时，
+该 declaration不是 method，不能通过类似参数或返回类型偷进 dot lookup。无 `self`
+的 associated function 只能通过 trait/type/extension qualification调用，永不进入 dot candidate set。
+Extension 缺失/改名第一 `self` 或使用非 exact receiver `Self` 稳定
+`extension-self-parameter-required`。
+
+=== Places、mutation 与 structural control
+
+`let mut` 创建 monomorphic local place。Assignment先把 base/index selectors按 source order各求值一次，
+再 RHS一次，再 write并返回 Unit；Formal要求 Surface-produced Kernel已带 exact
+`SourceOrderTemporaryV1`。Field place必须 rooted in
+visible mutable local；immutable array仅通过 sealed value-update projection写回该 place。无 implicit
+reference、auto-box或 continuation snapshot。Escaping/Owner-stored/suspended/multi-shot closure不能 borrow
+mutable local；one-shot boundary要求 continuation独占 place且 handler/environment无 alias。
+
+Surface 的 `rule-fnd-control-structural` 唯一决定
+`if/match/loop/return/break/continue/while/for` 的 source lowering。Formal不重选该 lowering，只接受
+带 lexical terminal identity与 exact `SourceOrderTemporaryV1` 的已产生 Kernel；其中 user handler不可
+intercept structural transfer，for的 source恰求值一次并满足 locked-core
+`IntoIterator/Iterator` state-threaded protocol、irrefutable binder与 Many body usage。对 Surface已拒绝的
+generic `yield/try` 与 `defer`，Formal不产生补充语法路径。
+
+=== Numbers、text、MayTrap 与 defect transition <maytrap-defect-transition-v1>
+
+`Int/UInt/Float` exact为 i32/u32/binary64。Numeric suffix为
+`i8/i16/i32/i64/u8/u16/u32/u64/f32/f64`；unresolved literal在 let generalization前分别 default
+Int/Float。Typed values无 implicit conversion且无 general `as`；每个 conversion只用下列 exact
+policy-bearing name：
+
+```text
+T::from(x)                    exact all-values widening only
+T::try_from(x) -> Option[T]   checked integer narrowing/signedness
+T::wrapping_from(x) -> T      integer modulo/truncation
+T::round_from_int(x) -> T     integer -> float, nearest ties-to-even
+T::try_truncate(x) -> Option[T]
+                              float -> integer, truncate toward zero;
+                              None on NaN/infinity/out-of-range
+x.to_bits() / T::from_bits(x) equal-width explicit bit conversion
+
+checked_add/sub/mul/div/rem/neg/shift_* -> Option[T]
+wrapping_add/sub/mul/neg/shift_*        -> T
+saturating_add/sub/mul                  -> T
+```
+
+Ordinary integer `+ - * / %`、signed neg/abs 与 shifts 在 overflow、divide/mod-zero、
+signed-min edge 或 out-of-range shift 时确定性 MayTrap；division toward zero，remainder跟 dividend
+sign，ordinary shift不使用 Wasm masked count。Checked 不 trap并返 None，wrapping 用 modulo/masked
+shift，saturating 只为 add/sub/mul 夹到 min/max。这些规则对 const、interpreter、optimized与
+Wasm execution identical。
+
+Float32/Float 固定 IEEE binary32/binary64 nearest-ties-to-even，无 ambient rounding、
+fast-math、FTZ 或 implicit FMA，Float `%` absent。每个 arithmetic/conversion/constant/import/
+`from_bits` NaN 均 canonicalize为该 width 唯一 positive quiet NaN；`to_bits` 对 NaN只返回
+该 canonical bits。Raw payload-preserving interop必须使用 integer/Bytes schema。Float 只有 IEEE
+PartialEq/PartialOrd/Show，不有 Eq/Ord/Hash。Locked-core nominal wrappers `TotalFloat32`/
+`TotalFloat` 在构造时应用同一 canonical-NaN bit rule，Eq 比较 canonical bits（所以
+`+0` 与 `-0` distinct），Ord 使用 canonical value set 上的 IEEE `totalOrder`，Hash 吸收
+width tag 与 endian-neutral canonical bits；因而 `Eq => same Hash` 且 `compare==Equal <=> Eq`。
+
+```text
+ContractTrapFactV1 = "NoTrapV1" | "MayTrapV1"
+
+DefectTransition(machine, origin, code) =
+  run already-registered suffix and Owner retirement obligations
+  -> emit terminal outer Wasm trap(code, origin)
+```
+
+`MayTrapV1` 是普通 contract fact：checker从 typed primitive/check nodes及 imported package-level
+`CallableContractFactEvidenceV1`作 join，public boundary把结果写入同名 exact package evidence。
+它不向 V3 object增加 field/tag；它绝不
+加入 effect row，绝不成为 `Returns/Aborts/Transfers` 的第四个 Flow tag，也不能被 handler、Raise、
+Result或 finally catch。Cire-generated check发生 defect时先走 meta-level `DefectTransition`；cleanup
+完成后 outer Wasm trap终止 instance path。Imported engine/host trap或 allocator failure是 catastrophic
+instance failure，只依赖 embedding root teardown，不承诺任意 user finalizer。
+
+=== ConstSafe 与 standard protocols
+
+`const name : T = e`由 build-time evaluator执行；reusable body只能 `const def`，并显式写 `! {}`。
+`ConstSafe` 额外要求 empty residual row/demand、NoSuspend、TemporalPure、Pure/no-authority、stable
+capture-free result/environment与 Returns-only。允许 literal、immutable ADT/array、projection、exhaustive
+match/if/let、primitive op与 ConstSafe call；拒绝 mutation、assignment、unbounded loop、handler/with、
+effect、temporal/Owner/capability/resumption/task/resource、FFI/host。Termination只接受 acyclic call graph
+或对 syntactically smaller ADT field的 direct structural recursion；definite trap是 compile diagnostic。
+
+`PartialEq/Eq/PartialOrd/Ord/Hash/Show/Iterator/IntoIterator` 是 ordinary trait且其 standard methods
+满足 ProtocolPure。Float没有 Eq/Ord/Hash；state-threaded iterator返回
+`IterStep[A,S]=Done|Yield(A,S)`，不能把 hidden mutable cursor跨 iteration/effect/suspension/replay。
+Task/Source/Event/Signal/Owner-backed stream不实现这个 ordinary iterator protocol。
+
+== Wasm 与 Component boundary judgment <component-boundary-v1>
+
+Initial target固定 Wasm 3.0 validation、memory32、single-thread、non-shared；允许 multi-value、bulk
+memory与 ordinary indirect call，不假定 memory64、GC identity、EH、native continuation/stack switch、
+tail-call semantic、SIMD、thread/atomic。Private layout不是 source semantics。
+
+```text
+ComponentSafeV1(T) iff T is a closed monomorphic combination of
+  supported scalar | String->component string/UTF-8
+  | Bytes->component list<u8> | immutable list | tuple/record | closed variant
+  | Option | Result | explicit ComponentResource
+```
+
+Capability、Owner、resumption、handler、closure、temporal value、borrowed view、opaque private layout、
+open generic/trait/row不直接跨 boundary。Component export建立 per-call child Owner并在每个 Cire
+Returns/Aborts path关闭；resource own/borrow adapter使用 instance handle table与 Owner generation。
+Borrowed input具 FFI/callback provenance，未经 owned copy不能 escape/suspend/store。Raw component
+`result<T,E>`只映射 ordinary Result；转 Raise必须显式 match。Host import生成 sealed capability contract，
+row中保留 HostObservable，annotation不能 laundering为 ProtocolPure/ConstSafe。
+
+== Successor first-party type boundary <first-party-type-boundary-v1>
+
+`Cire-v1.0` 的 public nominal family固定为：
+
+```text
+Task[rho,R]
+TaskOutcome[A,E] = Succeeded(A) | Failed(E) | Cancelled(CancelReason)
+CancelReason = ExplicitCancel
+CloseReceipt[R]
+PackedNext[rho,A]              // surface hides rho: PackedNext[A]
+Resource[rho,K,A,E]
+Previous[K,A] = { key: K, value: A }
+LoadFailure[E] = Failed(E) | Cancelled(CancelReason)
+ResourceView[K,A,E] =
+    Loading { key: K, previous: Option[Previous[K,A]] }
+  | Ready { key: K, value: A }
+  | FailedLoad { key: K, error: LoadFailure[E],
+                 previous: Option[Previous[K,A]] }
+  | Closed { report: DisposeReport }
+Source[rho,A]
+Live[rho,A]
+Event[rho,E]
+Signal[i,A]
+UiMount[rho]
+```
+
+`ResourceTypeV2(owner,value,cleanup_result)`是 legacy TR0 form；successor Resource 的 key/value/error
+三 ordinary parameters必须全部出现于 M3 nominal/type template，不能压回旧二参数 shape。
+`Event[rho,E]` nominal继续存在以表达 exact event identity/data edge，但 v1 registry没有 generic
+`Event::on` 或 `Event::on_async`，也没有任意 user callback subscription API。Event callback只可由
+sealed UI/component adapter在下述 typed occurrence protocol中安装。
+
+旧 `PlanTypeV1/V2`、public `Plan[A]`、`CommitTicket`、`CommitGate` 与 generic public Plan/Commit API
+不属于 successor source/API/interface。Runtime可使用 private `ViewPlan[gamma]`、
+`ActionPlan[gamma,E]`、prepared transaction与 single-claim states；它们没有 public
+`CallableInterfaceV1`，不能存储、导出、导入或由 user type name构造。
+
+== RuntimeNat、receipt 与 cleanup ledger <cleanup-ledger-v1>
+
+所有 runtime-only generation、cleanup/lease/waiter/event ordinal、Signal revision与 Live epoch使用
+数学非负整数 `RuntimeNat` 和 infallible successor。它们不是 u32、不会 wrap/exhaust/reuse，也不与
+Core slot、origin ID或 source integer alias。
+
+```text
+CanonicalNatV1 = JSON String matching 0 | [1-9][0-9]*
+
+DisposeReportV1 = {
+  artifact: "DisposeReportV1",
+  profile: "Cire-v1.0",
+  schema_version: 1,
+  reason: "ExplicitDisposeV1" | "ParentOwnerCloseV1" | "StorageOwnerCloseV1",
+  items: [DisposeItemV1]
+}
+
+DisposeItemV1 = {
+  kind: "DisposeItemV1",
+  ordinal: CanonicalNatV1,
+  generation: CanonicalNatV1,
+  role: "PackedRunnerV1" | "ResourceCandidateV1" | "ResourceCommittedV1"
+      | "ResourceRetiredV1" | "ResourceInputV1" | "UiCandidateV1"
+      | "UiCommittedPlanV1" | "UiListenerV1" | "SignalTailV1",
+  outcome: { kind: "ClosedV1" }
+         | { kind: "CleanupFailedV1", error: CleanupErrorV1 }
+}
+
+CleanupErrorV1 = {
+  kind: "CleanupErrorV1",
+  code: "UserFinalizerAbortedV1" | "ChildOwnerCloseFailedV1"
+      | "HostAdapterCloseFailedV1" | "ProtocolInvariantFailedV1",
+  origin: SourceOriginV1 | null
+}
+
+CleanupLedger = {
+  next_cleanup_ordinal: RuntimeNat,
+  live: Map[RuntimeNat, ReservedCleanup { generation, role, token }],
+  pending: [PendingCleanup { ordinal, generation, role, token }],
+  dispose_items: Map[RuntimeNat, DisposeItem]
+}
+```
+
+接受 responsibility的同一 atomic registration取 ordinal、推进 counter、加入 live。Candidate到
+committed/retired只转移同一 reservation并更新 role，不重编号。Retire做 live→pending，不分配；
+attempt-all cleanup无论成功失败都写 immutable item。第一次 close CAS固定 reason；重复 request返回
+同一 receipt/report identity且不改 reason。全部已赢 lease drain且 live/pending为空时，items按 numeric
+ordinal严格为 `0..next_cleanup_ordinal-1`生成 report并 resolve。Report禁止 host message、backtrace、
+absolute path、exception class/object address；这些只能 noncanonical note。
+
+```text
+ReceiptCell[R] =
+    Pending { next_registration_ordinal: RuntimeNat, waiter_map }
+  | Resolved { next_registration_ordinal: RuntimeNat, value: R }
+
+ReceiptWaiter =
+    Armed(registration_ordinal, observer_owner_generation, completion_port)
+  | DeliveryWon(observer_entry_lease)
+  | Delivered(observer_entry_lease)
+  | Finalized
+```
+
+Target cleanup supervisor唯一 `Pending -> Resolved`，late observer读 immutable R。Register必须在同一
+linearization验证 observer generation gate Open并登记 Owner claim；resolve/register无 lost wakeup。
+Delivery用一个 gate+claim CAS取得 entry lease并 Armed→DeliveryWon；observer close先赢则 Finalized，
+delivery先赢则 close等待 lease drain。Cleanup supervisor禁止 await自己的 receipt。
+
+== PackedNextProtocolV1 <packed-next-protocol-v1>
+
+`PackedNextPackageV2` 与 `PackedNextControlProtocolV2` 的 bytes/profile继续可按
+`Cire-TR₀/2026-08-01` legacy decoder读取，但 successor producer、registry与 conformance不能输出或
+引用它们。`PackedNextProtocolV1` 是 profile-disjoint new artifact；V2 hash绝不能冒充 V1。
+
+```text
+PackedNextProtocolV1 = {
+  artifact: "PackedNextProtocolV1",
+  profile: "Cire-v1.0",
+  schema_version: 1,
+  handle: "SharedOpaquePackedNextV1",
+  private_package: "FreshClockOwnerNextPackageV1",
+  states: ["BuildingV1", "OpenV1", "ClosingV1", "ClosedV1"],
+  lease: "OneShotPackedLeaseV1",
+  cleanup: "CleanupLedgerV1"
+}
+
+PackedCell[A] =
+    Building {
+      builder_entry_lease,
+      runner_ordinal: RuntimeNat,
+      next_lease_ordinal: RuntimeNat,
+      close_reason: Option[CloseReason],
+      close_cell,
+      ledger
+    }
+  | Open {
+      package: PrivatePackedPackage[A],
+      active_lease_count: RuntimeNat,
+      runner_ordinal: RuntimeNat,
+      next_lease_ordinal: RuntimeNat,
+      close_cell,
+      ledger
+    }
+  | Closing {
+      package: PrivatePackedPackage[A],
+      active_lease_count: RuntimeNat,
+      runner_ordinal: RuntimeNat,
+      next_lease_ordinal: RuntimeNat,
+      close_reason: CloseReason,
+      close_cell,
+      ledger
+    }
+  | Closed {
+      report: DisposeReport,
+      next_lease_ordinal: RuntimeNat,
+      close_cell
+    }
+
+PackedLeaseClaim = Armed(lease_ordinal: RuntimeNat) | Released
+```
+
+`pack_next` 的第一 linearization是 parent-root admission：建立 cell/ledger，ordinal 0、generation 0
+登记唯一 PackedRunner，construction lease ordinal 0，安装 Building(next=1)，然后才调用 builder。
+Parent close在 admission前赢则 builder不运行；admission后赢必须看到 provisional root并等待 lease。
+Builder Returns exact sealed package：无 close则 Building→Open(count=0,next=1)；已有 close则安装 package
+到 Closing、release construction lease并由 cleanup继续。Builder Abort/Transfer固定 first
+StorageOwnerClose（除非 earlier reason已赢），runner live→pending恰一次，release lease，完整生成 report后
+再重发原 terminal tag。
+
+Acquire仅 `Open(P,n,k) -> Open(P,n+1,k+1) + Armed(k)`；Closing/Closed返回 None。Release先
+`Armed(k)->Released`，再只把 matching Open/Closing count `n+1 -> n`且保存 next ordinal；duplicate
+release无作用。Request close用同一 CAS固定 first reason、把 runner live→pending、Open→Closing或只在
+Building记 reason；重复返回同一 close cell。Closing最后 count 1→0的 release唯一 close runner/child、
+写 report并 resolve。已赢 lease的 body不被 dispose中断；Returns/Aborts/Transfers每条 path先做
+rho-child/identity/summary outward gate，再恰好 release一次并保留 flow tag。Parent registry只登记
+Packed root，不能绕过 root先关 child。
+
+对应唯一 surface/registry API是 `@temporal::pack_next`、
+`@temporal::try_with_packed_next`、`@temporal::dispose`；用户不能构造/命名 private existential、
+rank-2 identity、lease或 package component。
+
+== Task broadcast protocol <task-protocol-v1>
+
+`Task[rho,R]` formation要求 `ShareableV1(R)` 与 `AsyncBoundarySafeV1(rho,R)`；handle可复制且
+multi-waiter。只有 exact `Task[rho,TaskOutcome[A,E]]`有 central cancel API；generic Task不会凭空
+产生 failure/cancel value。
+
+```text
+TaskCell[R] =
+    Pending {
+      task_generation: RuntimeNat,
+      next_registration_ordinal: RuntimeNat,
+      waiter_map
+    }
+  | Resolved {
+      task_generation: RuntimeNat,
+      next_registration_ordinal: RuntimeNat,
+      value: R
+    }
+  | OwnerClosed {
+      task_generation: RuntimeNat,
+      next_registration_ordinal: RuntimeNat
+    }
+
+TaskWaiter =
+    Armed(registration_ordinal, task_generation,
+          observer_owner_generation, completion_port)
+  | DeliveryWon(observer_entry_lease)
+  | Delivered(observer_entry_lease)
+  | Finalized
+```
+
+Ready await同步 Returns immutable R，但 static contract仍 MaySuspend。Pending await按 receipt同一
+observer gate protocol登记独立 waiter，再由 sealed park产生唯一 Transfers(ParkContractV2)。Producer
+complete CAS一次保存 exact R，并按 registration ordinal竞争每个独立 claim；Shareable允许 fan-out。
+Waiter cancel只 finalize自己，不取消 producer/其它 waiter。Outcome normal/failure/explicit cancel只在
+task Owner Open时竞争 Pending→Resolved(TaskOutcome)。Owner close若先赢 Pending→OwnerClosed，禁止新
+register/cancel、finalize waiter并 child-first close producer，不伪装成 TaskOutcome；Resolved先赢则 close
+不改写 R。所有 counter保留最终值，ordinal不由 map size反推或回收。
+
+`Async::await` 的 current observer Owner从 phase推出，不能由 `under=other`重定向；要求
+OwnerAuthority、Outlives(observer,task region)、Shareable(R)、AsyncBoundarySafe、SuspensionStable与
+OwnerBoundParking。`CloseReceipt::await` 是独立 operation，不改写成 Task await。
+
+== Resource switch-latest protocol <resource-protocol-v1>
+
+唯一 public family为 `Resource[rho,K,A,E]`；K/A/E都需 Shareable与 owner-storage boundary evidence。
+唯一 behavior是 SwitchLatest + keep-last-good：新 key supersede active candidate；成功 atomic replace
+last-good，失败时有旧值则 Degraded、无旧值则 Failed；stale completion只 cleanup，绝不 publish。
+
+```text
+FixedEpochKeyRevision[K] = { epoch: RuntimeNat, key: K }
+
+CandidateGate = Active | Stale | Closed
+CallbackStart = Startable | Running(entry_lease) | Released | Finalized
+
+CandidateRegistration =
+    Starting { cleanup_ordinal: RuntimeNat, candidate_token,
+               start_claim: CallbackStart }
+  | Awaiting { cleanup_ordinal: RuntimeNat, candidate_token,
+               completion_claim_ref }
+  | Retiring { cleanup_ordinal: RuntimeNat, task_link: TaskLink }
+
+TaskLink = NoTask | TaskClaim { completion_claim_ref }
+
+CommittedPayload[K,A] = {
+  generation: RuntimeNat,
+  key: K,
+  token,
+  value: A
+}
+
+CandidatePayload[K] = {
+  generation: RuntimeNat,
+  revision: FixedEpochKeyRevision[K],
+  gate: CandidateGate,
+  registration: CandidateRegistration
+}
+
+ResourceRetiring = {
+  generation: RuntimeNat,
+  registration: Retiring {
+    cleanup_ordinal: RuntimeNat,
+    task_link: TaskLink
+  }
+}
+
+InputSubscription =
+    InputLive { cleanup_ordinal: RuntimeNat, input_token,
+                gate: InputGate, dispatch_claim: InputDispatchClaim }
+  | InputRetiring { cleanup_ordinal: RuntimeNat, input_token }
+  | InputFinalized { cleanup_ordinal: RuntimeNat }
+
+InputGate = Open | Closed
+InputDispatchClaim = Idle | Running(entry_lease)
+
+ResourceCommon = {
+  input_subscription: InputSubscription,
+  input_revision_cursor: Option[RuntimeNat],
+  retiring: [ResourceRetiring],
+  close_cell,
+  ledger: CleanupLedger
+}
+
+ResourceCell[K,A,E] =
+    Vacant { generation_cursor: RuntimeNat, common: ResourceCommon }
+  | Acquiring { generation_cursor: RuntimeNat, candidate: CandidatePayload[K],
+                retained_latest: Option[FixedEpochKeyRevision[K]],
+                common: ResourceCommon }
+  | Ready { generation_cursor: RuntimeNat, committed: CommittedPayload[K,A],
+            common: ResourceCommon }
+  | Replacing { generation_cursor: RuntimeNat, committed: CommittedPayload[K,A],
+                candidate: CandidatePayload[K],
+                retained_latest: Option[FixedEpochKeyRevision[K]],
+                common: ResourceCommon }
+  | Degraded { generation_cursor: RuntimeNat, committed: CommittedPayload[K,A],
+               failed_key: K, error: LoadFailure[E], common: ResourceCommon }
+  | Failed { generation_cursor: RuntimeNat, failed_key: K, error: LoadFailure[E],
+             common: ResourceCommon }
+  | Closing { close_reason: CloseReason, generation_cursor: RuntimeNat,
+              committed: Option[CommittedPayload[K,A]],
+              candidate: Option[CandidatePayload[K]], common: ResourceCommon }
+  | Closed { report: DisposeReport, close_cell }
+```
+
+Construction在新 ledger ordinal 0/generation 0登记 ResourceInput，安装 closed input gate与
+`input_revision_cursor=None`，再同一 linearization Open gate并 publish Vacant。Input callback先原子
+验证 gate并取得 entry lease；cursor None只接受 epoch 0，此后只接受严格更大 RuntimeNat。同/旧 epoch
+在读取 key前丢弃，不改 state。接受新 revision的单一 CAS同时推进 cursor并恰一执行：无 active
+candidate则 admit；Active candidate变 Stale并 retain latest；已 Stale则覆盖 retained latest。
+
+每次真实 admission同一 CAS递增 generation、建立 direct child、登记唯一 ResourceCandidate reservation
+并安装 `Starting(...,Startable)`；CAS内不调用 user code。Winner再 Startable→Running(entry lease)后
+调用 loader；stale/close先赢则 Finalized且调用次数 0，running先赢则 revoke publication并等待 release。
+Loader必须返回 exact child-owned `Task[rho_child,TaskOutcome[A,E]]`，handoff到 Awaiting后才可 release
+callback entry lease；task completion claim、candidate gate与 outer state共同决定唯一 publication。
+
+Success publish必须在一个 transaction中验证 outer Acquiring/Replacing、matching candidate identity/
+generation与 gate Active；把 new value/token reservation role改 ResourceCommitted，把旧 committed
+移入 retiring并 role改 ResourceRetired，再发布 Ready。Failure同一 transaction移 candidate到 retiring，
+有 old committed发布 Degraded，否则 Failed。任何 path都不先 publish view再转 token。Candidate terminal
+后若 retained_latest存在，按其 exact revision立即 admit next generation；只保留 latest。
+
+Close先关 input gate、进入 Closing、把 candidate gate Closed、丢 retained value，线性把 input/
+candidate/committed/retiring reservations移入 pending并等待所有 entry/completion claims。Closing schema
+不含 retained_latest；Failed/Degraded不含 hidden candidate。全部 cleanup后生成同一 receipt/report。
+
+== Signal、typed UI occurrence 与 dispatcher protocol <signal-ui-protocol-v1>
+
+Surface lowering 后 `Signal[i,A]` 的唯一 evidence-indexed Kernel type equation是：
+
+```text
+Signal[i,A] = Step(A, Next[i, Signal[i,A], SignalTailContract[i,A]])
+```
+
+构造与每次 tail publication 都要求 `ShareableV1(A)`。`SignalTailContract[i,A]` 是
+locked first-party hidden contract：它唯一固定 matching-clock `advance`、tail capture nonescape、
+Owner/generation cleanup registration、以及 Returns/Aborts/Transfers 每个 full-flow terminal 的 exact release。
+它没有 source constructor、public interface binder或 user evidence hook；用普通 `Next`、自定义 contract
+或只覆盖 Returns path 都不能构造 `Signal`。
+
+`Signal[i,A]` 是 clock-indexed pure incremental value。`map_signal`要求 Shareable A/B；transform恰是
+empty row/demand、NoSuspend、Returns-only、duplicable environment、`TemporalStable(i,env)` 与
+`CrossWorldSafe(i,capture)`。`Signal::track`只在 exact frame/context下建立
+installed epoch与 complete dependency trace。UI唯一 runner是
+`@ui::run_signal(under=owner,backpressure=CoalesceLatest){frame,ui=>...}`；没有 generic
+Event subscription或 public Plan/Commit。
+
+`ui.render(model){candidate,current=>...}` 的 transform 必须 NoSuspend、empty row、Returns-only并
+直接产生 private `ViewPlan[gamma]`。`candidate.action{snapshot,event=>...}` 产生同 generation
+`ActionPlan[gamma,E]`，其 latent callback恰为 Action phase、same world、NoSuspend且所有 path
+`Returns(Unit)`；它可有已在 signature声明且 NoSuspend 的 attributed effect request，但不得
+Abort、Transfer、await 或 generic spawn/enqueue。Suspending site稳定
+`ui-action-suspend-policy-required`，非 Returns(Unit) terminal稳定 `ui-action-must-return`。Action
+capture逐 slot 要求 UI child `OwnerStorage(rho)` provenance、BoundarySafe与 Outlives。
+
+```text
+TrackContext[rho,i,eta]
+UiBuilder[rho,i]
+UiCandidate[rho,gamma,nu]
+SnapshotContext[rho,nu]
+ViewPlan[gamma]                 // private sealed
+ActionPlan[gamma,E]             // private sealed
+UiBackpressureV1 = CoalesceLatest
+
+FixedEpochRevision = { epoch: RuntimeNat, revision: RuntimeNat }
+
+EntryGateStatus = Open | Closed
+GenerationEntryCell = {
+  generation: RuntimeNat,
+  status: EntryGateStatus,
+  live_occurrences: RuntimeNat
+}
+EntryGateRef = opaque identity of one GenerationEntryCell
+
+UiOccurrenceLease = opaque linear QueuedHold { cell: EntryGateRef }
+                  | opaque linear RunningEntry { cell: EntryGateRef }
+HostMountHandle = opaque linear host mount responsibility
+HostMountHandleRef = opaque non-owning identity reference
+
+UiListenerBindingId = opaque fresh identity, never reused
+UiEventTypeWitness[E] = sealed exact type-equality witness
+UiActionPlanToken[E] = sealed immutable non-cleanup retained form of exact ActionPlanContractV1
+UiEventStorageWitness[E] = sealed exact (storage_owner,generation,E) witness
+
+UiActionEntry[E] = {
+  generation: RuntimeNat,
+  revision: FixedEpochRevision,
+  event_type: UiEventTypeWitness[E],
+  action_plan: UiActionPlanToken[E],
+  occurrence_storage: UiEventStorageWitness[E]
+}
+
+UiListenerBindingBody[E] = {
+  declaration_slot: u32,
+  cleanup_ordinal: RuntimeNat,
+  binding_id: UiListenerBindingId,
+  action_entry: UiActionEntry[E],
+  listener_token: UiListenerCleanupToken[E],
+  generation_entry_gate: EntryGateRef
+}
+
+UiListenerBinding = seal exists E: Type. UiListenerBindingBody[E]
+UiListenerRef[E] = opaque non-owning typed identity of exact UiListenerBindingBody[E]
+UiListenerCleanupToken[E] = opaque linear staged/installed listener responsibility
+
+UiStoredEvent[E] = opaque linear OwnerStorage value of one frozen exact E
+
+UiEventOccurrence = seal exists E: Type. {
+  listener_ref: UiListenerRef[E],
+  payload: UiStoredEvent[E],
+  occurrence_lease: UiOccurrenceLease
+}
+
+ActionClaim = Queued {
+                event_ordinal: RuntimeNat,
+                occurrence: UiEventOccurrence
+              }
+            | Running {
+                event_ordinal: RuntimeNat,
+                occurrence: UiEventOccurrence
+              }
+            | Released { event_ordinal: RuntimeNat }
+            | Finalized { event_ordinal: RuntimeNat }
+
+ActionDispatcher = {
+  next_event_ordinal: RuntimeNat,
+  queue: [ActionClaim],
+  active_claim: Option[ActionClaim]
+}
+```
+
+`revision_cursor` 初始恰为 `{epoch=0,revision=0}`。安装一个新 track subscription 时，
+同一 CAS 用 RuntimeNat successor推进 epoch并把 revision重置 0；该 subscription 每次
+invalidation只在同 epoch把 revision推进一次。Pair按 `(epoch,revision)` 数值 lexicographic
+order，只接受严格更大 pair；duplicate/older不改 state，`retained_latest` 只保留最大
+pair。`FixedEpochRevision` 与 Resource 的 `FixedEpochKeyRevision[K]` 是 distinct closed objects，
+不可 coercion、共享 equality 或互用 cursor。
+
+`UiActionEntry[E]` 只由同一个 exact action contract的
+`ShareableV1(E)+EventOccurrenceStorageV1(rho,gamma,E)`铸造；event type、owner、generation、revision
+与 callback contract双向相等。Host callback ABI是 typed `(UiListenerRef[E],E)`。它的第一个不可分割
+动作验证 binding/generation gate Open、递增唯一 `live_occurrences`并取得一个 Queued lease、把 exact
+E复制/移动进 `UiStoredEvent[E]`、分配递增 enqueue ordinal，然后 FIFO publish。任一步失败都 release
+本地未发布责任；绝不保存 raw host bytes、getter、late reread或 shadow count。
+
+Dispatcher只按 event ordinal取得队首，原子 `QueuedHold -> RunningEntry`，从同一个 existential
+package解出 exact listener/action/storage witness，并用存储的 immutable generation/revision创建
+SnapshotContext；不得读取 then-current revision。Action terminal无论 Returns、sealed finalization或
+defect cleanup都恰一次销毁 stored event、consume `RunningEntry`、把 ActionClaim标 Released并把 gate唯一
+count减一。Close/stale把 gate status改 Closed禁止新 enqueue，但 queued/running继续持同一 lease；
+count为0后 listener
+cleanup eligible。没有 per-event DisposeReport item；occurrence storage与 lease只在 enqueue-local、Queued、
+Running之一线性存在。
+
+```text
+UiCommittedPayload = {
+  generation: RuntimeNat,
+  plan_token,
+  listener_bindings: [UiListenerBinding],
+  signal_tail_token,
+  host_mount_handle: HostMountHandle,
+  entry_gate: EntryGateRef
+}
+
+UiCandidatePayload = {
+  generation: RuntimeNat,
+  revision: FixedEpochRevision,
+  state: CandidateState,
+  candidate_token,
+  signal_tail_token,
+  start_claim: CallbackStart,
+  publication_gate: CandidateGate
+}
+
+UiSharedFields = {
+  generation_cursor: RuntimeNat,
+  revision_cursor: FixedEpochRevision,
+  committed: Option[UiCommittedPayload],
+  retained_latest: Option[FixedEpochRevision],
+  action_dispatcher: ActionDispatcher,
+  retiring: [UiRetiring],
+  ledger: CleanupLedger,
+  close_cell
+}
+
+UiRetiring = {
+  generation: RuntimeNat,
+  host_mount_handle: HostMountHandle,
+  closed_entry_gate: EntryGateRef(status=Closed),
+  cleanup_ordinals: [RuntimeNat]
+}
+
+ListenerIntentBody[E] = {
+  declaration_slot: u32,
+  cleanup_ordinal: RuntimeNat,
+  binding_id: UiListenerBindingId,
+  action_entry: UiActionEntry[E],
+  listener_token: UiListenerCleanupToken[E],
+  generation_entry_gate: EntryGateRef
+}
+ListenerIntent = seal exists E: Type. ListenerIntentBody[E]
+
+UiPreparation = {
+  generation: RuntimeNat,
+  revision: FixedEpochRevision,
+  plan,
+  candidate_token,
+  signal_tail_token,
+  listener_intents: [ListenerIntent],
+  new_entry_gate: EntryGateRef(status=Closed),
+  prepare_claim: CallbackStart,
+  commit_claim: UiCommitClaim
+}
+
+UiPreparedCommit = {
+  generation: RuntimeNat,
+  revision: FixedEpochRevision,
+  plan,
+  candidate_token,
+  signal_tail_token,
+  listener_intents: [ListenerIntent],
+  new_entry_gate: EntryGateRef(status=Closed),
+  prepared_txn: PreparedUiTxn,
+  commit_claim: UiCommitClaim,
+  abort_claim: UiAbortClaim
+}
+
+PreparedUiTxn = {
+  generation: RuntimeNat,
+  host_txn_handle,
+  listener_slots: [u32 strictly increasing],
+  visible: false
+}
+
+HostSwapRecord = {
+  generation: RuntimeNat,
+  previous_generation: Option[RuntimeNat],
+  previous_host_mount_handle_ref: Option[HostMountHandleRef],
+  new_host_mount_handle: HostMountHandle,
+  old_entry_gate: Option[EntryGateRef],
+  new_entry_gate: EntryGateRef
+}
+
+UiCell =
+    Running { fields: UiSharedFields, candidate: Option[UiCandidatePayload] }
+  | Preparing { fields: UiSharedFields, work: UiPreparation }
+  | Committing { fields: UiSharedFields, work: UiPreparedCommit }
+  | Closing { close_reason: CloseReason,
+              generation_cursor: RuntimeNat,
+              committed: Option[UiCommittedPayload],
+              work: Option[UiCloseWork],
+              action_dispatcher: ActionDispatcher,
+              retiring: [UiRetiring],
+              ledger: CleanupLedger,
+              close_cell }
+  | Closed { report: DisposeReport, close_cell }
+
+UiCommitClaim = Pending | Committed(HostSwapRecord) | Aborted
+UiAbortClaim = Dormant | Startable | Running(entry_lease) | Released
+UiCloseWork = CandidateWork(UiCandidatePayload)
+            | PreparingWork(UiPreparation)
+            | PreparedWork(UiPreparedCommit)
+CandidateState = Active | Ready(ViewPlan)
+```
+
+每个 admitted UI generation同一 CAS递增 generation/revision，建立一个 shared entry gate，按固定
+`UiCandidate,SignalTail` reservation顺序登记，安装 Startable；transform/plan construction在 CAS后
+且 NoSuspend。Normalized plan listener按 declaration slot递增、无重复；prepare为每个 exact E建立
+typed intent与 listener cleanup reservation，但不开放 callback admission。Prepared transaction只有一个
+`UiCommitClaim`；commit、stale与 close竞争该 claim。Committed(record)的 helper必须逐字段无损
+materialize listeners、把 candidate reservation改 UiCommittedPlan、安装 record exact new gate/host mount，
+再把 old committed移入 UiRetiring；Aborted helper必须 attempt-all释放整个 prepared transaction与所有
+listener/candidate/tail责任。任何 state只有一个 `Option[UiCloseWork]`，不能同时藏 candidate和commit work。
+
+Close/stale先 revoke candidate/commit与所有 generation gates，再等待 transform/abort/event entry leases；
+listener token保留完整 existential binding/action entry直到其唯一 gate count 0。UI dispose最后按 ledger
+ordinal生成 report；同 target repeated dispose返回同一 receipt。
+
+== Sealed fixed-Epoch checkpoint runner <checkpoint-runner-v1>
+
+Incremental checkpoint在 successor中固定为 first-party sealed runner，不再是 open
+`trusted-ctl/sealed-checkpoint` choice。Source没有 generic checkpoint constructor，也没有 public
+`Plan[A]`、CommitGate/Ticket或 Commit operation。Runner建立 private fixed Epoch snapshot；一个 run内
+所有 candidate read必须证明相同 `FixedEpochRevision(epoch,revision)`，dependency trace complete且
+source order固定。
+
+```text
+CheckpointRunnerProtocolV1 = {
+  artifact: "CheckpointRunnerProtocolV1",
+  profile: "Cire-v1.0",
+  schema_version: 1,
+  epoch_policy: "FixedEpochV1",
+  candidate_policy: "CoalesceLatestV1",
+  claim_policy: "PrivateSingleClaimV1",
+  public_plan_commit_api: false
+}
+
+CheckpointCell[A] =
+    Idle { committed: Option[CommittedSnapshot[A]], latest: Option[Revision] }
+  | Computing { fixed_epoch: Revision, dependency_trace,
+                latest: Option[Revision], private_claim: Pending }
+  | Prepared { fixed_epoch: Revision, candidate: PrivateCandidate[A],
+               latest: Option[Revision], private_claim: Pending }
+  | Closing { committed: Option[CommittedSnapshot[A]], private_work,
+              close_cell }
+  | Closed
+
+PrivateCheckpointClaim = Pending | Committed | Aborted
+```
+
+只有 runner可产生/消费 private candidate/claim。Compute在 fixed epoch捕获 complete dependencies；
+prepare后 commit/stale/close竞争一个 claim。Commit仅在 source heads仍等于 fixed epoch且 Owner/generation
+gate Open时一次 publish；否则 Abort并 cleanup。期间到达 revision只覆盖 latest，当前 terminal后最多
+admit一次 retained latest。用户 code不能观察 claim、candidate或提交中间态。下文旧泛化
+`Plan/CommitGate` rule仅属 legacy calculus，不能用于构造 successor source/API。
+
+== Successor conformance closure <successor-conformance-v1>
+
+一个 artifact/tree只有同时满足以下 finite boundary才可称 `Cire-v1.0`：
+
+1. 唯一 surface authority能生成 complete normalized HIR；本文无 active PEG；所有 removed spelling
+   (`~` parameter marker、`cap` parameter marker、`defer`、prefix pattern alias、source `extern`、generic
+   Event subscribe、public Plan/Commit)均有 stable reject root。
+2. Package graph exact-decode `CireLanguageInterfaceV1`，验证 package digest、package-qualified module、
+   declaration/evidence/callable/component closure；每 callable只走 Interface→V3 edge；V3 M3 recursion、
+   local slots、defaults、DAG/hash与 every named-def explicit row全部 positive/mutation green。
+3. Primitive catalog 16-entry exact；legacy五项 byte-equal，sealed十一项 locked-core nominal；
+   String/Bytes/Char const payload byte/scalar differential证明 NFC/JCS不改 semantic value。
+4. Data/trait/impl/const/component exact schema与 ordinary judgments覆盖 positive/reject、alpha/order/
+   visibility/coherence/exhaustiveness/value-restriction/MayTrap/ConstSafe/Component boundary。
+5. Intrinsic root恰两个 children；FirstParty registry exact 21、Structural exact 2；13-kind origin arena、
+   prescribed derive/interpolation/finally/temporary mapping与 diagnostic precedence全部 exact。
+6. PackedNextProtocolV1、Task broadcast、Receipt/CleanupLedger、Resource switch-latest、Signal/UI typed FIFO
+   occurrence与 sealed checkpoint各通过 exhaustive state/claim/lease mutation；V2 Packed artifact只能在
+   legacy profile decoder成功，两个 profile cross-feed必须拒绝。
+7. Full type/effect/flow/world/capture/usage/phase/Owner/checker gates、runtime trace gates、Typst build与
+   exact-checked specification-model artifacts在同一 tree green；任何 memo、side table或 host queue都不是证据。
+
+最小 coherent migration order正是：package identity/module → primitive catalog → package declaration/
+evidence schemas → callable V3/DAG → origin/diagnostics/registries → ordinary inference/data/traits →
+mutation/control/const → Component boundary → cleanup/receipt → PackedNext/Task → Resource → Signal/UI →
+checkpoint → exact-checked specification-model artifacts。不得发布中间 mixed profile或让
+later runtime stage反向定义 earlier type。
+
+
+
+= Retained TR0 calculus：Cire-v1.0 subordinate proof substrate <retained-tr0-calculus>
+
+#status(
+  [Successor stacking rule],
+  [
+    从本 anchor 至文档结尾保留 approved TR0 calculus 的定义、算法草图、例子与 proof
+    anchors。后续同级标题不会重启 TR0 authority。`Cire-v1.0` 读取它们时必须先应用
+    本章的 M3、package identity、ordinary-foundation、registry 与 first-party protocol delta。
+    任一写成 TR0、V1/V2-only、generic Plan/Commit、三参数 Resource 或开放 checkpoint 的 fragment
+    只属 legacy decoder/proof profile，不能覆盖 @cire-v1-profile 的 schema、surface、
+    diagnostic、API 或 runtime meaning。冲突时只有 @successor-rule-anchors-v1 是 canonical landing point。
+  ],
+)
+
+本 retained substrate 原标题为“Surface 到 Core 的语法与 elaboration”；它现在只保留 temporal/
+effect proof notation。Source grammar、normalization 与 complete successor elaboration 的唯一 authority是
+@surface-authority-import 及 `surface-syntax.md`。
 
 == Kinds
 
@@ -549,7 +3257,7 @@ $
 $
 
 `CapId(F,ρ)` 是一般、受限的生成式 capability identity kind；只有
-`freshcap`/handler application可以引入。TR₀ 的 `ClockId(FrameClock,ρ)` 是
+`freshcap`/handler application可以引入。Retained calculus 的 `ClockId(FrameClock,ρ)` 是
 `CapId(FrameClock,ρ)` 连同 canonical sealed `FrameClock` family witness 的
 refinement；普通 effect、同名用户类型或裸 `clock_refinement` 都不够。
 普通 term 不能出现在 type 中。
@@ -569,7 +3277,7 @@ $
 
 `type`、`effect`、`effects` 分别且唯一引入上述三个 kind；$c_x$ 是 declaration
 constraint，$a_x$ 是 parameter arity。Default $d_x$ 若存在，必须在 declaration
-scope满足 $K ⊢ d_x:kappa_x$。TR₀ 要求 $a_x=0$；nonzero arity稳定拒绝
+scope满足 $K ⊢ d_x:kappa_x$。`Cire-v1.0` 要求 $a_x=0$；nonzero arity稳定拒绝
 `associated-parameterization-not-in-profile`。本 profile只为
 $kappa_x="EffectRow"$ 编码 finite `Lacks[e]` constraint到 `RowBinderV1.lacks`；
 associated Type constraint或 associated Effect ability constraint稳定拒绝
@@ -715,6 +3423,13 @@ compiler-known builtin或已实现语言功能。
 
 == Core types
 
+#warning([
+  下列 compact grammar 是 retained TR0 proof notation。Successor substitution固定为
+  `Resource[rho,K,A,E]`；`Plan[A]`、`CommitTicket`、`CommitGate`只可解释为 sealed runtime-private
+  checkpoint/UI state，不能形成 source type、package declaration、CallableInterface或 public TypeRef。
+  `Event[rho,A]` nominal保留，但没有 generic `on/on_async` formation rule。
+])
+
 $
   P ::= "LaterContract"(i,A)
       | "FnContract"(A,B)
@@ -777,9 +3492,10 @@ $"flow"(C):"FlowSetV2"$：`r_f=MayReturn` 当且仅当该 set含 `Returns`，
 return都保留。$hat(zeta)$ 与 $hat(R)_"out"$ 只描述 Returns projection，
 不能替代整个 flow set。
 
-跨模块 artifact 不以裸字母作为 wire format。新 profile使用原子 contract
-application/computation schema；V1 concrete field envelope只作为显式 legacy
-输入，不能原地接受 V2 tag。稳定 schema 为：
+跨模块 artifact 不以裸字母作为 wire format。以下 V1/V2 schema只作为显式 legacy
+exact-decode输入。`Cire-v1.0` producer/importer必须使用
+@function-contract-v3 的 `CallableInterfaceV1 -> FunctionContractV3`，并对下列 V2
+nonterminal递归应用 M3；不能把 V2 root称为 successor public contract。Legacy schema 为：
 
 ```text
 FunctionContractV1 {
@@ -1664,7 +4380,8 @@ ResumeTypeV2 {
   owner: SlotRefV1                  // Owner namespace
 }
 
-MonotoneGenerationV1 = Unsigned64NoWrap
+MonotoneGenerationV1 = Unsigned64NoWrap  // legacy V1/V2 wire only
+SuccessorRuntimeGenerationV1 = RuntimeNat
 SingleWriterV1 = OwnerExecutorOnly
 
 ForwardContractV1 {
@@ -2042,7 +4759,7 @@ declaration-local qualification，不能保留未限定的 raw id。所谓 exact
 `TypeBinderV1 { slot: u32, kind: Type | Effect | OwnerRegion }`；空列表不构成
 忽略非空列表的许可。
 
-`Cire-TR₀/2026-08-01` 的 canonical envelope 是
+Legacy `Cire-TR₀/2026-08-01` 的 canonical envelope 是
 `FunctionContractV2`。`FunctionContractV1` 只描述 fully concrete legacy
 artifact；V1 decoder遇到 V2 field/tag必须拒绝。V2 importer先以
 `application_slot` 建立每个 `AppliedContractV2` 的唯一原子 application：
@@ -2248,9 +4965,10 @@ call-discharge evidence，后者保留 exact instantiation key到 `InstallOK`。
 `EffectEntrySelectorV1` 与 `OperationSelectorV1` 只接受上列 tagged variants；
 所有 `family` field都以 Effect position解码：nominal reference必须由 producer/import
 declaration environment按 module-qualified identity解析为 Effect且 argument arity exact，
-不能仅根据 `NominalTypeV1` object shape推测。Repository complete roots把该
-environment冻结为上述 `EffectFamilyDeclarationsV1`；真实 importer的同一 obligation由
-已解析 declaration table提供。`TypeParameterV1/V2`必须引用当前 lexical
+不能仅根据 `NominalTypeV1` object shape推测。Retained TR0 complete roots只为历史 lane把该
+environment冻结为上述 `EffectFamilyDeclarationsV1`；Cire-v1 complete root与真实 importer必须
+从 package graph的 `EffectDeclarationV1` closed declaration table取得 identity、arity与 operation
+signature，禁止 profile fallback。`TypeParameterV1/V2`必须引用当前 lexical
 kind environment中的 Effect slot。Type slot、builtin Type、unbound slot或普通
 TypeRef shape稳定拒绝 `contract-component-kind-mismatch`（unbound projection用
 `contract-projection-escapes-scope`）。`RowBinderV1.lacks` 先 exact-decode list与
@@ -2747,8 +5465,16 @@ never extension points for this frozen profile.
 obligation与对应 `LatentSiteV2` 原样保留到 fresh delimiter prompt存在时的
 `InstallOK`。调用者不得仅因跨模块 call成功就把后一阶段清空。
 
-新 profile 的 stable diagnostic registry是
-`examples/spec/diagnostics-v2.json`。Clock/PackedNext importer至少区分
+Legacy V2 exactness diagnostic registry是独立、closed 的
+`examples/spec/diagnostics-v2.json`；它只支配 legacy decoder。@successor-diagnostics 的
+`CireDiagnosticsV3` 是 exact closed 133-entry successor artifact：它保留 frozen V2 的全部 70 个
+ID；初始 successor set 含 71 个 ID，其中 8 个与 V2 重合、63 个为 successor-only，因此 union
+基数为 133。重合 ID 的
+successor 六字段 metadata 由 @successor-diagnostics 唯一决定；old-only ID 也已逐项映射到 successor
+stage、causal cluster、origin role、notes 与 fix safety，不能用 blanket stage或通用 note代替。
+Legacy validator仍只读取 frozen V2 registry；successor producer只读取 V3 registry。两者共享稳定
+ID不等于合并 wire artifact，也不得借 profile迁移删除、alias或无 ledger重解释任何 legacy rejection。
+Clock/PackedNext legacy importer至少区分
 `clock-package-private-identity-escape`、
 `clock-package-transfer-captures-private-identity`、
 `clock-package-family-not-clock-indexing`、
@@ -2794,7 +5520,8 @@ $
 first-class closure一律按 many-call 检查；one-call closure必须等将来有
 quantity-aware function binder后再加入，不能靠局部优化证据偷偷放宽。
 
-`frame : cap FrameClock` 的完整 Core binder不是普通 dependent term：
+Successor direct parameter `frame : FrameClock`（历史 `cap` token稳定拒绝）的完整 Core
+binder不是普通 dependent term：
 
 $
   forall i:"CapId"("FrameClock",rho).
@@ -3085,11 +5812,11 @@ handler F { operation clauses }
     when Surface omitted `return`;
     this normalization runs before clause partition/exactness
 
-def f(p1, ..., pn) { e }
+def f(p1, ..., pn) -> R ! epsilon { e }
   ↦ a named recursive binding whose value is one Core function over
     an immutable n-ary argument tuple
 
-def f(...) { items; result }
+def f(...) -> R ! epsilon { items; result }
   ↦ ordinary named-function return of elab(result);
     no hidden resumption is introduced
 
@@ -3604,10 +6331,18 @@ public observer normalization逃逸。
 
 == Sealed PackedNext surface
 
+#warning([
+  本节的 static path/gate rules由 successor保留，但所有 `PackedNextPackageV2` serialization与
+  `PackedNextControlProtocolV2` state text只属 legacy decoder。`Cire-v1.0` runtime及 artifact必须使用
+  @packed-next-protocol-v1 的 `PackedNextProtocolV1` Building/Open/Closing/Closed machine，两个 profile
+  disjoint，不能用 alias或 hash旁路混合。
+])
+
 Surface `PackedNext[A]` elaborates to opaque Core `PackedNext[ρ,A]`; $rho$ is
 the storage Owner index inferred from `under`, like the hidden Owner index of
 Task/CompletionSource. The public type does not expose the runner's Owner.
-Every sealed value carries a `PackedNextPackageV2` witness that first binds a
+Legacy proof notation把 package称为 `PackedNextPackageV2`；successor sealed value carries
+`PackedNextProtocolV1` private-package evidence that first binds a
 fresh child Owner $rho_c$, then under that binder binds exact canonical
 FrameClock Identity $j$ and paired Clock view $i$, package summary $S_p$, and
 body `Next[i,A,L]`, plus the shared lease protocol. Thus none of
@@ -3894,8 +6629,10 @@ release count或 private identity nonescape。
   [$K;I;Phi@Theta ⊢_v v[rho'] ⇒ A[rho'/rho] @[pi] ▷ chi$],
 )
 
-Surface `x : cap F` 参数同时引入 implicit $i$ 和
-`x:Cap[i,F]`，等价于 T-Cap-Intro 后再用 T-Lambda。`freshcap` scope内，
+Signature/kind stage证明为 direct capability binder的 surface `x : F` 参数同时引入
+implicit $i$ 和 `x:Cap[i,F]`，等价于 T-Cap-Intro 后再用 T-Lambda。若 F 不是 resolved
+Effect family或 parameter不是 direct capability position，则它只是普通 value type检查并不得引入
+identity。`freshcap` scope内，
 `capref(i)` 是唯一 value introduction：
 
 #irule(
@@ -3975,18 +6712,18 @@ Surface不提供一般 existential spelling；sealed `PackedNext` intrinsic负�
   [K-Resource],
   (
     [$K ⊢ rho:"OwnerRegion"$],
-    [$K;I ⊢ A:"Type" quad K;I ⊢ B:"Type"$],
-    [$"Shareable"(A) quad "Shareable"(B)$],
-    [$"AsyncBoundarySafe"(rho,B)$],
+    [$K;I ⊢ K_t:"Type" quad K;I ⊢ A:"Type" quad K;I ⊢ E:"Type"$],
+    [$"Shareable"(K_t) quad "Shareable"(A) quad "Shareable"(E)$],
+    [$"AsyncBoundarySafe"(rho,A) quad "AsyncBoundarySafe"(rho,E)$],
   ),
-  [$K;I ⊢ "Resource"[rho,A,B]:"Type"$],
+  [$K;I ⊢ "Resource"[rho,K_t,A,E]:"Type"$],
 )
 
 #irule(
   [K-Runtime-Authority],
   (
     [$K ⊢ rho:"OwnerRegion"$],
-    [$X in {"Owner","CommitTicket","CommitGate"}$],
+    [$X = "Owner"$],
   ),
   [$K;I ⊢ X[rho]:"Type"$],
 )
@@ -4003,7 +6740,8 @@ Surface不提供一般 existential spelling；sealed `PackedNext` intrinsic负�
   [$K;I ⊢ "Resume"[q,D,A,B,Pi,chi,rho]:"Type"$],
 )
 
-`Plan[A]` 在 $K;I ⊢ A:"Type"$ 且 `Shareable(A)` 时成型。
+Legacy private checkpoint proof中写作 `Plan[A]` 的对象在 successor只由 sealed runner内部形成；
+它没有 source/public kinding rule。
 `HandlerTemplate[F,ρ,A,B,ε,(S,p,a).C,P]` 在 family、origin region、
 answer types、row、installation-stack/prompt/entry-abstract contract 与 policy
 分别 well formed 时成型。以上类型内部可携带 opaque runtime token，
@@ -4168,22 +6906,20 @@ Shareable(T[A1, ..., An])
   and every stored Ai is Shareable
 Shareable(Next[ι, A, L])
   if Shareable(A) and LaterContractWF(ι, A, L)
-Shareable(Plan[A])     if Shareable(A)
+PrivateCheckpointPayload(A) if Shareable(A)  // sealed runner evidence only
 Shareable(A ->^C B)
   only if the closure contract says
     DuplicableEnv(C.provenance, C.captures)
   and its provenance passes the requested storage boundary
 ```
 
-`Cap`、`Owner`、`Resume`、`CompletionSource`、`CompletionPort`、
-`CommitTicket` 与 `CommitGate` 不因“机器上可以复制几个 bits”而成为
+`Cap`、`Owner`、`Resume`、`CompletionSource`、`CompletionPort` 与 sealed private
+commit claim不因“机器上可以复制几个 bits”而成为
 broadcast payload。`CompletionSource` 是不可复制的 introduction
 authority；`CompletionPort` 的多个宿主 handle可共享同一 CAS claim，因而
 capture可满足 `Duplicable`，但它不是 `Shareable(R)` 的结果广播。
-`CommitGate` 的多个 handle可以
-共享同一原子 claim，所以相关 capture 可满足 `Duplicable`；它仍受
-generation boundary约束且不满足 `Shareable`。`CommitTicket` 也只允许交给
-sealed commit runner消费。第一方容器若要声明额外 `Shareable` instance，
+Private claim的多个 runtime refs可共享同一原子 state，但它没有 user value/type；它受
+generation boundary约束且不满足 `Shareable`。第一方容器若要声明额外 `Shareable` instance，
 必须给出逐字段 sealed derivation。
 
 `DuplicableEnv` 判定完整 value summary，而不是只看 `capture`：若 type是
@@ -6384,7 +9120,7 @@ GC 只回收不可达内存，不决定网络取消、listener 移除或 continu
 
 = Async、suspension 与 phase
 
-== Task outcome 保持抽象
+== Task result parameter 与 frozen outcome protocol
 
 Core 使用：
 
@@ -6392,22 +9128,13 @@ $
   "Task"[rho,R]
 $
 
-$R$ 已经是任务对等待者产生的完整 outcome。Surface 可以选择：
+$R$ 是 caller/producer选择并由 type完整固定的 result；它不是 implementation可选择的 error
+channel。Generic Task只广播 exact R。需要 first-party failure/cancel时唯一 nominal form是
+`TaskOutcome[A,E]=Succeeded(A)|Failed(E)|Cancelled(CancelReason)`；只有
+`Task[rho,TaskOutcome[A,E]]` 可调用 sealed central `Task::cancel`。Owner close不伪装成该 enum，
+也不把 failure暗中转为 Result或 effect。
 
-#block(breakable: false)[
-```text
-R = A
-  with Error/Cancel effects
-
-R = Result[A, E]
-
-R = Outcome[A, E, Cancelled]
-```
-]
-
-这不会改变 suspension、Owner 或 one-shot continuation 的规则。
-
-第一版把 `Task[ρ,R]` 定义为可复制的 completion handle，允许多个 waiter；
+`Cire-v1.0` 把 `Task[ρ,R]` 定义为可复制的 broadcast completion handle，允许多个 waiter；
 因此 formation要求 `Shareable(R)` 与 `AsyncBoundarySafe(ρ,R)`。未来若要
 支持 affine/borrowed outcome，必须另设 single-consumer task并引入一般
 quantity规则，不能让普通 `Task` 暗中复制它。
@@ -6568,7 +9295,8 @@ evidence；普通 API 可保持 trailing-lambda 外观。
   [`Event[ρ,E]`], [有序 occurrence], [`Shareable(E)`；保留顺序与 multiplicity],
   [`Signal[ι,A]`], [按 clock ι 展开], [`Shareable(A)`；tail 是 `Next`],
   [`Task[ρ,R]`], [至多完成一次], [Owner/generation、one-shot claim],
-  [`Resource[ρ,K,R]`], [Live key 到 Task generation 的桥], [显式 concurrency/replacement policy],
+  [`Resource[ρ,K,A,E]`], [Live key 到 outcome Task generation 的桥],
+  [`SwitchLatest + keep-last-good`；K/A/E boundary-safe],
 )
 
 Affine payload、one-shot resumption 和 callback borrow 不进入广播
@@ -6634,9 +9362,8 @@ pub effect Observe {
 }
 ```
 
-普通 `ctl` 只授予 general control。若
-`checkpoint-profile = sealed-checkpoint`，resolver 给可信第一方 handler
-额外的 Kernel contract：
+普通 `ctl` 只授予 general control。`Cire-v1.0` 固定只由 sealed first-party checkpoint
+runner获得额外 Kernel contract：
 
 $
   "CheckpointLease"[A,B,rho]
@@ -6803,10 +9530,10 @@ $
 
 ```cire
 def[A, B] map_signal(
-  frame : cap FrameClock,
+  frame : FrameClock,
   input : Signal[frame, A],
   transform : (A) -> B,
-) -> Signal[frame, B] {
+) -> Signal[frame, B] ! {} {
   match input {
     Step(value, tail) =>
       Step(
@@ -6835,7 +9562,13 @@ $
 $
 ]
 
-== Event
+== Event nominal（legacy generic subscription excluded）
+
+#warning([
+  `Event[rho,E]` nominal与 Shareable/order/multiplicity facts保留；本小节下列 `on/on_async` signatures
+  只记录旧候选，不属于 `Cire-v1.0` source、registry或 CallableInterface。Successor唯一 event entry是
+  @signal-ui-protocol-v1 的 typed UI occurrence；实现不得从这段恢复 generic subscription。
+])
 
 同步 subscription contract：
 
@@ -6885,7 +9618,13 @@ queue_from_event
 fold_event
 ```
 
-== Resource
+== Resource legacy sketch（由 successor protocol替换）
+
+#warning([
+  下列 `Resource[rho,K,R]` policy-parameter sketch已被 @resource-protocol-v1 的 exact
+  `Resource[rho,K,A,E]` SwitchLatest + keep-last-good machine替换。Successor没有 policy parameter或
+  implementation自由选择。
+])
 
 Core contract：
 
@@ -6911,7 +9650,13 @@ policy explicitly defines replacement/concurrency
 普通函数 API 接受 `Live[K]`，而不是在普通 argument evaluation 中偷偷执行
 `read(keySource)`。
 
-== Compute / Commit
+== Legacy generic Compute / Commit proof notation
+
+#warning([
+  本节以下 Plan/Ticket/Gate rule只供旧 incremental proof anchor。`Cire-v1.0`无 public Plan/Commit
+  type、operation或 interface；唯一可执行 meaning是 @checkpoint-runner-v1 与
+  @signal-ui-protocol-v1 的 sealed private single-claim machines。
+])
 
 Compute 只能产生 pure/shareable plan：
 
@@ -7074,7 +9819,13 @@ queue，随后一次 Freeze才形成 snapshot。失败 rollback不发布失败�
 dependencies/notifications；T-Batch-Abort 是该声明的 static counterpart。
 Batch 内禁止 suspend。
 
-= Incremental replacement machine <incremental-machine>
+= Legacy incremental replacement proof machine <incremental-machine>
+
+#warning([
+  这组状态/不变量作为 fixed-Epoch与 single-claim proof lemma保留；任何 user-visible Plan/Commit、
+  generic Event callback或开放 checkpoint transition已被 @checkpoint-runner-v1 删除。Successor
+  runtime trace必须投影到 sealed runner state，不能直接实例化本节 legacy API。
+])
 
 普通 expression semantics 与增量 runtime 分开。Machine configuration：
 
@@ -8838,14 +11589,16 @@ constraint、unchecked clause 与 unsolved site schema 的有限数量。
 - handler clause list逐项缩短；
 - site pass只遍历 finite Typed Core；跨module $Lambda$ worklist memoize，
   recursive SCC要求 finite annotation而不递归展开；
-- PEG postfix/repetition由 token progress guard终止。
+- Imported `CanonicalSurfaceV1` input已经是 finite normalized HIR；surface producer的 progress
+  由唯一 surface authority单独证明。
 
 在 kind、row predicate、trait/effect resolution均可判定的假设下，
-$"Cire-TR"_0$ type checking可判定。
+`Cire-v1.0` type checking可判定。
 
 == Interface serialization
 
-Public signature即使省略 surface annotation，也必须序列化：
+Public signature即使省略 hidden semantic fields，也必须序列化完整 contract；named `def` 的
+parameter/result/generic/effect row本身不得省略：
 
 ```text
 normalized effect row
@@ -8875,9 +11628,9 @@ Owner/outlives constraints
 
 ```cire
 def next_double(
-  frame : cap FrameClock,
+  frame : FrameClock,
   value : Int,
-) -> Next[frame, Int] {
+) -> Next[frame, Int] ! {} {
   delay[frame] {
     value * 2
   }
@@ -8925,9 +11678,9 @@ $
 
 ```cire
 def too_early(
-  frame : cap FrameClock,
+  frame : FrameClock,
   value : Next[frame, Int],
-) -> Int {
+) -> Int ! {} {
   advance(value)
 }
 ```
@@ -9128,31 +11881,35 @@ phase；不存在不显式
   [`live { read; await; read }`], [拒绝], [minimal Live requires NoSuspend],
   [`Choice before Observe cut`], [拒绝], [missing TraceCompatibleFork],
   [`Observe cut before pure local Choice`], [条件接受], [TraceNeutral concrete handler],
-  [`Event listener captures one-shot authority`], [拒绝], [many-shot closure violates usage],
-  [`CommitGate across await`], [拒绝], [phase/suspension + stale generation],
+  [`sealed UI action captures one-shot authority`], [拒绝], [many-shot retained closure violates usage],
+  [`private checkpoint/UI claim crosses await`], [拒绝], [phase/suspension + stale generation],
   [`owned snapshot across Wasm callback`], [条件接受], [boundary provenance + Owner root],
 )
 
-= 元理论陈述与证明义务 <metatheory>
+= Retained TR0 theorem statements 与 Cire-v1.0 lifting obligations <metatheory>
 
-这些是 theorem statement，不是本文已经完成的 proof。
+这些是 retained theorem statement，不是本文已经完成的 proof。对 `Cire-v1.0`，
+它们的 premise 必须先扩展为 @successor-rule-anchors-v1 的 package/M3/ordinary/registry/
+runtime WF；旧 V1/V2 schema、generic Event、三参数 Resource、public Plan/Commit 或开放
+checkpoint 的 theorem instance 只属 legacy decoder/proof profile。
 
-== Parser
+== Canonical surface import obligations
 
 #status(
-  [Theorem P1 — PEG determinism],
+  [Imported theorem P1 — surface determinism],
   [
-    对固定 grammar、token stream、parser expression 与起点，normal
-    recognition result唯一。按 parser expression结构归纳。
+    唯一 `surface-syntax.md` artifact必须证明对固定 profile/input的 accepted lossless CST与
+    normalized Surface HIR唯一。本文只以 verified surface/profile/HIR hash为 premise，不重述 PEG。
   ],
 )
 
 #status(
-  [Theorem P2 — parser progress],
+  [Imported theorem P2 — surface pipeline progress],
   [
-    所有 repetition和 postfix loop成功迭代时严格推进 significant cursor；
-    active-rule guard拒绝同 rule、position、flavor 的无进展重入。因此正常
-    recognition终止。
+    Canonical surface producer必须终止或产生 deterministic frontend error；当且仅当 profile为该
+    failure分配 stable diagnostic id时，该 id必须属于 `CireDiagnosticsV3`并遵守其 stage/origin metadata。
+    Recovery CST不可进入 `CanonicalSurfaceV1`。这一义务由 surface authority及其 corpus验证，不由
+    本文第二个 recognizer证明。
   ],
 )
 
@@ -9313,7 +12070,7 @@ soundness statement有明确目标。
 )
 
 #status(
-  [Theorem I3 — commit at-most-once],
+  [Legacy theorem I3 — generic commit at-most-once],
   [
     对固定 publication slot/revision $(ell,r)$，Commit claim状态只能从
     OpenClaim原子转为CommittedClaim一次，且抽象 accepted-publication log
@@ -9321,6 +12078,11 @@ soundness statement有明确目标。
     这是动态 claim theorem，不是静态 affine或外部网络 exactly-once theorem。
   ],
 )
+
+`Cire-v1.0` 不暴露上述 generic Commit claim。其 canonical replacement义务是：
+@checkpoint-runner-v1 的 `PrivateCheckpointClaim`、@signal-ui-protocol-v1 的 `UiCommitClaim`
+与 @resource-protocol-v1 的 publication gate 分别在自己的 sealed state machine 中至多一次成功，
+且不存在可用户构造或跨协议搬运的共享 Commit authority。
 
 == From-scratch consistency
 
@@ -9412,37 +12174,30 @@ conditional FSC + Commit safety
 
 Surface 层先证明 n-ary `def`/labelled call、block final expression、隐式
 `return` 与 `fun` hidden tail-resume 的 elaboration preservation；随后在
-CBV Core中给出 `defer`、handler delimiter、resume/finalize/park、Owner
+CBV Core中给出 sealed `@control::finally`、handler delimiter、resume/finalize/park、Owner
 close与 generation CAS 的小步语义。没有这两层，后续 preservation
 只能算规则草图。
 
-= 尚未冻结的 formal parameters
+= Reserved future extensions 与 successor exclusions
 
-== `defer` reduction calculus
+== `defer` 保留但不 reachable
 
-Surface grammar已经保留 `defer`，但 TR₀ 尚未给出足以证明 preservation 的
-reduction calculus。下一版必须固定：
-
-- defer stack的 push/pop 与 lexical block顺序；
-- normal return、abort、resume、finalize、park、Owner close各自触发哪些
-  segment；
-- continuation capture时 cleanup segment是移动、复制还是被拒绝；
-- cleanup自身 abort/suspend时 flow、row、world与 disposition如何组合。
-
-在这些规则完成前，`defer` 是 syntax baseline + semantic proof obligation，
-不能由未来 runtime的偶然 unwind行为定义。
+`defer` 是 reserved keyword并稳定 `defer-not-in-cire-v1`；它不产生 accepted HIR/Core，
+也没有待实现的 v1 reduction calculus。唯一 scoped general finalization是
+@intrinsic-registry-root-v1 的 sealed `with @control::finally(cleanup) in body`，其 cleanup
+进入既有 suffix ledger。
 
 == Clock representation
 
-本文用 singleton capability identity。替代方案 fresh phantom type也可表达
-generativity，但会改变：
+`Cire-v1.0` 固定 singleton capability identity。Fresh phantom type是未来新 profile研究，
+若采用将改变：
 
 - kinding与substitution；
 - public API clock quantification；
 - existential packaging；
 - capability identity与clock identity是否共用一套基础设施。
 
-需要原型比较。
+任何实验都不能改变当前 profile artifact meaning。
 
 == Fitch availability 的表达能力
 
@@ -9479,7 +12234,8 @@ $
 
 == Handler specialization
 
-基线按 operation最大 mode检查 capture。若希望词法已知：
+Successor固定按 operation声明的最大 mode检查 capture；不存在 lexical specialization。若未来
+新 profile希望词法已知：
 
 ```cire
 with Choice::first()
@@ -9495,33 +12251,16 @@ in { ... }
 
 == Local mutable State under multi-shot/replay
 
-仍需选择：
+`Cire-v1.0` 固定：multi-shot/replay boundary 捕获任何 live ordinary mutable place均拒绝；one-shot
+boundary只在 continuation独占 place且无 handler/environment alias时允许。Shared cell必须是显式
+Owner-managed nominal capability。Copy-on-capture与 candidate-local implicit snapshot不在本 profile；
+family级 `Replayable(State)`不能放宽这条 gate。
 
-```text
-shared cell
-copy-on-capture
-candidate-local snapshot
-forbid when nonduplicable
-```
+== Checkpoint profile 已关闭
 
-Family级 `Replayable(State)` 不能解决此问题。
-
-== Checkpoint profile
-
-两种合法实现路线：
-
-```text
-trusted-ctl:
-  ordinary ctl Resume
-  first-party runner trusted to maintain replacement invariants
-
-sealed-checkpoint:
-  Kernel gives Cut/Candidate leases instead of arbitrary Resume
-  more protocol safety, larger Core
-```
-
-普通用户永远只看到四种 resumption mode。需要原型衡量 sealed protocol
-是否值得进入 Core。
+`Cire-v1.0` 唯一选择是 @checkpoint-runner-v1 的 sealed fixed-Epoch first-party runner。
+`trusted-ctl` generic implementation与 public Plan/Commit不属于本 profile。普通 effect仍有四种
+resumption mode，但它们不授予 checkpoint private claim。
 
 == General affine values
 
@@ -9542,31 +12281,28 @@ affine Event payload
 - trait object；
 - interface artifact。
 
-在此之前 Commit只声称 dynamic claim safety。
+在此之前 successor只对 sealed runtime-private claim声称 dynamic at-most-once；没有 user Commit value。
 
-== Portable handlers与 finalizer
+== Portable handlers 与 async finalizer excluded
 
-TR₀ 已冻结一点：continuation cleanup不是隐式 pure；其
+Retained rule固定 continuation cleanup不是隐式 pure；其
 $F_k=⟨epsilon^"fin",Delta^"fin",zeta^"fin",s^"fin",delta^"fin"⟩$ 必须进入
-T-Finalize与 clause aggregation。仍未冻结的是：
+T-Finalize与 clause aggregation。`Cire-v1.0` 不提供 portable/reentrant handler value、async cleanup
+executor或 finalizer trap aggregation API；cleanup必须满足其现有 phase/row/NoSuspend contract，
+Wasm context representation保持 compiler-private。任何上述能力都需要新 profile/schema，不能由 host
+stack重装顺序或 ABI实现细节补出。
 
-- portable/reentrant context的类型；
-- handler stack重装顺序；
-- 各 runtime profile允许哪些 cleanup effect、是否提供 async cleanup executor；
-- finalizer trap后的聚合保证；
-- Wasm ABI中的context representation。
-
-= 与未来编译器的映射
+= Cire-v1.0 implementation 与 mechanization handoff <implementation-handoff-v1>
 
 == 仓库状态
 
 当前仓库只有：
 
 ```text
-versioned design profile
+canonical specification-candidate profile
 canonical surface grammar
 formal Core judgments
-spec-level conformance corpus
+exact-checked specification-model artifacts and finite gates
 ```
 
 当前没有：
@@ -9580,10 +12316,15 @@ resolver/type/effect/capture checker
 runtime / Wasm backend / LSP
 ```
 
-所以本文只提供未来 lowering/checking contract。历史实现不能作为 grammar
-或静态语义的权威。
+所以本文只提供 implementation 必须满足的 lowering/checking/runtime contract。这些
+specification-model artifacts 是手写/immutable exact model与 finite checker input；仓库没有声称一个
+能从规范重新生成它们的 generator。历史实现不能作为 grammar或静态语义的权威。
 
-== 建议 HIR 字段
+== Retained implementation field sketch（non-normative）
+
+下表只是旧 TR0 checker 的 implementation sketch。Successor producer 必须首先实现
+@package-interface-v1、@function-contract-v3 与 @successor-origin-registry 的 exact schema；不得把下列
+field list 当作另一个 wire root。
 
 ```text
 TypedExpr {
@@ -9611,7 +12352,7 @@ OperationSignature {
   parameters
   result
   resume_transition
-  secondary_site_set       // Closed in TR₀; no rigid row-slot variant
+  secondary_site_set       // retained V2 closed form; successor consumes it through M3
   secondary_suspension
   secondary_summary
   suspension_bound
@@ -9661,9 +12402,10 @@ TemporalValueEvidence {
 }
 ```
 
-== Parser conformance cases
+== Imported surface conformance handoff
 
-Target PEG至少需要测试：
+唯一 surface authority至少提供以下 CST/HIR tests，本文只核对其 verified normalized HIR与
+elaboration结果：
 
 ```text
 delay[frame] { 1 }
@@ -9686,7 +12428,7 @@ old single-item with syntax
                                   rejects with profile migration diagnostic
 ```
 
-PEG不负责判断：
+Surface parser不负责判断：
 
 - `frame` 是否真是 FrameClock identity；
 - `advance` 是否解析到 sealed intrinsic；
@@ -9698,7 +12440,9 @@ PEG不负责判断：
 
 == Type checker conformance cases
 
-本文的 accept/reject程序应转成 golden suite，每个 case保存：
+本文的 accept/reject程序在真实 frontend/checker 存在后应转成 reproducible golden suite；
+当前仓库只能 exact-check 已提供的 specification-model artifact，不得报告为 parser/typechecker
+execution。未来每个 case保存：
 
 ```text
 surface source
@@ -9720,29 +12464,29 @@ expected diagnostic rule id
 Rule id例如 `T-Delay`、`T-Advance`、`T-Live` 应进入高级 diagnostic trace，
 但普通错误信息仍使用用户术语。
 
-= 结论
+= Cire-v1.0 结论 <cire-v1-conclusion>
 
-$"Cire-TR"_0$ 的最小安全核心不是“reactive variable type”，而是以下五项
-可以分别检查、分别证明的结构：
+`Cire-v1.0` 现在的 canonical semantic spine 是一个闭合整体：
 
 ```text
-generative clock identity + Fitch locks
-pure/shareable Next
-world-aware effect resumption
-capture/quantity/Owner boundary safety
-fixed-Epoch candidate replacement + dynamic Commit claim
+acyclic locked package identity + target-independent language API root
+exact primitive/data/trait/const/callable/diagnostic/registry artifacts
+distinct Cire link ABI + manifest-selected Component interface hashes
+generative clock identity + Fitch locks + world-aware algebraic effects
+capture/quantity/Owner boundary safety + ordered cleanup receipts
+PackedNext / Task / Resource / recursive Signal / typed UI protocols
+sealed fixed-Epoch checkpoint + protocol-local dynamic claims
 ```
 
-`Source`、`Live`、`Event`、`Signal`、`Task` 与 `Resource` 在这个核心上保持
-不同类型和不同协议。语言只冻结真正跨 library abstraction无法恢复的静态
-边界；scheduler、trace indexing、resource policy和renderer仍属于第一方
-runtime。
+@retained-tr0-calculus 保留的 `Cire-TR0` temporal/effect calculus 是上述 spine 的 proof
+substrate，不是 active profile。其中 V1/V2 wire、generic Event subscription、三参数
+Resource、public Plan/Commit 与 open checkpoint 不能作为 successor producer/API/runtime meaning。
+`Source`、`Live`、`Event`、`Signal`、`Task`、`Resource` 与 UI 继续是 distinct nominal
+families/protocols，不被压成一个“reactive variable”。
 
-下一步如果进行 mechanization，应先抽取：
-
-`Core syntax`、`Kinding`、`T-Delay / T-Advance`、
-`T-Operation / T-Handle`、`usage + capture boundary`、
-small Owner machine 与 small replacement machine。
-
-先证明 no-early-advance、handler summary preservation、identity nonescape、
-one-shot disposition和fixed-Epoch replacement，再讨论 surface语法冻结。
+这是 *specification-complete candidate boundary*，不是 compiler/runtime/LSP release，也不声称已有
+mechanized proofs。下一个 engineering/mechanization phase应从 @successor-rule-anchors-v1 与
+@successor-conformance-v1 的 finite boundary开始：先实现唯一 surface→Kernel→typed-Core pipeline与
+exact artifact checker，再对 kinding、row/effect、temporal preservation、identity nonescape、
+one-shot/Owner cleanup 与各 sealed runtime protocol做机械化。Surface grammar已由
+@surface-authority-import 冻结；不存在“机械化后再决定 surface”的 active v1 步骤。

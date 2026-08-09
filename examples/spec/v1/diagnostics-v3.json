@@ -1,0 +1,1451 @@
+{
+  "artifact": "CireDiagnosticsV3",
+  "diagnostics": [
+    {
+      "id": "abort-has-no-resume-transition",
+      "stage": "ContractWF",
+      "causal_cluster": "AbortTransition",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "abort-operation",
+        "forbidden-resume-transition"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "application-argument-type-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "CallableApplication",
+      "primary_origin_role": "ArgumentV1",
+      "required_notes": [
+        "actual-argument-type",
+        "expected-parameter-type",
+        "parameter-index"
+      ],
+      "fix_safety": "Manual"
+    },
+    {
+      "id": "application-arity-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "CallableApplication",
+      "primary_origin_role": "ArgumentV1",
+      "required_notes": [
+        "actual-arity",
+        "expected-arity"
+      ],
+      "fix_safety": "Manual"
+    },
+    {
+      "id": "associated-contract-mismatch",
+      "stage": "Kind",
+      "causal_cluster": "AssociatedContract",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "expected-contract",
+        "observed-contract"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "associated-declaration-constraint-not-in-profile",
+      "stage": "Kind",
+      "causal_cluster": "AssociatedDeclarationConstraint",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "remove-associated-constraint"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "associated-parameterization-not-in-profile",
+      "stage": "Kind",
+      "causal_cluster": "AssociatedParameterization",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "remove-associated-parameters"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "causal_cluster": "TraitNormalization",
+      "fix_safety": "Manual",
+      "id": "associated-type-normalization-cycle",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "projection-cycle"
+      ],
+      "stage": "Type"
+    },
+    {
+      "causal_cluster": "LiteralRange",
+      "fix_safety": "MachineApplicable",
+      "id": "byte-literal-out-of-range",
+      "primary_origin_role": "ArgumentV1",
+      "required_notes": [
+        "valid-range-0-through-255"
+      ],
+      "stage": "Type"
+    },
+    {
+      "id": "call-obligation-unsatisfied",
+      "stage": "ContractWF",
+      "causal_cluster": "CallObligation",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "obligation-id",
+        "obligation-stage",
+        "unsatisfied-predicate"
+      ],
+      "fix_safety": "Manual"
+    },
+    {
+      "causal_cluster": "InterfaceHash",
+      "fix_safety": "None",
+      "id": "callable-interface-contract-mismatch",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "expected-contract-hash",
+        "observed-contract-hash"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "causal_cluster": "InterfaceGraph",
+      "fix_safety": "None",
+      "id": "callable-source-import-collision",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "conflicting-source",
+        "module-export-key"
+      ],
+      "stage": "Resolve"
+    },
+    {
+      "causal_cluster": "CapabilityBinder",
+      "fix_safety": "MachineApplicable",
+      "id": "capability-binder-default-not-in-v1",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "remove-default"
+      ],
+      "stage": "Kind"
+    },
+    {
+      "causal_cluster": "CapabilityIdentity",
+      "fix_safety": "Manual",
+      "id": "capability-identity-required",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "introduce-direct-capability-binder"
+      ],
+      "stage": "Kind"
+    },
+    {
+      "id": "clock-package-family-not-clock-indexing",
+      "stage": "Kind",
+      "causal_cluster": "ClockFamily",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "actual-family",
+        "expected-clock-indexing-family"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "clock-package-path-observer-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "ClockPathObserver",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "expected-path-observer",
+        "observed-path-observer",
+        "path-index"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "clock-package-private-identity-escape",
+      "stage": "Capture",
+      "causal_cluster": "ClockIdentityEscape",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "clock-slot",
+        "escaping-obligation-id"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "clock-package-transfer-captures-private-identity",
+      "stage": "Capture",
+      "causal_cluster": "ClockTransferCapture",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "clock-slot",
+        "transfer-site"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "causal_cluster": "ComponentBoundary",
+      "fix_safety": "None",
+      "id": "component-native-async-not-in-v1",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "use-owner-backed-resource-adapter"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "causal_cluster": "ComponentBoundary",
+      "fix_safety": "Manual",
+      "id": "component-public-type-not-safe",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "offending-public-type"
+      ],
+      "stage": "Type"
+    },
+    {
+      "causal_cluster": "ConstEvaluation",
+      "fix_safety": "None",
+      "id": "const-definite-trap",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "defect-transition"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "causal_cluster": "ConstEvaluation",
+      "fix_safety": "None",
+      "id": "const-evaluation-did-not-terminate",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "evaluation-budget"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "causal_cluster": "ConstEvaluation",
+      "fix_safety": "Manual",
+      "id": "const-operation-not-safe",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "offending-operation"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "causal_cluster": "ConstEvaluation",
+      "fix_safety": "None",
+      "id": "const-safe-requirement-failed",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "offending-operation"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "causal_cluster": "ConstEvaluation",
+      "fix_safety": "None",
+      "id": "const-termination-not-proven",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "recursive-call-cycle"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "id": "contract-component-kind-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "ContractComponentKind",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "component-path",
+        "expected-kind",
+        "observed-kind"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "contract-parameter-inconsistent-instantiation",
+      "stage": "ContractWF",
+      "causal_cluster": "ContractInstantiation",
+      "primary_origin_role": "ArgumentV1",
+      "required_notes": [
+        "contract-parameter-slot",
+        "expected-instantiation",
+        "observed-instantiation"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "contract-projection-escapes-scope",
+      "stage": "Capture",
+      "causal_cluster": "ContractProjectionScope",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "binder-slot",
+        "escaping-projection"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "contract-term-cycle",
+      "stage": "ContractWF",
+      "causal_cluster": "ContractDependencyCycle",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "contract-parameter-slot",
+        "cycle-path"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "causal_cluster": "NominalVisibility",
+      "fix_safety": "Manual",
+      "id": "data-field-not-public",
+      "primary_origin_role": "ArgumentV1",
+      "required_notes": [
+        "hidden-field"
+      ],
+      "stage": "Type"
+    },
+    {
+      "causal_cluster": "RemovedSurface",
+      "fix_safety": "MaybeIncorrect",
+      "id": "defer-not-in-cire-v1",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "use-sealed-finally"
+      ],
+      "stage": "Syntax"
+    },
+    {
+      "id": "delegates-outside-handler-clause",
+      "stage": "ContractWF",
+      "causal_cluster": "HandlerProjectionContext",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "delegates-site",
+        "expected-handler-clause"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "causal_cluster": "DisposeReport",
+      "fix_safety": "None",
+      "id": "dispose-report-schema-mismatch",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "expected-role-order"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "causal_cluster": "PackageGraph",
+      "fix_safety": "None",
+      "id": "duplicate-package-instance",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "package-instance-id"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "id": "effect-header-conformance-mismatch",
+      "stage": "Resolve",
+      "causal_cluster": "EffectHeaderConformance",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "declared-operation-signature",
+        "implemented-operation-signature"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "causal_cluster": "ExtensionResolution",
+      "fix_safety": "Manual",
+      "id": "extension-resolution-ambiguous",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "candidate-identities"
+      ],
+      "stage": "Resolve"
+    },
+    {
+      "id": "extension-self-parameter-required",
+      "stage": "Syntax",
+      "causal_cluster": "ExtensionSelfParameter",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "expected-self-first-parameter"
+      ],
+      "fix_safety": "MachineApplicable"
+    },
+    {
+      "causal_cluster": "FirstPartyOccurrence",
+      "fix_safety": "None",
+      "id": "first-party-action-occurrence-contract-mismatch",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "event-payload-type",
+        "occurrence-id"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "causal_cluster": "FirstPartyCallback",
+      "fix_safety": "None",
+      "id": "first-party-callback-entry-owner-mismatch",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "callback-owner",
+        "entry-owner"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "causal_cluster": "FirstPartyCallback",
+      "fix_safety": "None",
+      "id": "first-party-callback-scheme-mismatch",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "binding-id",
+        "callback-slot"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "causal_cluster": "FirstPartyProjection",
+      "fix_safety": "None",
+      "id": "first-party-projection-namespace-mismatch",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "projection-namespace"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "causal_cluster": "FirstPartyRegistry",
+      "fix_safety": "None",
+      "id": "first-party-registry-contract-nonunique",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "binding-id",
+        "conflicting-contracts"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "causal_cluster": "FirstPartyRegistry",
+      "fix_safety": "None",
+      "id": "first-party-registry-noncanonical-order",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "first-out-of-order-id"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "causal_cluster": "FirstPartyRetention",
+      "fix_safety": "None",
+      "id": "first-party-retained-callback-contract-mismatch",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "callback-contract",
+        "retained-revision"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "causal_cluster": "FirstPartyScope",
+      "fix_safety": "None",
+      "id": "first-party-static-scope-escape",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "escaping-slot"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "causal_cluster": "FirstPartyKind",
+      "fix_safety": "None",
+      "id": "first-party-type-template-kind-mismatch",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "expected-kind",
+        "template-slot"
+      ],
+      "stage": "Kind"
+    },
+    {
+      "causal_cluster": "PatternGrammar",
+      "fix_safety": "MaybeIncorrect",
+      "id": "float-pattern-not-in-cire-v1",
+      "primary_origin_role": "ArgumentV1",
+      "required_notes": [
+        "use-guard-or-ordinary-comparison"
+      ],
+      "stage": "Syntax"
+    },
+    {
+      "id": "forward-application-arity-type-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "ForwardApplication",
+      "primary_origin_role": "ArgumentV1",
+      "required_notes": [
+        "actual-argument-types",
+        "expected-parameter-types",
+        "forward-site"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "forward-disposition-quantity-mismatch",
+      "stage": "Usage",
+      "causal_cluster": "ForwardDisposition",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "available-quantity",
+        "forward-site",
+        "required-quantity"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "forward-obligation-projection-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "ForwardObligationProjection",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "forward-site",
+        "obligation-id",
+        "projection-stage"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "forward-operation-mismatch",
+      "stage": "Resolve",
+      "causal_cluster": "ForwardOperation",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "actual-operation",
+        "expected-operation",
+        "forward-site"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "forward-route-mismatch",
+      "stage": "Resolve",
+      "causal_cluster": "ForwardRoute",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "actual-route",
+        "expected-route",
+        "forward-site"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "causal_cluster": "InlineHandlerRecovery",
+      "fix_safety": "MachineApplicable",
+      "id": "handler-clause-mode-required",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "expected-abort-fun-once-or-ctl"
+      ],
+      "stage": "Syntax"
+    },
+    {
+      "id": "handler-disposition-escapes-scope",
+      "stage": "Capture",
+      "causal_cluster": "HandlerDispositionScope",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "disposition-binder",
+        "escaping-site"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "hof-complete-path-observer-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "HigherOrderPathObserver",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "expected-path-observers",
+        "observed-path-observers",
+        "path-index"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "impl-visibility-not-allowed",
+      "stage": "Syntax",
+      "causal_cluster": "ImplVisibility",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "remove-visibility-modifier"
+      ],
+      "fix_safety": "MachineApplicable"
+    },
+    {
+      "id": "imported-function-export-mismatch",
+      "stage": "Resolve",
+      "causal_cluster": "ImportedCallableResolution",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "actual-export-path",
+        "artifact-hash",
+        "expected-export-path"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "causal_cluster": "AbilityCoherence",
+      "fix_safety": "None",
+      "id": "independent-ability-impl-not-in-profile",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "abilities-use-handlers-not-trait-impls"
+      ],
+      "stage": "Kind"
+    },
+    {
+      "causal_cluster": "NumericConversion",
+      "fix_safety": "Manual",
+      "id": "integer-conversion-out-of-range",
+      "primary_origin_role": "ArgumentV1",
+      "required_notes": [
+        "destination-range",
+        "source-value"
+      ],
+      "stage": "Type"
+    },
+    {
+      "causal_cluster": "StringInterpolation",
+      "fix_safety": "Manual",
+      "id": "interpolation-evidence-not-unique",
+      "primary_origin_role": "ArgumentV1",
+      "required_notes": [
+        "show-candidates"
+      ],
+      "stage": "Resolve"
+    },
+    {
+      "causal_cluster": "IntrinsicRegistry",
+      "fix_safety": "None",
+      "id": "intrinsic-registry-root-mismatch",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "expected-child-registry"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "id": "local-function-evaluation-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "LocalCallableEvaluation",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "expected-path-contracts",
+        "local-declaration-slot",
+        "observed-path-contracts"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "local-function-ref-unresolved",
+      "stage": "Resolve",
+      "causal_cluster": "LocalCallableResolution",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "declaration-slot",
+        "reference-site"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "causal_cluster": "DefectTransition",
+      "fix_safety": "MachineApplicable",
+      "id": "maytrap-not-an-effect",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "model-as-ordinary-fact"
+      ],
+      "stage": "Row"
+    },
+    {
+      "causal_cluster": "MethodResolution",
+      "fix_safety": "Manual",
+      "id": "method-candidate-ambiguous",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "candidate-identities"
+      ],
+      "stage": "Resolve"
+    },
+    {
+      "id": "multi-shot-captures-one-shot-resumption",
+      "stage": "Usage",
+      "causal_cluster": "ResumptionUsage",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "captured-resumption-slot",
+        "closure-site",
+        "resumption-quantity"
+      ],
+      "fix_safety": "Manual"
+    },
+    {
+      "causal_cluster": "StaticCallMetadata",
+      "fix_safety": "Manual",
+      "id": "named-call-requires-static-signature",
+      "primary_origin_role": "ArgumentV1",
+      "required_notes": [
+        "callee-type"
+      ],
+      "stage": "Kind"
+    },
+    {
+      "id": "named-capability-escapes",
+      "stage": "Capture",
+      "causal_cluster": "CapabilityIdentityEscape",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "capability-binder",
+        "escaping-site"
+      ],
+      "fix_safety": "Manual"
+    },
+    {
+      "causal_cluster": "NamedFunctionBoundary",
+      "fix_safety": "MachineApplicable",
+      "id": "named-function-effect-row-required",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "insert-explicit-row"
+      ],
+      "stage": "Syntax"
+    },
+    {
+      "causal_cluster": "NominalLayout",
+      "fix_safety": "Manual",
+      "id": "newtype-representation-cycle",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "unbroken-recursion"
+      ],
+      "stage": "Type"
+    },
+    {
+      "id": "no-matching-clock-lock",
+      "stage": "World",
+      "causal_cluster": "ClockLock",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "available-clock-locks",
+        "required-clock"
+      ],
+      "fix_safety": "Manual"
+    },
+    {
+      "causal_cluster": "PatternMatrix",
+      "fix_safety": "Manual",
+      "id": "non-exhaustive-match",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "missing-witness-pattern"
+      ],
+      "stage": "Type"
+    },
+    {
+      "causal_cluster": "Visibility",
+      "fix_safety": "MachineApplicable",
+      "id": "open-visibility-not-applicable",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "allowed-declaration-kinds"
+      ],
+      "stage": "Kind"
+    },
+    {
+      "id": "operation-secondary-row-must-be-closed",
+      "stage": "ContractWF",
+      "causal_cluster": "OperationSecondaryRow",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "close-operation-secondary-row"
+      ],
+      "fix_safety": "MachineApplicable"
+    },
+    {
+      "causal_cluster": "ElaborationOrigin",
+      "fix_safety": "None",
+      "id": "origin-map-noncanonical",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "first-invalid-origin-id"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "causal_cluster": "PackageImport",
+      "fix_safety": "Manual",
+      "id": "package-import-not-locked",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "dependency-instance-id"
+      ],
+      "stage": "Resolve"
+    },
+    {
+      "causal_cluster": "PackageIdentity",
+      "fix_safety": "None",
+      "id": "package-instance-hash-mismatch",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "expected-package-id",
+        "observed-package-id"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "id": "packed-next-builder-result-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "PackedNextBuilder",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "actual-builder-result",
+        "expected-packed-next-type"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "packed-next-control-protocol-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "PackedNextControlProtocol",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "actual-control-protocol",
+        "expected-control-protocol"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "packed-next-observer-trust-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "PackedNextObserver",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "expected-observer-summary",
+        "observed-observer-summary",
+        "path-index"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "packed-next-owner-scope-mismatch",
+      "stage": "Owner",
+      "causal_cluster": "PackedNextOwnerScope",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "owner-slot",
+        "package-site"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "packed-next-pack-phase-mismatch",
+      "stage": "Phase",
+      "causal_cluster": "PackedNextPhase",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "actual-phase-requirement",
+        "expected-pack-phase",
+        "path-index"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "packed-next-package-header-mismatch",
+      "stage": "Decode",
+      "causal_cluster": "PackedNextPackageHeader",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "expected-artifact-profile-version",
+        "observed-artifact-profile-version"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "packed-next-runtime-protocol-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "PackedNextRuntimeProtocol",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "expected-transition-table",
+        "first-invalid-transition",
+        "runtime-trace"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "packed-next-sealed-origin-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "PackedNextSealedOrigin",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "expected-sealed-origin",
+        "observed-sealed-origin"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "packed-next-storage-owner-mismatch",
+      "stage": "Owner",
+      "causal_cluster": "PackedNextStorageOwner",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "owner-scope",
+        "storage-owner"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "park-disposition-protocol-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "ParkDisposition",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "actual-disposition",
+        "expected-one-shot-disposition",
+        "park-site"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "park-generation-protocol-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "ParkGeneration",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "actual-generation",
+        "expected-generation",
+        "park-site"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "park-owner-outlives-missing",
+      "stage": "Owner",
+      "causal_cluster": "ParkOwnerScope",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "park-owner",
+        "required-outlives-edge",
+        "resumption-owner"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "park-path-observer-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "ParkPathObserver",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "expected-path-observer",
+        "observed-path-observer",
+        "park-site"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "park-required-phase-mismatch",
+      "stage": "Phase",
+      "causal_cluster": "ParkPhase",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "actual-phase-requirement",
+        "park-site",
+        "required-phase"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "park-resumption-type-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "ParkResumptionType",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "continuation-answer-type",
+        "park-site",
+        "resumption-answer-type"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "park-source-payload-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "ParkPayloadType",
+      "primary_origin_role": "ArgumentV1",
+      "required_notes": [
+        "completion-port-type",
+        "park-source-type",
+        "resumption-argument-type"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "path-bind-literal-prefix-forbidden",
+      "stage": "ContractWF",
+      "causal_cluster": "PathBindPrefix",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "path-bind-site",
+        "prefix-outcome"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "path-bind-observer-composition-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "PathBindObserver",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "composed-observer",
+        "expected-observer",
+        "path-bind-site"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "path-bind-return-binder-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "PathBindReturnBinder",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "binder-type",
+        "path-bind-site",
+        "returned-type"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "path-bind-terminal-not-preserved",
+      "stage": "ContractWF",
+      "causal_cluster": "PathBindTerminal",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "observed-terminal-policy",
+        "path-bind-site",
+        "required-terminal-policy"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "positional-after-labelled",
+      "stage": "Parse",
+      "causal_cluster": "CallAssembly",
+      "primary_origin_role": "ArgumentV1",
+      "required_notes": [
+        "argument-index",
+        "first-labelled-index"
+      ],
+      "fix_safety": "Manual"
+    },
+    {
+      "causal_cluster": "DerivedPlacement",
+      "fix_safety": "MachineApplicable",
+      "id": "postfix-derive-required",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "move-derive-after-declaration"
+      ],
+      "stage": "Syntax"
+    },
+    {
+      "id": "projected-latent-site-key-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "LatentSiteProjection",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "application-slot",
+        "latent-site-key",
+        "projected-source-site"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "projected-obligation-stage-lost",
+      "stage": "ContractWF",
+      "causal_cluster": "ObligationProjection",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "obligation-id",
+        "projected-stage",
+        "source-stage"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "causal_cluster": "PublicCallableGraph",
+      "fix_safety": "None",
+      "id": "public-overload-requires-distinct-export-path",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "conflicting-export-path"
+      ],
+      "stage": "Resolve"
+    },
+    {
+      "id": "qualified-local-id-space-exhausted",
+      "stage": "ContractWF",
+      "causal_cluster": "QualifiedLocalId",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "application-slot",
+        "exhausted-u32-domain",
+        "local-id"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "causal_cluster": "NominalConstruction",
+      "fix_safety": "Manual",
+      "id": "record-construction-missing-field",
+      "primary_origin_role": "ArgumentV1",
+      "required_notes": [
+        "missing-fields"
+      ],
+      "stage": "Type"
+    },
+    {
+      "causal_cluster": "NominalUpdate",
+      "fix_safety": "Manual",
+      "id": "record-update-base-not-final",
+      "primary_origin_role": "ArgumentV1",
+      "required_notes": [
+        "move-update-base-to-final-position"
+      ],
+      "stage": "Syntax"
+    },
+    {
+      "causal_cluster": "PublicCallableGraph",
+      "fix_safety": "None",
+      "id": "recursive-public-callable-scc-not-in-v1",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "recursive-export-cycle"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "id": "return-projection-does-not-match-flow",
+      "stage": "ContractWF",
+      "causal_cluster": "ReturnFlowProjection",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "expected-flow-projection",
+        "observed-return-projection"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "row-literal-has-multiple-tails",
+      "stage": "Row",
+      "causal_cluster": "RowLiteralTail",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "retain-one-row-tail"
+      ],
+      "fix_safety": "MachineApplicable"
+    },
+    {
+      "causal_cluster": "RowPredicateProfile",
+      "fix_safety": "None",
+      "id": "row-predicate-not-in-profile",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "allowed-predicates"
+      ],
+      "stage": "Kind"
+    },
+    {
+      "causal_cluster": "RuntimeProtocol",
+      "fix_safety": "None",
+      "id": "runtime-protocol-trace-mismatch",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "first-invalid-transition",
+        "trace-id"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "causal_cluster": "Checkpoint",
+      "fix_safety": "None",
+      "id": "sealed-checkpoint-contract-mismatch",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "checkpoint-site",
+        "expected-transition"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "causal_cluster": "SemanticConstPayload",
+      "fix_safety": "None",
+      "id": "semantic-string-payload-mismatch",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "unicode-scalars",
+        "utf8-bytes"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "id": "semantic-summary-not-normalized",
+      "stage": "ContractWF",
+      "causal_cluster": "SemanticSummaryNormalization",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "expected-normal-form",
+        "observed-summary"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "causal_cluster": "SignalBuilder",
+      "fix_safety": "None",
+      "id": "signal-track-builder-root-mismatch",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "builder-root",
+        "tracking-owner"
+      ],
+      "stage": "ContractWF"
+    },
+    {
+      "causal_cluster": "RemovedSurface",
+      "fix_safety": "MaybeIncorrect",
+      "id": "surface-cap-marker-removed",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "remove-cap-marker"
+      ],
+      "stage": "Syntax"
+    },
+    {
+      "causal_cluster": "RemovedSurface",
+      "fix_safety": "MachineApplicable",
+      "id": "surface-tilde-label-removed",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "replace-with-name-equals-expression"
+      ],
+      "stage": "Syntax"
+    },
+    {
+      "id": "term-actual-source-unavailable",
+      "stage": "ContractWF",
+      "causal_cluster": "TermActualSource",
+      "primary_origin_role": "ArgumentV1",
+      "required_notes": [
+        "formal-parameter-slot",
+        "surviving-projection"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "term-actual-substitution-mismatch",
+      "stage": "ContractWF",
+      "causal_cluster": "TermActualSubstitution",
+      "primary_origin_role": "ArgumentV1",
+      "required_notes": [
+        "actual-summary",
+        "formal-parameter-slot",
+        "projected-observer"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "terminal-transfer-has-no-value",
+      "stage": "Flow",
+      "causal_cluster": "TerminalFlow",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "terminal-outcome",
+        "value-context"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "causal_cluster": "TrailingLambda",
+      "fix_safety": "Manual",
+      "id": "trailing-lambda-target-not-callable",
+      "primary_origin_role": "ArgumentV1",
+      "required_notes": [
+        "final-nonreceiver-parameter"
+      ],
+      "stage": "Kind"
+    },
+    {
+      "causal_cluster": "TraitCoherence",
+      "fix_safety": "None",
+      "id": "trait-impl-orphan-violation",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "trait-package",
+        "type-package"
+      ],
+      "stage": "Type"
+    },
+    {
+      "causal_cluster": "TraitCoherence",
+      "fix_safety": "None",
+      "id": "trait-impl-overlap",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "conflicting-impl-identities"
+      ],
+      "stage": "Type"
+    },
+    {
+      "causal_cluster": "TraitCoherence",
+      "fix_safety": "None",
+      "id": "trait-orphan-impl",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "trait-package",
+        "type-package"
+      ],
+      "stage": "Type"
+    },
+    {
+      "causal_cluster": "NominalLayout",
+      "fix_safety": "Manual",
+      "id": "type-alias-cycle",
+      "primary_origin_role": "DeclarationV1",
+      "required_notes": [
+        "alias-cycle"
+      ],
+      "stage": "Type"
+    },
+    {
+      "causal_cluster": "UiActionFlow",
+      "fix_safety": "Manual",
+      "id": "ui-action-must-return",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "observed-terminal-flow"
+      ],
+      "stage": "Flow"
+    },
+    {
+      "causal_cluster": "UiActionSuspension",
+      "fix_safety": "Manual",
+      "id": "ui-action-suspend-policy-required",
+      "primary_origin_role": "SynthesisBasisV1",
+      "required_notes": [
+        "action-policy",
+        "suspending-site"
+      ],
+      "stage": "Phase"
+    },
+    {
+      "id": "unknown-contract-computation-variant",
+      "stage": "Decode",
+      "causal_cluster": "ContractComputationVariant",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "computation-tag",
+        "contract-path"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "unknown-obligation-stage",
+      "stage": "Decode",
+      "causal_cluster": "ObligationStage",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "obligation-id",
+        "observed-stage"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "unknown-obligation-variant",
+      "stage": "Decode",
+      "causal_cluster": "ObligationVariant",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "obligation-id",
+        "obligation-tag"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "unknown-path-outcome-v2",
+      "stage": "Decode",
+      "causal_cluster": "PathOutcomeVariant",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "outcome-tag",
+        "path-index"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "unknown-resumption-primitive",
+      "stage": "Resolve",
+      "causal_cluster": "ResumptionPrimitive",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "allowed-primitives",
+        "observed-primitive"
+      ],
+      "fix_safety": "Manual"
+    },
+    {
+      "causal_cluster": "PatternMatrix",
+      "fix_safety": "None",
+      "id": "unreachable-pattern",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "subsuming-arm",
+        "warning"
+      ],
+      "stage": "Type"
+    },
+    {
+      "id": "unsupported-contract-schema-version",
+      "stage": "Decode",
+      "causal_cluster": "ContractSchemaVersion",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "observed-schema-version",
+        "supported-schema-version"
+      ],
+      "fix_safety": "None"
+    },
+    {
+      "id": "wire-u32-out-of-range",
+      "stage": "Decode",
+      "causal_cluster": "WireU32",
+      "primary_origin_role": "PrincipalV1",
+      "required_notes": [
+        "field-path",
+        "observed-value",
+        "valid-range"
+      ],
+      "fix_safety": "None"
+    }
+  ],
+  "profile": "Cire-v1.0",
+  "schema_version": 3
+}

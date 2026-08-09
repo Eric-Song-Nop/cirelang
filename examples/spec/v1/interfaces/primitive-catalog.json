@@ -1,0 +1,24 @@
+{
+  "artifact": "PrimitiveCatalogV1",
+  "profile": "Cire-v1.0",
+  "schema_version": 1,
+  "core_package": {"kind": "PackageInstanceIdV1", "digest": "f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"},
+  "entries": [
+    {"source_name": "Unit", "type": {"kind": "LegacyTypeRefV2", "value": {"kind": "BuiltinTypeV1", "name": "Unit"}}, "carrier": "NoneV1"},
+    {"source_name": "Never", "type": {"kind": "LegacyTypeRefV2", "value": {"kind": "BuiltinTypeV1", "name": "Never"}}, "carrier": "NoneV1"},
+    {"source_name": "Bool", "type": {"kind": "LegacyTypeRefV2", "value": {"kind": "BuiltinTypeV1", "name": "Bool"}}, "carrier": "I32V1"},
+    {"source_name": "Int8", "type": {"kind": "NominalTypeV2", "module": ["pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb", "core", "primitive"], "name": "Int8", "arguments": []}, "carrier": "I32V1"},
+    {"source_name": "Int16", "type": {"kind": "NominalTypeV2", "module": ["pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb", "core", "primitive"], "name": "Int16", "arguments": []}, "carrier": "I32V1"},
+    {"source_name": "Int", "type": {"kind": "LegacyTypeRefV2", "value": {"kind": "BuiltinTypeV1", "name": "Int"}}, "carrier": "I32V1"},
+    {"source_name": "Int64", "type": {"kind": "NominalTypeV2", "module": ["pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb", "core", "primitive"], "name": "Int64", "arguments": []}, "carrier": "I64V1"},
+    {"source_name": "UInt8", "type": {"kind": "NominalTypeV2", "module": ["pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb", "core", "primitive"], "name": "UInt8", "arguments": []}, "carrier": "I32V1"},
+    {"source_name": "UInt16", "type": {"kind": "NominalTypeV2", "module": ["pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb", "core", "primitive"], "name": "UInt16", "arguments": []}, "carrier": "I32V1"},
+    {"source_name": "UInt", "type": {"kind": "NominalTypeV2", "module": ["pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb", "core", "primitive"], "name": "UInt", "arguments": []}, "carrier": "I32V1"},
+    {"source_name": "UInt64", "type": {"kind": "NominalTypeV2", "module": ["pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb", "core", "primitive"], "name": "UInt64", "arguments": []}, "carrier": "I64V1"},
+    {"source_name": "Float32", "type": {"kind": "NominalTypeV2", "module": ["pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb", "core", "primitive"], "name": "Float32", "arguments": []}, "carrier": "F32V1"},
+    {"source_name": "Float", "type": {"kind": "NominalTypeV2", "module": ["pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb", "core", "primitive"], "name": "Float", "arguments": []}, "carrier": "F64V1"},
+    {"source_name": "Char", "type": {"kind": "NominalTypeV2", "module": ["pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb", "core", "primitive"], "name": "Char", "arguments": []}, "carrier": "I32V1"},
+    {"source_name": "String", "type": {"kind": "LegacyTypeRefV2", "value": {"kind": "BuiltinTypeV1", "name": "String"}}, "carrier": "PrivateManagedV1"},
+    {"source_name": "Bytes", "type": {"kind": "NominalTypeV2", "module": ["pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb", "core", "primitive"], "name": "Bytes", "arguments": []}, "carrier": "PrivateManagedV1"}
+  ]
+}

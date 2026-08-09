@@ -1,0 +1,1424 @@
+{
+  "artifact": "CireV1MutationCorpusV1",
+  "profile": "Cire-v1.0",
+  "schema_version": 1,
+  "cases": [
+    {
+      "artifact_path": "interfaces/call-assembly.json",
+      "base_hash": "sha256:b3140bb80ba8b0af4535bf51932bad0f331a5b8d05abfc0277e13d88c4774ce7",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "callable-interface-contract-mismatch"
+      },
+      "id": "call-assembly-evaluation-order-drift",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/cases/6/expected/evaluation_order/1",
+          "value": "measure_gap"
+        }
+      ],
+      "preimage": {
+        "path": "/cases/6/expected/evaluation_order/1",
+        "value": "make_title"
+      },
+      "rule_id": "R06-call-assembly"
+    },
+    {
+      "artifact_path": "interfaces/callable-interface.json",
+      "base_hash": "sha256:10120be19605708096660b3932b1da3807ed174c036b10dd3780490a04e8d180",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "callable-interface-contract-mismatch"
+      },
+      "id": "callable-contract-hash-zero",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/core_contract/artifact_hash",
+          "value": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "preimage": {
+        "path": "/core_contract/artifact_hash",
+        "value_kind": "nonzero-sha256"
+      },
+      "rule_id": "R06-callable-hash-dag"
+    },
+    {
+      "artifact_path": "interfaces/callable-interface.json",
+      "base_hash": "sha256:10120be19605708096660b3932b1da3807ed174c036b10dd3780490a04e8d180",
+      "expected_failure": {
+        "kind": "DecodeFailureV1",
+        "code": "closed-field-mismatch"
+      },
+      "id": "callable-extra-root-field",
+      "operations": [
+        {
+          "op": "add",
+          "path": "/shadow_contract",
+          "value": {}
+        }
+      ],
+      "preimage": {
+        "path": "/artifact",
+        "value": "CallableInterfaceV1"
+      },
+      "rule_id": "R06-callable-hash-dag"
+    },
+    {
+      "artifact_path": "interfaces/callable-interface.json",
+      "base_hash": "sha256:10120be19605708096660b3932b1da3807ed174c036b10dd3780490a04e8d180",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "package-instance-hash-mismatch"
+      },
+      "id": "callable-module-prefix-drift",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/module/0",
+          "value": "cire"
+        }
+      ],
+      "preimage": {
+        "path": "/module/0",
+        "value": "pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"
+      },
+      "rule_id": "FND-package-instance-identity"
+    },
+    {
+      "artifact_path": "interfaces/callable-interface.json",
+      "base_hash": "sha256:10120be19605708096660b3932b1da3807ed174c036b10dd3780490a04e8d180",
+      "expected_failure": {
+        "kind": "DecodeFailureV1",
+        "code": "array-mismatch"
+      },
+      "id": "callable-slot-container-wrong",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/surface_signature/slots",
+          "value": {}
+        }
+      ],
+      "preimage": {
+        "path": "/surface_signature/slots",
+        "value": [
+          {
+            "slot": 0,
+            "passing": "NamedOrPositionalV1",
+            "public_label": "value",
+            "defaultable": false
+          }
+        ]
+      },
+      "rule_id": "R06-call-assembly"
+    },
+    {
+      "artifact_path": "interfaces/canonicalization-cases.json",
+      "base_hash": "sha256:7c1065715c227b1628d614a110deb67e6c312ab99cb74fee3d334ed7c657b658",
+      "expected_failure": {
+        "kind": "DecodeFailureV1",
+        "code": "closed-field-mismatch"
+      },
+      "id": "canonical-root-extra-field",
+      "operations": [
+        {
+          "op": "add",
+          "path": "/normalization",
+          "value": "forbidden"
+        }
+      ],
+      "preimage": {
+        "path": "/artifact",
+        "value": "CireCanonicalizationOracleV1"
+      },
+      "rule_id": "R06-callable-hash-dag"
+    },
+    {
+      "artifact_path": "interfaces/canonicalization-cases.json",
+      "base_hash": "sha256:7c1065715c227b1628d614a110deb67e6c312ab99cb74fee3d334ed7c657b658",
+      "expected_failure": {
+        "kind": "DecodeFailureV1",
+        "code": "unicode-scalar-mismatch"
+      },
+      "id": "canonical-scalar-surrogate",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/scalar_probe",
+          "value": 55296
+        }
+      ],
+      "preimage": {
+        "path": "/scalar_probe",
+        "value": 65
+      },
+      "rule_id": "FND-semantic-string-const-bytes"
+    },
+    {
+      "artifact_path": "interfaces/component-interface.json",
+      "base_hash": "sha256:3ab4965e6a71e2ebf21eff349a377dde4313e8e5e1dc4c5980acc647474149c1",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "component-public-type-not-safe"
+      },
+      "id": "component-bytes-not-u8",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/type_mappings/0/canonical_abi/element/scalar",
+          "value": "S8V1"
+        }
+      ],
+      "preimage": {
+        "path": "/type_mappings/0/canonical_abi/element/scalar",
+        "value": "U8V1"
+      },
+      "rule_id": "FND-component-sync-v1"
+    },
+    {
+      "artifact_path": "interfaces/component-interface.json",
+      "base_hash": "sha256:3ab4965e6a71e2ebf21eff349a377dde4313e8e5e1dc4c5980acc647474149c1",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "component-native-async-not-in-v1"
+      },
+      "id": "component-native-async",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/native_async",
+          "value": true
+        }
+      ],
+      "preimage": {
+        "path": "/native_async",
+        "value": false
+      },
+      "rule_id": "FND-component-sync-v1"
+    },
+    {
+      "artifact_path": "interfaces/component-interface.json",
+      "base_hash": "sha256:3ab4965e6a71e2ebf21eff349a377dde4313e8e5e1dc4c5980acc647474149c1",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "component-public-type-not-safe"
+      },
+      "id": "component-public-plan",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/exports/0/wit_path/1",
+          "value": "Plan"
+        }
+      ],
+      "preimage": {
+        "path": "/exports/0/wit_path/1",
+        "value": "identity-int"
+      },
+      "rule_id": "R06-public-plan-commit-excluded"
+    },
+    {
+      "artifact_path": "interfaces/const-values.json",
+      "base_hash": "sha256:fe75bf2dbeaf0016134621a63a9b80dad33f826b19e7b60d7faf5b064ad6acc6",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "byte-literal-out-of-range"
+      },
+      "id": "const-byte-out-of-range",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/definitions/3/value/bytes/3",
+          "value": 256
+        }
+      ],
+      "preimage": {
+        "path": "/definitions/3/value/bytes/3",
+        "value": 255
+      },
+      "rule_id": "FND-primitive-wire-forms"
+    },
+    {
+      "artifact_path": "interfaces/const-values.json",
+      "base_hash": "sha256:fe75bf2dbeaf0016134621a63a9b80dad33f826b19e7b60d7faf5b064ad6acc6",
+      "expected_failure": {
+        "kind": "DecodeFailureV1",
+        "code": "closed-field-mismatch"
+      },
+      "id": "const-definition-row-removed",
+      "operations": [
+        {
+          "op": "remove",
+          "path": "/definitions/2/effect_row"
+        }
+      ],
+      "preimage": {
+        "path": "/definitions/2/effect_row",
+        "value": "! {}"
+      },
+      "rule_id": "FND-explicit-named-rows"
+    },
+    {
+      "artifact_path": "interfaces/const-values.json",
+      "base_hash": "sha256:fe75bf2dbeaf0016134621a63a9b80dad33f826b19e7b60d7faf5b064ad6acc6",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "semantic-string-payload-mismatch"
+      },
+      "id": "const-semantic-string-scalar-drift",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/definitions/0/value/unicode_scalars/1",
+          "value": 233
+        }
+      ],
+      "preimage": {
+        "path": "/definitions/0/value/unicode_scalars/1",
+        "value": 769
+      },
+      "rule_id": "FND-semantic-string-const-bytes"
+    },
+    {
+      "artifact_path": "interfaces/control-mutation.json",
+      "base_hash": "sha256:51b5c6d238b3a1368fa0260ad97274ccc3554a8ec9bfd6bcc27a786a46dfc1a1",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "runtime-protocol-trace-mismatch"
+      },
+      "id": "control-place-write-before-rhs",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/place_trace/events/3/op",
+          "value": "write"
+        }
+      ],
+      "preimage": {
+        "path": "/place_trace/events/3/op",
+        "value": "evaluate-rhs"
+      },
+      "rule_id": "FND-mutation-place-replay"
+    },
+    {
+      "artifact_path": "diagnostics-v3.json",
+      "base_hash": "sha256:c78cf885086d9a2f53232133fba5a3345ba2479ee48be7262f267f64a14c13a0",
+      "expected_failure": {
+        "kind": "DecodeFailureV1",
+        "code": "enum-mismatch"
+      },
+      "id": "diagnostic-origin-role-unknown",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/diagnostics/0/primary_origin_role",
+          "value": "Direct"
+        }
+      ],
+      "preimage": {
+        "path": "/diagnostics/0/primary_origin_role",
+        "value": "DeclarationV1"
+      },
+      "rule_id": "R06-diagnostic-origin-stability"
+    },
+    {
+      "artifact_path": "diagnostics-v3.json",
+      "base_hash": "sha256:c78cf885086d9a2f53232133fba5a3345ba2479ee48be7262f267f64a14c13a0",
+      "expected_failure": {
+        "kind": "DecodeFailureV1",
+        "code": "enum-mismatch"
+      },
+      "id": "diagnostic-stage-unknown",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/diagnostics/0/stage",
+          "value": "RowWF"
+        }
+      ],
+      "preimage": {
+        "path": "/diagnostics/0/stage",
+        "value": "ContractWF"
+      },
+      "rule_id": "R06-diagnostic-origin-stability"
+    },
+    {
+      "artifact_path": "interfaces/first-party-registry.json",
+      "base_hash": "sha256:53ef84a795e822bf75e3d75a8d9ab7ae6d34e341a7d2c9e66f4f7b5b49e13b11",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "first-party-registry-contract-nonunique"
+      },
+      "id": "first-party-await-task-shareability-removed",
+      "operations": [
+        {
+          "op": "remove",
+          "path": "/bindings/1/evidence/6"
+        }
+      ],
+      "preimage": {
+        "path": "/bindings/1/evidence",
+        "value_kind": "nonempty-array"
+      },
+      "rule_id": "R06-task-multiwaiter-shareable"
+    },
+    {
+      "artifact_path": "interfaces/first-party-registry.json",
+      "base_hash": "sha256:53ef84a795e822bf75e3d75a8d9ab7ae6d34e341a7d2c9e66f4f7b5b49e13b11",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "first-party-callback-scheme-mismatch"
+      },
+      "id": "first-party-callback-slot-out-of-range",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/bindings/3/callbacks/0/parameter_slot",
+          "value": 99
+        }
+      ],
+      "preimage": {
+        "path": "/bindings/3/callbacks/0/parameter_slot",
+        "value": 2
+      },
+      "rule_id": "R06-first-party-registry"
+    },
+    {
+      "artifact_path": "interfaces/first-party-registry.json",
+      "base_hash": "sha256:53ef84a795e822bf75e3d75a8d9ab7ae6d34e341a7d2c9e66f4f7b5b49e13b11",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "first-party-static-scope-escape"
+      },
+      "id": "first-party-generic-event-on-async",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/bindings/5/source/name",
+          "value": "Event.on_async"
+        }
+      ],
+      "preimage": {
+        "path": "/bindings/5/source/name",
+        "value": "map_signal"
+      },
+      "rule_id": "R06-no-generic-event-on"
+    },
+    {
+      "artifact_path": "interfaces/first-party-registry.json",
+      "base_hash": "sha256:53ef84a795e822bf75e3d75a8d9ab7ae6d34e341a7d2c9e66f4f7b5b49e13b11",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "first-party-registry-noncanonical-order"
+      },
+      "id": "first-party-id-order-drift",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/bindings/0/id",
+          "value": "z.invalid"
+        }
+      ],
+      "preimage": {
+        "path": "/bindings/0/id",
+        "value": "Cire-v1.0/intrinsic/async.await-receipt"
+      },
+      "rule_id": "R06-first-party-registry"
+    },
+    {
+      "artifact_path": "interfaces/first-party-registry.json",
+      "base_hash": "sha256:53ef84a795e822bf75e3d75a8d9ab7ae6d34e341a7d2c9e66f4f7b5b49e13b11",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "ui-action-must-return"
+      },
+      "id": "first-party-ui-action-row-evidence-removed",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/bindings/16/evidence/0/rule",
+          "value": "NotActionSafeV1"
+        }
+      ],
+      "preimage": {
+        "path": "/bindings/16/evidence/0/rule",
+        "value": "ActionSafeRowV1"
+      },
+      "rule_id": "R06-ui-action-flow"
+    },
+    {
+      "artifact_path": "interfaces/first-party-registry.json",
+      "base_hash": "sha256:53ef84a795e822bf75e3d75a8d9ab7ae6d34e341a7d2c9e66f4f7b5b49e13b11",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "ui-action-suspend-policy-required"
+      },
+      "id": "first-party-ui-action-suspends",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/bindings/16/callbacks/0/contract/suspension/kind",
+          "value": "AsyncMaySuspendV1"
+        }
+      ],
+      "preimage": {
+        "path": "/bindings/16/callbacks/0/contract/suspension/kind",
+        "value": "NoSuspendV1"
+      },
+      "rule_id": "R06-ui-action-flow"
+    },
+    {
+      "artifact_path": "interfaces/first-party-registry.json",
+      "base_hash": "sha256:53ef84a795e822bf75e3d75a8d9ab7ae6d34e341a7d2c9e66f4f7b5b49e13b11",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "ui-action-must-return"
+      },
+      "id": "first-party-ui-action-wrong-result",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/bindings/16/callbacks/0/contract/flow/result/name",
+          "value": "Int"
+        }
+      ],
+      "preimage": {
+        "path": "/bindings/16/callbacks/0/contract/flow/result/name",
+        "value": "Unit"
+      },
+      "rule_id": "R06-ui-action-flow"
+    },
+    {
+      "artifact_path": "interfaces/first-party-registry.json",
+      "base_hash": "sha256:53ef84a795e822bf75e3d75a8d9ab7ae6d34e341a7d2c9e66f4f7b5b49e13b11",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "first-party-action-occurrence-contract-mismatch"
+      },
+      "id": "first-party-ui-occurrence-policy-drift",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/bindings/16/evidence/5/occurrence_policy",
+          "value": "LateRereadV1"
+        }
+      ],
+      "preimage": {
+        "path": "/bindings/16/evidence/5/occurrence_policy",
+        "value": "OwnerStoredExactQueuedOccurrenceV1"
+      },
+      "rule_id": "R06-ui-exact-occurrence"
+    },
+    {
+      "artifact_path": "interfaces/control-mutation.json",
+      "base_hash": "sha256:51b5c6d238b3a1368fa0260ad97274ccc3554a8ec9bfd6bcc27a786a46dfc1a1",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "callable-interface-contract-mismatch"
+      },
+      "id": "inline-handler-kernel-drift",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/handler_elaboration_differential/inline/projection/kernel/clause_modes/0",
+          "value": "once"
+        }
+      ],
+      "preimage": {
+        "path": "/handler_elaboration_differential/inline/projection/kernel/clause_modes/0",
+        "value": "fun"
+      },
+      "rule_id": "R06-inline-handler"
+    },
+    {
+      "artifact_path": "interfaces/language-interface.json",
+      "base_hash": "sha256:cdc425ce06d7705b1baed5790fc11b17eaacf68953d7da4e231056c60acd8e76",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "callable-interface-contract-mismatch"
+      },
+      "id": "language-evidence-hash-zero",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/evidence/0/evidence/artifact_hash",
+          "value": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "preimage": {
+        "path": "/evidence/0/evidence/artifact_hash",
+        "value_kind": "nonzero-sha256"
+      },
+      "rule_id": "R06-callable-hash-dag"
+    },
+    {
+      "artifact_path": "interfaces/language-interface.json",
+      "base_hash": "sha256:cdc425ce06d7705b1baed5790fc11b17eaacf68953d7da4e231056c60acd8e76",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "package-instance-hash-mismatch"
+      },
+      "id": "language-package-digest-drift",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/package_instance_id/digest",
+          "value": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        }
+      ],
+      "preimage": {
+        "path": "/package_instance_id/digest",
+        "value": "f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"
+      },
+      "rule_id": "FND-package-instance-identity"
+    },
+    {
+      "artifact_path": "interfaces/link-abi.json",
+      "base_hash": "sha256:658f7db3f50a80b8684b8b277645a249758a948789425944f1d600f7fd86a0a3",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "callable-interface-contract-mismatch"
+      },
+      "id": "link-language-hash-zero",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/language_interface/artifact_hash",
+          "value": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "preimage": {
+        "path": "/language_interface/artifact_hash",
+        "value_kind": "nonzero-sha256"
+      },
+      "rule_id": "R06-callable-hash-dag"
+    },
+    {
+      "artifact_path": "interfaces/local-inference.json",
+      "base_hash": "sha256:4c06bcdf91939323cbedd697d84079b601938ce019fb966fb357f4c7617f9cc8",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "callable-interface-contract-mismatch"
+      },
+      "id": "local-inference-safe-value-decision-drift",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/generalization_cases/15/expected/decision",
+          "value": "WeakMonomorphicV1"
+        }
+      ],
+      "preimage": {
+        "path": "/generalization_cases/15/expected/decision",
+        "value": "GeneralizeV1"
+      },
+      "rule_id": "FND-local-inference-boundary"
+    },
+    {
+      "artifact_path": "interfaces/component-manifest.json",
+      "base_hash": "sha256:50f0b8e1990e3ece1a25b841955e50049aebeac6f8f7cdbd19c9163d80963dc4",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "component-public-type-not-safe"
+      },
+      "id": "manifest-public-plan",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/exports/0/wit_path/1",
+          "value": "Plan"
+        }
+      ],
+      "preimage": {
+        "path": "/exports/0/wit_path/1",
+        "value": "identity-int"
+      },
+      "rule_id": "R06-public-plan-commit-excluded"
+    },
+    {
+      "artifact_path": "interfaces/nominal-data.json",
+      "base_hash": "sha256:7fdabd2f9a4eb82ace21189e72fb2d119fb38ee0fc4a62a3b654bf54d400ac32",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "postfix-derive-required"
+      },
+      "id": "nominal-prefix-derive",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/declarations/1/source_spelling",
+          "value": "derive(Eq, Show) pub struct Point { pub x : Int, pub y : Int = 0 }"
+        }
+      ],
+      "preimage": {
+        "path": "/declarations/1/source_spelling",
+        "value_kind": "postfix-derive-spelling"
+      },
+      "rule_id": "FND-postfix-derive"
+    },
+    {
+      "artifact_path": "interfaces/nominal-data.json",
+      "base_hash": "sha256:7fdabd2f9a4eb82ace21189e72fb2d119fb38ee0fc4a62a3b654bf54d400ac32",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "record-construction-missing-field"
+      },
+      "id": "nominal-record-variant-default-removed",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/declarations/5/variants/0/fields/0/default",
+          "value": null
+        }
+      ],
+      "preimage": {
+        "path": "/declarations/5/variants/0/fields/0/default",
+        "value": {
+          "kind": "ConstIntV1",
+          "value": "0"
+        }
+      },
+      "rule_id": "FND-nominal-data"
+    },
+    {
+      "artifact_path": "interfaces/numeric-semantics.json",
+      "base_hash": "sha256:74e613ddfa5bb61ebfd2fbb8f6b47fc364d69dc90c463f1e31f9bf1e50585f1f",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "integer-conversion-out-of-range"
+      },
+      "id": "numeric-boundary-accepted-out-of-range",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/integer_boundary_cases/0/expected",
+          "value": "AcceptedV1"
+        }
+      ],
+      "preimage": {
+        "path": "/integer_boundary_cases/0/expected",
+        "value": "OutOfRangeV1"
+      },
+      "rule_id": "FND-numeric-semantics"
+    },
+    {
+      "artifact_path": "interfaces/numeric-semantics.json",
+      "base_hash": "sha256:74e613ddfa5bb61ebfd2fbb8f6b47fc364d69dc90c463f1e31f9bf1e50585f1f",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "maytrap-not-an-effect"
+      },
+      "id": "numeric-maytrap-laundered-as-row",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/integer_policy/default_operations",
+          "value": "EffectRowEntryV1"
+        }
+      ],
+      "preimage": {
+        "path": "/integer_policy/default_operations",
+        "value": "MayTrapV1+DefectTransitionV1"
+      },
+      "rule_id": "FND-maytrap-defect-transition"
+    },
+    {
+      "artifact_path": "interfaces/elaboration-origin-map.json",
+      "base_hash": "sha256:ac02a7fcf8a38a53eb4a145c21427143ff3787ed960082795602dceec01b41d7",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "origin-map-noncanonical"
+      },
+      "id": "origin-site-allocation-drift",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/sites/0/origin_id",
+          "value": 2
+        }
+      ],
+      "preimage": {
+        "path": "/sites/0/origin_id",
+        "value": 1
+      },
+      "rule_id": "R06-origin-arena"
+    },
+    {
+      "artifact_path": "interfaces/primitive-catalog.json",
+      "base_hash": "sha256:3148fee559f220f7de6fa74f98a15d26202dbab7104ee1c6811a0e04184b5935",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "package-instance-hash-mismatch"
+      },
+      "id": "primitive-name-duplicate",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/entries/3/source_name",
+          "value": "Bool"
+        }
+      ],
+      "preimage": {
+        "path": "/entries/3/source_name",
+        "value": "Int8"
+      },
+      "rule_id": "FND-primitive-wire-forms"
+    },
+    {
+      "artifact_path": "interfaces/primitive-catalog.json",
+      "base_hash": "sha256:3148fee559f220f7de6fa74f98a15d26202dbab7104ee1c6811a0e04184b5935",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "package-instance-hash-mismatch"
+      },
+      "id": "primitive-sealed-module-drift",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/entries/3/type/module/0",
+          "value": "cire"
+        }
+      ],
+      "preimage": {
+        "path": "/entries/3/type/module/0",
+        "value": "pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"
+      },
+      "rule_id": "FND-primitive-wire-forms"
+    },
+    {
+      "artifact_path": "interfaces/intrinsic-registry.json",
+      "base_hash": "sha256:0517bc97b9964b475c7c2d2df2b8ec78c9e9d7ad1dc94c145267797418b694f1",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "intrinsic-registry-root-mismatch"
+      },
+      "id": "registry-root-first-party-zero",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/first_party/artifact_hash",
+          "value": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "preimage": {
+        "path": "/first_party/artifact_hash",
+        "value_kind": "nonzero-sha256"
+      },
+      "rule_id": "R06-first-party-registry"
+    },
+    {
+      "artifact_path": "runtime/protocol-models.json",
+      "base_hash": "sha256:33b7741848b00c62b0cf27e9cb910ac69a99f1bec9f69125f990068f6f640376",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "runtime-protocol-trace-mismatch"
+      },
+      "id": "runtime-checkpoint-commit-before-prepare",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/traces/0/events/2/op",
+          "value": "commit"
+        }
+      ],
+      "preimage": {
+        "path": "/traces/0/events/2/op",
+        "value": "prepare"
+      },
+      "rule_id": "R06-sealed-checkpoint"
+    },
+    {
+      "artifact_path": "runtime/protocol-models.json",
+      "base_hash": "sha256:33b7741848b00c62b0cf27e9cb910ac69a99f1bec9f69125f990068f6f640376",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "runtime-protocol-trace-mismatch"
+      },
+      "id": "runtime-resource-stale-settlement-committed",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/traces/7/events/4/generation",
+          "value": 2
+        }
+      ],
+      "preimage": {
+        "path": "/traces/7/events/4/generation",
+        "value": 1
+      },
+      "rule_id": "R06-resource-latest-retained"
+    },
+    {
+      "artifact_path": "runtime/protocol-models.json",
+      "base_hash": "sha256:33b7741848b00c62b0cf27e9cb910ac69a99f1bec9f69125f990068f6f640376",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "runtime-protocol-trace-mismatch"
+      },
+      "id": "runtime-sealed-finally-terminal-drift",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/traces/8/events/3/tag",
+          "value": "ReturnsV2"
+        }
+      ],
+      "preimage": {
+        "path": "/traces/8/events/3/tag",
+        "value": "AbortsV2"
+      },
+      "rule_id": "R06-cleanup-receipt-report"
+    },
+    {
+      "artifact_path": "runtime/protocol-models.json",
+      "base_hash": "sha256:33b7741848b00c62b0cf27e9cb910ac69a99f1bec9f69125f990068f6f640376",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "runtime-protocol-trace-mismatch"
+      },
+      "id": "runtime-signal-untracked-invalidation",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/traces/9/events/4/dependency",
+          "value": "source-z"
+        }
+      ],
+      "preimage": {
+        "path": "/traces/9/events/4/dependency",
+        "value": "source-a"
+      },
+      "rule_id": "R06-signal-tracking"
+    },
+    {
+      "artifact_path": "runtime/protocol-models.json",
+      "base_hash": "sha256:33b7741848b00c62b0cf27e9cb910ac69a99f1bec9f69125f990068f6f640376",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "runtime-protocol-trace-mismatch"
+      },
+      "id": "runtime-ui-occurrence-late-reread",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/traces/12/events/0/payload/draft",
+          "value": "changed-after-enqueue"
+        }
+      ],
+      "preimage": {
+        "path": "/traces/12/events/0/payload/draft",
+        "value": "alpha"
+      },
+      "rule_id": "R06-ui-exact-occurrence"
+    },
+    {
+      "artifact_path": "interfaces/structural-intrinsic-registry.json",
+      "base_hash": "sha256:67f0d93f2478a32964a0b48bd2a26571e530d31ad6f8afa2cd6ecec667fb44df",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "intrinsic-registry-root-mismatch"
+      },
+      "id": "structural-generic-checkpoint-added",
+      "operations": [
+        {
+          "op": "add",
+          "path": "/bindings/-",
+          "value": {
+            "kind": "StructuralIntrinsicV1",
+            "id": "Cire-v1.0/structural/checkpoint",
+            "source_form": "CheckpointV1",
+            "origin_kind": "SealedIntrinsicV1",
+            "kernel": "CheckpointV1",
+            "contract": "CheckpointContractV1"
+          }
+        }
+      ],
+      "preimage": {
+        "path": "/bindings",
+        "value_kind": "two-structural-bindings"
+      },
+      "rule_id": "R06-sealed-checkpoint"
+    },
+    {
+      "artifact_path": "interfaces/trait-impl-extension.json",
+      "base_hash": "sha256:2cceb002b290d92b26925b23804ea90ba0d7b97ca53d1f1fc2caa6aa37cb4ab9",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "extension-self-parameter-required"
+      },
+      "id": "trait-extension-self-renamed",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/extensions/0/parameters/0",
+          "value": "items : Array[String]"
+        }
+      ],
+      "preimage": {
+        "path": "/extensions/0/parameters/0",
+        "value": "self : Array[String]"
+      },
+      "rule_id": "FND-method-resolution"
+    },
+    {
+      "artifact_path": "interfaces/trait-impl-extension.json",
+      "base_hash": "sha256:2cceb002b290d92b26925b23804ea90ba0d7b97ca53d1f1fc2caa6aa37cb4ab9",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "trait-impl-overlap"
+      },
+      "id": "trait-overlapping-impl-added",
+      "operations": [
+        {
+          "op": "add",
+          "path": "/impls/-",
+          "value": {
+            "identity": "impl-display-name-for-point-duplicate",
+            "trait": "DisplayName",
+            "target": "Point",
+            "owner": "target-package",
+            "constraints": [],
+            "methods": [
+              {
+                "name": "display_name",
+                "effect_row": "! {}"
+              }
+            ]
+          }
+        }
+      ],
+      "preimage": {
+        "path": "/impls",
+        "value_kind": "one-impl"
+      },
+      "rule_id": "FND-trait-coherence"
+    },
+    {
+      "artifact_path": "interfaces/function-contract-v3-suite.json",
+      "base_hash": "sha256:a5bc1326c170b43729cfd219607033e8f85ae1881be4ba1e86e3484a761efc4b",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "capability-binder-default-not-in-v1"
+      },
+      "id": "v3-direct-capability-defaultability-drift",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/cases/3/surface_signature/slots/1/defaultable",
+          "value": true
+        }
+      ],
+      "preimage": {
+        "path": "/cases/3/surface_signature/slots/1/defaultable",
+        "value": false
+      },
+      "rule_id": "R06-capability-identity"
+    },
+    {
+      "artifact_path": "interfaces/function-contract-v3-suite.json",
+      "base_hash": "sha256:a5bc1326c170b43729cfd219607033e8f85ae1881be4ba1e86e3484a761efc4b",
+      "expected_failure": {
+        "kind": "DiagnosticV1",
+        "id": "capability-identity-required"
+      },
+      "id": "v3-direct-capability-identity-drift",
+      "operations": [
+        {
+          "op": "replace",
+          "path": "/cases/3/contract/binders/identity_binders/0/identity_slot",
+          "value": 7
+        }
+      ],
+      "preimage": {
+        "path": "/cases/3/contract/binders/identity_binders/0/identity_slot",
+        "value": 0
+      },
+      "rule_id": "R06-capability-identity"
+    }
+  ],
+  "positive_controls": [
+    {
+      "artifact_path": "interfaces/call-assembly.json",
+      "assertion": "labels, defaults, trailing lambda, and source-order evaluation are exact",
+      "id": "call-assembly-control",
+      "rule_id": "R06-call-assembly"
+    },
+    {
+      "artifact_path": "interfaces/callable-interface.json",
+      "assertion": "callable/module/contract hashes are exact",
+      "id": "callable-hash-edge-control",
+      "rule_id": "R06-callable-hash-dag"
+    },
+    {
+      "artifact_path": "interfaces/canonicalization-cases.json",
+      "assertion": "RFC8785 UTF-16 key ordering differential is exact",
+      "id": "canonicalization-utf16-control",
+      "rule_id": "R06-callable-hash-dag"
+    },
+    {
+      "artifact_path": "interfaces/component-interface.json",
+      "assertion": "manifest/link/component hashes are distinct and sync-only",
+      "id": "component-sync-control",
+      "rule_id": "FND-component-sync-v1"
+    },
+    {
+      "artifact_path": "interfaces/const-values.json",
+      "assertion": "semantic decomposed String bytes/scalars are not NFC-rewritten",
+      "id": "const-decomposed-string-control",
+      "rule_id": "FND-semantic-string-const-bytes"
+    },
+    {
+      "artifact_path": "interfaces/control-mutation.json",
+      "assertion": "if/match/loop/while/for and lexical return/break/continue lower uniquely",
+      "id": "control-structural-lowering-control",
+      "rule_id": "FND-control-structural"
+    },
+    {
+      "artifact_path": "interfaces/nominal-data.json",
+      "assertion": "derive syntax is postfix only",
+      "id": "derive-placement-control",
+      "rule_id": "FND-postfix-derive"
+    },
+    {
+      "artifact_path": "interfaces/control-mutation.json",
+      "assertion": "full and inline handlers have identical alpha/origin-erased HIR, Kernel, contract, and diagnostic projections",
+      "id": "inline-handler-equivalence-control",
+      "rule_id": "R06-inline-handler"
+    },
+    {
+      "artifact_path": "interfaces/local-inference.json",
+      "assertion": "value restriction, weak monomorphism, numeric defaulting, forbidden binders, and explicit named boundaries are exact",
+      "id": "local-inference-full-boundary-control",
+      "rule_id": "FND-local-inference-boundary"
+    },
+    {
+      "artifact_path": "interfaces/numeric-semantics.json",
+      "assertion": "fixed scalar, conversion, operation, NaN, zero, and TotalFloat matrix is exact",
+      "id": "numeric-full-matrix-control",
+      "rule_id": "FND-numeric-semantics"
+    },
+    {
+      "artifact_path": "interfaces/control-mutation.json",
+      "assertion": "selector then RHS then unique write executes exactly once",
+      "id": "place-replay-control",
+      "rule_id": "FND-mutation-place-replay"
+    },
+    {
+      "artifact_path": "interfaces/primitive-catalog.json",
+      "assertion": "five legacy plus eleven sealed primitive forms are exact",
+      "id": "primitive-catalog-control",
+      "rule_id": "FND-primitive-wire-forms"
+    },
+    {
+      "artifact_path": "interfaces/nominal-data.json",
+      "assertion": "record-shaped enum stored fields preserve visibility, pure const defaults, construction, and hidden-field rejection",
+      "id": "record-variant-stored-field-control",
+      "rule_id": "FND-nominal-data"
+    },
+    {
+      "artifact_path": "interfaces/first-party-registry.json",
+      "assertion": "all 21 Surface-regenerated first-party bindings are exact",
+      "id": "registry-cardinality-control",
+      "rule_id": "R06-first-party-registry"
+    },
+    {
+      "artifact_path": "runtime/protocol-models.json",
+      "assertion": "all traces replay and bounded state exploration is exhaustive",
+      "id": "runtime-bounded-exploration-control",
+      "rule_id": "R06-runtime-symbolic-replay"
+    },
+    {
+      "artifact_path": "interfaces/structural-intrinsic-registry.json",
+      "assertion": "checkpoint remains sealed and outside the public structural registry",
+      "id": "sealed-checkpoint-control",
+      "rule_id": "R06-sealed-checkpoint"
+    },
+    {
+      "artifact_path": "interfaces/first-party-registry.json",
+      "assertion": "candidate action returns Unit, is non-suspending, and carries ActionSafeRow evidence",
+      "id": "ui-action-contract-control",
+      "rule_id": "R06-ui-action-flow"
+    },
+    {
+      "artifact_path": "interfaces/function-contract-v3-suite.json",
+      "assertion": "alpha stability, hash cascades, deterministic order, cache collision, public-cycle rejection, and import byte equality are executable",
+      "id": "v3-differential-suite-control",
+      "rule_id": "R06-callable-hash-dag"
+    },
+    {
+      "artifact_path": "interfaces/function-contract-v3-suite.json",
+      "assertion": "direct source slot, FreshCap identity, Cap[i,F], named row, and nondefaultability are exact",
+      "id": "v3-direct-capability-control",
+      "rule_id": "R06-capability-identity"
+    }
+  ],
+  "source_cases": [
+    {
+      "expected_diagnostic": null,
+      "id": "accept-byte-pattern",
+      "kind": "accept",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "FND-pattern-matrix",
+      "source": "match byte { b\"\\xff\" => 1, _ => 0 }"
+    },
+    {
+      "expected_diagnostic": null,
+      "id": "accept-direct-capability-binder",
+      "kind": "accept",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "R06-capability-identity",
+      "source": "def![F : Reader[Int]] f(app : F) -> Int ! {app} { app.read() }"
+    },
+    {
+      "expected_diagnostic": null,
+      "id": "accept-explicit-arg-list",
+      "kind": "accept",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "R06-call-assembly",
+      "source": "f()"
+    },
+    {
+      "expected_diagnostic": null,
+      "id": "accept-ordinary-trait-associated-constraint",
+      "kind": "accept",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "R06-associated-ability-profile-boundary",
+      "source": "trait T { type Item : Eq }"
+    },
+    {
+      "expected_diagnostic": null,
+      "id": "accept-signed-min-pattern",
+      "kind": "accept",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "FND-pattern-matrix",
+      "source": "match x { -128i8 => 0, _ => 1 }"
+    },
+    {
+      "expected_diagnostic": "associated-declaration-constraint-not-in-profile",
+      "id": "reject-ability-associated-constraint",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "R06-associated-ability-profile-boundary",
+      "source": "ability A { type Item : Eq }"
+    },
+    {
+      "expected_diagnostic": "associated-parameterization-not-in-profile",
+      "id": "reject-ability-associated-parameter",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "R06-associated-ability-profile-boundary",
+      "source": "ability A { type Item[T] }"
+    },
+    {
+      "expected_diagnostic": "associated-contract-mismatch",
+      "id": "reject-associated-contract-mismatch",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "FND-trait-coherence",
+      "source": "impl T for S { type Item = Bad }"
+    },
+    {
+      "expected_diagnostic": "capability-binder-default-not-in-v1",
+      "id": "reject-cap-binder-default",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "R06-capability-identity",
+      "source": "def![F : Reader[Int]] f(source : F, app : F = source) -> Unit ! {} { () }"
+    },
+    {
+      "expected_diagnostic": "surface-cap-marker-removed",
+      "id": "reject-cap-marker",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "R06-capability-identity",
+      "source": "def![F : Reader[Int]] f(app : cap F) -> Unit ! {} { () }"
+    },
+    {
+      "expected_diagnostic": "defer-not-in-cire-v1",
+      "id": "reject-defer",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "FND-control-structural",
+      "source": "defer cleanup()"
+    },
+    {
+      "expected_diagnostic": "trailing-lambda-target-not-callable",
+      "id": "reject-double-trailing-block-bare",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "R06-call-assembly",
+      "source": "f { } { }"
+    },
+    {
+      "expected_diagnostic": "trailing-lambda-target-not-callable",
+      "id": "reject-double-trailing-block-call",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "R06-call-assembly",
+      "source": "f() { } { }"
+    },
+    {
+      "expected_diagnostic": "effect-header-conformance-mismatch",
+      "id": "reject-effect-header-mismatch",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "FND-explicit-named-rows",
+      "source": "ability A { abort fail() -> Int } effect E : A { abort fail() -> Bool }"
+    },
+    {
+      "expected_diagnostic": "extension-self-parameter-required",
+      "id": "reject-extension-missing-self",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "FND-method-resolution",
+      "source": "extend def f(value : T) -> T ! {} { value }"
+    },
+    {
+      "expected_diagnostic": "float-pattern-not-in-cire-v1",
+      "id": "reject-float-pattern-negative",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "FND-pattern-matrix",
+      "source": "match x { -1.0 => 0, _ => 1 }"
+    },
+    {
+      "expected_diagnostic": "float-pattern-not-in-cire-v1",
+      "id": "reject-float-pattern-positive",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "FND-pattern-matrix",
+      "source": "match x { 1.0 => 0, _ => 1 }"
+    },
+    {
+      "expected_diagnostic": "handler-clause-mode-required",
+      "id": "reject-handler-clause-without-mode",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "R06-inline-handler",
+      "source": "with E { op(x) => x } in body"
+    },
+    {
+      "expected_diagnostic": "impl-visibility-not-allowed",
+      "id": "reject-impl-visibility",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "FND-trait-coherence",
+      "source": "pub impl T for S { }"
+    },
+    {
+      "expected_diagnostic": "independent-ability-impl-not-in-profile",
+      "id": "reject-independent-ability-impl",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "R06-associated-ability-profile-boundary",
+      "source": "impl A for S { }"
+    },
+    {
+      "expected_diagnostic": "capability-identity-required",
+      "id": "reject-missing-capability-identity",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "R06-capability-identity",
+      "source": "def![F : Reader[Int]] f(value : Array[F]) -> Unit ! {} { () }"
+    },
+    {
+      "expected_diagnostic": "named-function-effect-row-required",
+      "id": "reject-missing-named-row",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "FND-explicit-named-rows",
+      "source": "def f(x : Int) -> Int { x }"
+    },
+    {
+      "expected_diagnostic": "row-literal-has-multiple-tails",
+      "id": "reject-multiple-row-tails",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "FND-explicit-named-rows",
+      "source": "def![..E, ..F] f() -> Unit ! {..E, ..F} { () }"
+    },
+    {
+      "expected_diagnostic": "named-call-requires-static-signature",
+      "id": "reject-named-dynamic-call",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "R06-call-assembly",
+      "source": "{ let f = choose(); f(value = 1) }"
+    },
+    {
+      "expected_diagnostic": "non-exhaustive-match",
+      "id": "reject-non-exhaustive-match",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "FND-pattern-matrix",
+      "source": "match b { true => 1 }"
+    },
+    {
+      "expected_diagnostic": "open-visibility-not-applicable",
+      "id": "reject-open-private-definition",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "FND-trait-coherence",
+      "source": "pub(open) def f() -> Unit ! {} { () }"
+    },
+    {
+      "expected_diagnostic": "operation-secondary-row-must-be-closed",
+      "id": "reject-operation-open-secondary-row",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "FND-explicit-named-rows",
+      "source": "effect E { abort fail() -> Int ! {X, ..R} }"
+    },
+    {
+      "expected_diagnostic": "recursive-public-callable-scc-not-in-v1",
+      "id": "reject-recursive-public-callable-scc",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "R06-callable-hash-dag",
+      "source": "pub def f() -> Unit ! {} { g() } pub def g() -> Unit ! {} { f() }"
+    },
+    {
+      "expected_diagnostic": "row-predicate-not-in-profile",
+      "id": "reject-row-predicate",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "FND-local-inference-boundary",
+      "source": "def![..E : Closed[E]] f() -> Unit ! E { () }"
+    },
+    {
+      "expected_diagnostic": "callable-source-import-collision",
+      "id": "reject-source-import-collision",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "R06-callable-hash-dag",
+      "source": "use @a::f; use @b::f"
+    },
+    {
+      "expected_diagnostic": "surface-tilde-label-removed",
+      "id": "reject-tilde-label",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "R06-call-assembly",
+      "source": "f(value~)"
+    },
+    {
+      "expected_diagnostic": "trailing-lambda-target-not-callable",
+      "id": "reject-trailing-block-target",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "R06-call-assembly",
+      "source": "1 { x => x }"
+    },
+    {
+      "expected_diagnostic": "unreachable-pattern",
+      "id": "reject-unreachable-pattern",
+      "kind": "reject",
+      "parser_status": "metadata-only-not-parsed",
+      "rule_id": "FND-pattern-matrix",
+      "source": "match x { _ => 0, 1 => 1 }"
+    }
+  ]
+}

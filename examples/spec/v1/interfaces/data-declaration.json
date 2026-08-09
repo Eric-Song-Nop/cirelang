@@ -1,0 +1,121 @@
+{
+  "artifact": "DataDeclarationV1",
+  "profile": "Cire-v1.0",
+  "schema_version": 1,
+  "identity": {
+    "package": {
+      "kind": "PackageInstanceIdV1",
+      "digest": "f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"
+    },
+    "namespace": "TypeV1",
+    "module": [
+      "pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb",
+      "root"
+    ],
+    "path": [
+      "Status"
+    ]
+  },
+  "visibility": "PublicV1",
+  "binders": {
+    "parameter_binders": [],
+    "type_binders": [],
+    "row_binders": [],
+    "contract_binders": [],
+    "owner_binders": [],
+    "clock_binders": [],
+    "identity_binders": [],
+    "prompt_binders": []
+  },
+  "requirements": {
+    "ordinary_traits": [],
+    "effect_parameters": []
+  },
+  "body": {
+    "kind": "EnumV1",
+    "variants": [
+      {
+        "ordinal": 0,
+        "name": "Present",
+        "payload": {
+          "kind": "RecordVariantV1",
+          "fields": [
+            {
+              "ordinal": 0,
+              "name": "value",
+              "visibility": "PublicV1",
+              "type": {
+                "kind": "LegacyTypeRefV2",
+                "value": {
+                  "kind": "BuiltinTypeV1",
+                  "name": "Int"
+                }
+              },
+              "default_value": null
+            },
+            {
+              "ordinal": 1,
+              "name": "fallback",
+              "visibility": "PublicV1",
+              "type": {
+                "kind": "LegacyTypeRefV2",
+                "value": {
+                  "kind": "BuiltinTypeV1",
+                  "name": "Int"
+                }
+              },
+              "default_value": {
+                "kind": "ScalarConstV1",
+                "scalar": {
+                  "kind": "SignedIntConstV1",
+                  "width": 32,
+                  "twos_complement_be": [
+                    0,
+                    0,
+                    0,
+                    42
+                  ]
+                }
+              }
+            },
+            {
+              "ordinal": 2,
+              "name": "optional",
+              "visibility": "PublicV1",
+              "type": {
+                "kind": "ApplyTypeV2",
+                "constructor": {
+                  "kind": "BuiltinConstructorV1",
+                  "name": "Option"
+                },
+                "arguments": [
+                  {
+                    "kind": "LegacyTypeRefV2",
+                    "value": {
+                      "kind": "BuiltinTypeV1",
+                      "name": "Int"
+                    }
+                  }
+                ]
+              },
+              "default_value": {
+                "kind": "BuiltinVariantConstV1",
+                "constructor": "OptionV1",
+                "variant": "NoneV1",
+                "fields": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "Absent",
+        "payload": {
+          "kind": "UnitVariantV1"
+        }
+      }
+    ]
+  },
+  "derives": []
+}

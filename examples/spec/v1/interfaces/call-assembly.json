@@ -1,0 +1,100 @@
+{
+  "artifact": "CallAssemblyOracleV1",
+  "profile": "Cire-v1.0",
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "default-declaration-order",
+      "kind": "accept",
+      "source": "def f(first : Int = 1, second : Int = first + 1) -> Int ! {} { second }",
+      "expected": {
+        "prologue_order": [
+          "first",
+          "second"
+        ],
+        "visible_to_second": [
+          "first"
+        ]
+      }
+    },
+    {
+      "id": "default-sees-later-slot",
+      "kind": "reject",
+      "source": "def f(first : Int = second, second : Int = 2) -> Int ! {} { first }",
+      "expected": {
+        "outcome": "LaterDefaultSlotOutOfScopeV1"
+      }
+    },
+    {
+      "id": "duplicate-final-trailing-slot",
+      "kind": "reject",
+      "source": "visit(body = explicit) { item => item }",
+      "expected": {
+        "outcome": "FinalSlotAlreadyFilledV1"
+      }
+    },
+    {
+      "id": "duplicate-labelled-argument",
+      "kind": "reject",
+      "source": "f(value = first(), value = second())",
+      "expected": {
+        "outcome": "DuplicateLabelRejectedV1"
+      }
+    },
+    {
+      "id": "explicit-empty-arg-list",
+      "kind": "accept",
+      "source": "f()",
+      "expected": {
+        "call_form": "ExplicitArgListV1"
+      }
+    },
+    {
+      "id": "label-before-positional",
+      "kind": "reject",
+      "source": "connect(\"host\", secure = true, 443)",
+      "expected": {
+        "outcome": "PositionalAfterLabelRejectedV1"
+      }
+    },
+    {
+      "id": "positional-before-label-evaluation",
+      "kind": "accept",
+      "source": "panel(make_title(), enabled = is_enabled(), gap = measure_gap())",
+      "expected": {
+        "evaluation_order": [
+          "panel",
+          "make_title",
+          "is_enabled",
+          "measure_gap"
+        ],
+        "tuple_order": [
+          "title",
+          "enabled",
+          "gap"
+        ]
+      }
+    },
+    {
+      "id": "trailing-lambda-final-slot",
+      "kind": "accept",
+      "source": "visit(items()) { item => render(item) }",
+      "expected": {
+        "evaluation_order": [
+          "visit",
+          "items",
+          "lambda"
+        ],
+        "filled_slot": "body"
+      }
+    },
+    {
+      "id": "unknown-labelled-argument",
+      "kind": "reject",
+      "source": "f(unknown = 1)",
+      "expected": {
+        "outcome": "UnknownLabelRejectedV1"
+      }
+    }
+  ]
+}

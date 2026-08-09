@@ -1,0 +1,41 @@
+{
+  "artifact": "ConstDeclarationV1",
+  "profile": "Cire-v1.0",
+  "schema_version": 1,
+  "identity": {
+    "package": {
+      "kind": "PackageInstanceIdV1",
+      "digest": "f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb"
+    },
+    "namespace": "ValueV1",
+    "module": [
+      "pkg-f2bbc193c4c2b87315b2376b171ec3b600f3fe743bd87135940ed4c0f95c31eb",
+      "root"
+    ],
+    "path": [
+      "Answer"
+    ]
+  },
+  "visibility": "PublicV1",
+  "type": {
+    "kind": "LegacyTypeRefV2",
+    "value": {
+      "kind": "BuiltinTypeV1",
+      "name": "Int"
+    }
+  },
+  "value": {
+    "kind": "ScalarConstV1",
+    "scalar": {
+      "kind": "SignedIntConstV1",
+      "width": 32,
+      "twos_complement_be": [
+        0,
+        0,
+        0,
+        42
+      ]
+    }
+  },
+  "evaluator": "CireConstEvaluatorV1"
+}

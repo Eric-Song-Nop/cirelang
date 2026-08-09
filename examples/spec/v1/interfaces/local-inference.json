@@ -1,0 +1,724 @@
+{
+  "artifact": "LocalInferenceOracleV1",
+  "profile": "Cire-v1.0",
+  "schema_version": 1,
+  "policy": {
+    "rank": "QualifiedRank1V1",
+    "binding": "ImmutableLocalLetV1",
+    "generalizable_binder_order": [
+      "TypeV1",
+      "EffectRowV1",
+      "TraitConstraintV1",
+      "FnContractV1"
+    ],
+    "atomic_hidden_contract": "WholeFnContractOnlyV1",
+    "forbidden_generalization": [
+      "RowProjectionV1",
+      "IdentityV1",
+      "OwnerV1",
+      "ClockV1"
+    ],
+    "numeric_default_order": [
+      {
+        "meta": "IntegerLiteralV1",
+        "type": "Int"
+      },
+      {
+        "meta": "FloatLiteralV1",
+        "type": "Float"
+      }
+    ],
+    "fallback": "WeakMonomorphicV1",
+    "named_boundary": "EveryNamedDefExplicitV1"
+  },
+  "generalization_cases": [
+    {
+      "id": "authority-capture-weak",
+      "facts": {
+        "binding": "ImmutableLocalLetV1",
+        "initializer": "LambdaConstructionV1",
+        "non_expansive": true,
+        "construction_effects": [],
+        "body_effects": [],
+        "authority_captures": ["FrameAuthorityV1"],
+        "environment_stability": "StableDuplicableV1",
+        "many_call_safe": true,
+        "reachable_state": [],
+        "generative_quantification": [],
+        "constraints_closed": true,
+        "candidate_binders": ["TypeV1"],
+        "numeric_metas": []
+      },
+      "expected": {
+        "decision": "WeakMonomorphicV1",
+        "reason": "AuthorityCaptureV1",
+        "generalized_binders": [],
+        "weak_binders": ["TypeV1"],
+        "numeric_defaults": [],
+        "phase_trace": [
+          "SolveExpectedTypesV1",
+          "DefaultNumericMetasV1",
+          "KeepWeakMonomorphicV1"
+        ],
+        "body_effects": []
+      }
+    },
+    {
+      "id": "borrow-reachable-weak",
+      "facts": {
+        "binding": "ImmutableLocalLetV1",
+        "initializer": "LambdaConstructionV1",
+        "non_expansive": true,
+        "construction_effects": [],
+        "body_effects": [],
+        "authority_captures": [],
+        "environment_stability": "StableDuplicableV1",
+        "many_call_safe": true,
+        "reachable_state": ["BorrowV1"],
+        "generative_quantification": [],
+        "constraints_closed": true,
+        "candidate_binders": ["TypeV1"],
+        "numeric_metas": []
+      },
+      "expected": {
+        "decision": "WeakMonomorphicV1",
+        "reason": "ReachableBorrowV1",
+        "generalized_binders": [],
+        "weak_binders": ["TypeV1"],
+        "numeric_defaults": [],
+        "phase_trace": [
+          "SolveExpectedTypesV1",
+          "DefaultNumericMetasV1",
+          "KeepWeakMonomorphicV1"
+        ],
+        "body_effects": []
+      }
+    },
+    {
+      "id": "claim-reachable-weak",
+      "facts": {
+        "binding": "ImmutableLocalLetV1",
+        "initializer": "LambdaConstructionV1",
+        "non_expansive": true,
+        "construction_effects": [],
+        "body_effects": [],
+        "authority_captures": [],
+        "environment_stability": "StableDuplicableV1",
+        "many_call_safe": true,
+        "reachable_state": ["ClaimV1"],
+        "generative_quantification": [],
+        "constraints_closed": true,
+        "candidate_binders": ["TypeV1"],
+        "numeric_metas": []
+      },
+      "expected": {
+        "decision": "WeakMonomorphicV1",
+        "reason": "ReachableClaimV1",
+        "generalized_binders": [],
+        "weak_binders": ["TypeV1"],
+        "numeric_defaults": [],
+        "phase_trace": [
+          "SolveExpectedTypesV1",
+          "DefaultNumericMetasV1",
+          "KeepWeakMonomorphicV1"
+        ],
+        "body_effects": []
+      }
+    },
+    {
+      "id": "clock-quantification-weak",
+      "facts": {
+        "binding": "ImmutableLocalLetV1",
+        "initializer": "ValueV1",
+        "non_expansive": true,
+        "construction_effects": [],
+        "body_effects": [],
+        "authority_captures": [],
+        "environment_stability": "StableDuplicableV1",
+        "many_call_safe": true,
+        "reachable_state": [],
+        "generative_quantification": ["ClockV1"],
+        "constraints_closed": true,
+        "candidate_binders": ["ClockV1"],
+        "numeric_metas": []
+      },
+      "expected": {
+        "decision": "WeakMonomorphicV1",
+        "reason": "ClockQuantificationV1",
+        "generalized_binders": [],
+        "weak_binders": ["ClockV1"],
+        "numeric_defaults": [],
+        "phase_trace": [
+          "SolveExpectedTypesV1",
+          "DefaultNumericMetasV1",
+          "KeepWeakMonomorphicV1"
+        ],
+        "body_effects": []
+      }
+    },
+    {
+      "id": "effectful-initializer-weak",
+      "facts": {
+        "binding": "ImmutableLocalLetV1",
+        "initializer": "ComputationV1",
+        "non_expansive": false,
+        "construction_effects": ["Raise[Int]"],
+        "body_effects": [],
+        "authority_captures": [],
+        "environment_stability": "StableDuplicableV1",
+        "many_call_safe": true,
+        "reachable_state": [],
+        "generative_quantification": [],
+        "constraints_closed": true,
+        "candidate_binders": ["TypeV1"],
+        "numeric_metas": []
+      },
+      "expected": {
+        "decision": "WeakMonomorphicV1",
+        "reason": "EffectfulInitializerV1",
+        "generalized_binders": [],
+        "weak_binders": ["TypeV1"],
+        "numeric_defaults": [],
+        "phase_trace": [
+          "SolveExpectedTypesV1",
+          "DefaultNumericMetasV1",
+          "KeepWeakMonomorphicV1"
+        ],
+        "body_effects": []
+      }
+    },
+    {
+      "id": "effectful-lambda-construction-generalizes",
+      "facts": {
+        "binding": "ImmutableLocalLetV1",
+        "initializer": "LambdaConstructionV1",
+        "non_expansive": true,
+        "construction_effects": [],
+        "body_effects": ["Raise[Int]"],
+        "authority_captures": [],
+        "environment_stability": "StableDuplicableV1",
+        "many_call_safe": true,
+        "reachable_state": [],
+        "generative_quantification": [],
+        "constraints_closed": true,
+        "candidate_binders": ["TypeV1", "FnContractV1"],
+        "numeric_metas": []
+      },
+      "expected": {
+        "decision": "GeneralizeV1",
+        "reason": "EligibleV1",
+        "generalized_binders": ["TypeV1", "FnContractV1"],
+        "weak_binders": [],
+        "numeric_defaults": [],
+        "phase_trace": [
+          "SolveExpectedTypesV1",
+          "DefaultNumericMetasV1",
+          "GeneralizeV1"
+        ],
+        "body_effects": ["Raise[Int]"]
+      }
+    },
+    {
+      "id": "generative-identity-weak",
+      "facts": {
+        "binding": "ImmutableLocalLetV1",
+        "initializer": "ValueV1",
+        "non_expansive": true,
+        "construction_effects": [],
+        "body_effects": [],
+        "authority_captures": [],
+        "environment_stability": "StableDuplicableV1",
+        "many_call_safe": true,
+        "reachable_state": [],
+        "generative_quantification": ["IdentityV1"],
+        "constraints_closed": true,
+        "candidate_binders": ["IdentityV1"],
+        "numeric_metas": []
+      },
+      "expected": {
+        "decision": "WeakMonomorphicV1",
+        "reason": "GenerativeIdentityV1",
+        "generalized_binders": [],
+        "weak_binders": ["IdentityV1"],
+        "numeric_defaults": [],
+        "phase_trace": [
+          "SolveExpectedTypesV1",
+          "DefaultNumericMetasV1",
+          "KeepWeakMonomorphicV1"
+        ],
+        "body_effects": []
+      }
+    },
+    {
+      "id": "mutable-cell-weak",
+      "facts": {
+        "binding": "ImmutableLocalLetV1",
+        "initializer": "LambdaConstructionV1",
+        "non_expansive": true,
+        "construction_effects": [],
+        "body_effects": [],
+        "authority_captures": [],
+        "environment_stability": "StableDuplicableV1",
+        "many_call_safe": true,
+        "reachable_state": ["MutableCellV1"],
+        "generative_quantification": [],
+        "constraints_closed": true,
+        "candidate_binders": ["TypeV1"],
+        "numeric_metas": []
+      },
+      "expected": {
+        "decision": "WeakMonomorphicV1",
+        "reason": "ReachableMutableCellV1",
+        "generalized_binders": [],
+        "weak_binders": ["TypeV1"],
+        "numeric_defaults": [],
+        "phase_trace": [
+          "SolveExpectedTypesV1",
+          "DefaultNumericMetasV1",
+          "KeepWeakMonomorphicV1"
+        ],
+        "body_effects": []
+      }
+    },
+    {
+      "id": "nonreplayable-cleanup-weak",
+      "facts": {
+        "binding": "ImmutableLocalLetV1",
+        "initializer": "LambdaConstructionV1",
+        "non_expansive": true,
+        "construction_effects": [],
+        "body_effects": [],
+        "authority_captures": [],
+        "environment_stability": "StableDuplicableV1",
+        "many_call_safe": true,
+        "reachable_state": ["NonReplayableCleanupV1"],
+        "generative_quantification": [],
+        "constraints_closed": true,
+        "candidate_binders": ["TypeV1"],
+        "numeric_metas": []
+      },
+      "expected": {
+        "decision": "WeakMonomorphicV1",
+        "reason": "NonReplayableCleanupV1",
+        "generalized_binders": [],
+        "weak_binders": ["TypeV1"],
+        "numeric_defaults": [],
+        "phase_trace": [
+          "SolveExpectedTypesV1",
+          "DefaultNumericMetasV1",
+          "KeepWeakMonomorphicV1"
+        ],
+        "body_effects": []
+      }
+    },
+    {
+      "id": "not-many-call-safe-weak",
+      "facts": {
+        "binding": "ImmutableLocalLetV1",
+        "initializer": "LambdaConstructionV1",
+        "non_expansive": true,
+        "construction_effects": [],
+        "body_effects": [],
+        "authority_captures": [],
+        "environment_stability": "StableDuplicableV1",
+        "many_call_safe": false,
+        "reachable_state": [],
+        "generative_quantification": [],
+        "constraints_closed": true,
+        "candidate_binders": ["TypeV1"],
+        "numeric_metas": []
+      },
+      "expected": {
+        "decision": "WeakMonomorphicV1",
+        "reason": "NotManyCallSafeV1",
+        "generalized_binders": [],
+        "weak_binders": ["TypeV1"],
+        "numeric_defaults": [],
+        "phase_trace": [
+          "SolveExpectedTypesV1",
+          "DefaultNumericMetasV1",
+          "KeepWeakMonomorphicV1"
+        ],
+        "body_effects": []
+      }
+    },
+    {
+      "id": "numeric-default-before-generalization",
+      "facts": {
+        "binding": "ImmutableLocalLetV1",
+        "initializer": "ValueV1",
+        "non_expansive": true,
+        "construction_effects": [],
+        "body_effects": [],
+        "authority_captures": [],
+        "environment_stability": "StableDuplicableV1",
+        "many_call_safe": true,
+        "reachable_state": [],
+        "generative_quantification": [],
+        "constraints_closed": true,
+        "candidate_binders": [],
+        "numeric_metas": ["IntegerLiteralV1", "FloatLiteralV1"]
+      },
+      "expected": {
+        "decision": "GeneralizeV1",
+        "reason": "EligibleV1",
+        "generalized_binders": [],
+        "weak_binders": [],
+        "numeric_defaults": [
+          {
+            "meta": "IntegerLiteralV1",
+            "type": "Int"
+          },
+          {
+            "meta": "FloatLiteralV1",
+            "type": "Float"
+          }
+        ],
+        "phase_trace": [
+          "SolveExpectedTypesV1",
+          "DefaultNumericMetasV1",
+          "GeneralizeV1"
+        ],
+        "body_effects": []
+      }
+    },
+    {
+      "id": "open-constraints-weak",
+      "facts": {
+        "binding": "ImmutableLocalLetV1",
+        "initializer": "ValueV1",
+        "non_expansive": true,
+        "construction_effects": [],
+        "body_effects": [],
+        "authority_captures": [],
+        "environment_stability": "StableDuplicableV1",
+        "many_call_safe": true,
+        "reachable_state": [],
+        "generative_quantification": [],
+        "constraints_closed": false,
+        "candidate_binders": ["TraitConstraintV1"],
+        "numeric_metas": []
+      },
+      "expected": {
+        "decision": "WeakMonomorphicV1",
+        "reason": "OpenConstraintsV1",
+        "generalized_binders": [],
+        "weak_binders": ["TraitConstraintV1"],
+        "numeric_defaults": [],
+        "phase_trace": [
+          "SolveExpectedTypesV1",
+          "DefaultNumericMetasV1",
+          "KeepWeakMonomorphicV1"
+        ],
+        "body_effects": []
+      }
+    },
+    {
+      "id": "owner-quantification-weak",
+      "facts": {
+        "binding": "ImmutableLocalLetV1",
+        "initializer": "ValueV1",
+        "non_expansive": true,
+        "construction_effects": [],
+        "body_effects": [],
+        "authority_captures": [],
+        "environment_stability": "StableDuplicableV1",
+        "many_call_safe": true,
+        "reachable_state": [],
+        "generative_quantification": ["OwnerV1"],
+        "constraints_closed": true,
+        "candidate_binders": ["OwnerV1"],
+        "numeric_metas": []
+      },
+      "expected": {
+        "decision": "WeakMonomorphicV1",
+        "reason": "OwnerQuantificationV1",
+        "generalized_binders": [],
+        "weak_binders": ["OwnerV1"],
+        "numeric_defaults": [],
+        "phase_trace": [
+          "SolveExpectedTypesV1",
+          "DefaultNumericMetasV1",
+          "KeepWeakMonomorphicV1"
+        ],
+        "body_effects": []
+      }
+    },
+    {
+      "id": "resumption-weak",
+      "facts": {
+        "binding": "ImmutableLocalLetV1",
+        "initializer": "LambdaConstructionV1",
+        "non_expansive": true,
+        "construction_effects": [],
+        "body_effects": [],
+        "authority_captures": [],
+        "environment_stability": "StableDuplicableV1",
+        "many_call_safe": true,
+        "reachable_state": ["ResumptionV1"],
+        "generative_quantification": [],
+        "constraints_closed": true,
+        "candidate_binders": ["TypeV1"],
+        "numeric_metas": []
+      },
+      "expected": {
+        "decision": "WeakMonomorphicV1",
+        "reason": "ReachableResumptionV1",
+        "generalized_binders": [],
+        "weak_binders": ["TypeV1"],
+        "numeric_defaults": [],
+        "phase_trace": [
+          "SolveExpectedTypesV1",
+          "DefaultNumericMetasV1",
+          "KeepWeakMonomorphicV1"
+        ],
+        "body_effects": []
+      }
+    },
+    {
+      "id": "row-projection-weak",
+      "facts": {
+        "binding": "ImmutableLocalLetV1",
+        "initializer": "ValueV1",
+        "non_expansive": true,
+        "construction_effects": [],
+        "body_effects": [],
+        "authority_captures": [],
+        "environment_stability": "StableDuplicableV1",
+        "many_call_safe": true,
+        "reachable_state": [],
+        "generative_quantification": [],
+        "constraints_closed": true,
+        "candidate_binders": ["RowProjectionV1"],
+        "numeric_metas": []
+      },
+      "expected": {
+        "decision": "WeakMonomorphicV1",
+        "reason": "ForbiddenBinderKindV1",
+        "generalized_binders": [],
+        "weak_binders": ["RowProjectionV1"],
+        "numeric_defaults": [],
+        "phase_trace": [
+          "SolveExpectedTypesV1",
+          "DefaultNumericMetasV1",
+          "KeepWeakMonomorphicV1"
+        ],
+        "body_effects": []
+      }
+    },
+    {
+      "id": "safe-value-generalizes",
+      "facts": {
+        "binding": "ImmutableLocalLetV1",
+        "initializer": "ValueV1",
+        "non_expansive": true,
+        "construction_effects": [],
+        "body_effects": [],
+        "authority_captures": [],
+        "environment_stability": "StableDuplicableV1",
+        "many_call_safe": true,
+        "reachable_state": [],
+        "generative_quantification": [],
+        "constraints_closed": true,
+        "candidate_binders": [
+          "TypeV1",
+          "EffectRowV1",
+          "TraitConstraintV1",
+          "FnContractV1"
+        ],
+        "numeric_metas": []
+      },
+      "expected": {
+        "decision": "GeneralizeV1",
+        "reason": "EligibleV1",
+        "generalized_binders": [
+          "TypeV1",
+          "EffectRowV1",
+          "TraitConstraintV1",
+          "FnContractV1"
+        ],
+        "weak_binders": [],
+        "numeric_defaults": [],
+        "phase_trace": [
+          "SolveExpectedTypesV1",
+          "DefaultNumericMetasV1",
+          "GeneralizeV1"
+        ],
+        "body_effects": []
+      }
+    },
+    {
+      "id": "unstable-environment-weak",
+      "facts": {
+        "binding": "ImmutableLocalLetV1",
+        "initializer": "LambdaConstructionV1",
+        "non_expansive": true,
+        "construction_effects": [],
+        "body_effects": [],
+        "authority_captures": [],
+        "environment_stability": "UnstableOrLinearV1",
+        "many_call_safe": true,
+        "reachable_state": [],
+        "generative_quantification": [],
+        "constraints_closed": true,
+        "candidate_binders": ["TypeV1"],
+        "numeric_metas": []
+      },
+      "expected": {
+        "decision": "WeakMonomorphicV1",
+        "reason": "UnstableEnvironmentV1",
+        "generalized_binders": [],
+        "weak_binders": ["TypeV1"],
+        "numeric_defaults": [],
+        "phase_trace": [
+          "SolveExpectedTypesV1",
+          "DefaultNumericMetasV1",
+          "KeepWeakMonomorphicV1"
+        ],
+        "body_effects": []
+      }
+    },
+    {
+      "id": "weak-monomorphism-expansive",
+      "facts": {
+        "binding": "ImmutableLocalLetV1",
+        "initializer": "ComputationV1",
+        "non_expansive": false,
+        "construction_effects": [],
+        "body_effects": [],
+        "authority_captures": [],
+        "environment_stability": "StableDuplicableV1",
+        "many_call_safe": true,
+        "reachable_state": [],
+        "generative_quantification": [],
+        "constraints_closed": true,
+        "candidate_binders": ["TypeV1"],
+        "numeric_metas": []
+      },
+      "expected": {
+        "decision": "WeakMonomorphicV1",
+        "reason": "ExpansiveInitializerV1",
+        "generalized_binders": [],
+        "weak_binders": ["TypeV1"],
+        "numeric_defaults": [],
+        "phase_trace": [
+          "SolveExpectedTypesV1",
+          "DefaultNumericMetasV1",
+          "KeepWeakMonomorphicV1"
+        ],
+        "body_effects": []
+      }
+    }
+  ],
+  "named_boundary_cases": [
+    {
+      "id": "local-lambda-inferred",
+      "boundary_kind": "LocalLambdaV1",
+      "visibility": null,
+      "generic_boundary_explicit": false,
+      "parameter_types_explicit": false,
+      "result_type_explicit": false,
+      "effect_row": null,
+      "unsolved_meta_count": 3,
+      "expected": {
+        "kind": "LocalInferenceV1"
+      }
+    },
+    {
+      "id": "named-def-explicit-effectful",
+      "boundary_kind": "NamedDefV1",
+      "visibility": "PublicV1",
+      "generic_boundary_explicit": true,
+      "parameter_types_explicit": true,
+      "result_type_explicit": true,
+      "effect_row": "! {Raise[Int]}",
+      "unsolved_meta_count": 0,
+      "expected": {
+        "kind": "AcceptedV1"
+      }
+    },
+    {
+      "id": "named-def-explicit-pure",
+      "boundary_kind": "NamedDefV1",
+      "visibility": "PrivateV1",
+      "generic_boundary_explicit": true,
+      "parameter_types_explicit": true,
+      "result_type_explicit": true,
+      "effect_row": "! {}",
+      "unsolved_meta_count": 0,
+      "expected": {
+        "kind": "AcceptedV1"
+      }
+    },
+    {
+      "id": "named-def-missing-effect-row",
+      "boundary_kind": "NamedDefV1",
+      "visibility": "PublicV1",
+      "generic_boundary_explicit": true,
+      "parameter_types_explicit": true,
+      "result_type_explicit": true,
+      "effect_row": null,
+      "unsolved_meta_count": 0,
+      "expected": {
+        "kind": "DiagnosticV1",
+        "id": "named-function-effect-row-required"
+      }
+    },
+    {
+      "id": "named-def-missing-generic-boundary",
+      "boundary_kind": "NamedDefV1",
+      "visibility": "PublicV1",
+      "generic_boundary_explicit": false,
+      "parameter_types_explicit": true,
+      "result_type_explicit": true,
+      "effect_row": "! {}",
+      "unsolved_meta_count": 0,
+      "expected": {
+        "kind": "DiagnosticV1",
+        "id": "callable-interface-contract-mismatch"
+      }
+    },
+    {
+      "id": "named-def-missing-parameter-type",
+      "boundary_kind": "NamedDefV1",
+      "visibility": "PrivateV1",
+      "generic_boundary_explicit": true,
+      "parameter_types_explicit": false,
+      "result_type_explicit": true,
+      "effect_row": "! {}",
+      "unsolved_meta_count": 0,
+      "expected": {
+        "kind": "DiagnosticV1",
+        "id": "callable-interface-contract-mismatch"
+      }
+    },
+    {
+      "id": "named-def-missing-result-type",
+      "boundary_kind": "NamedDefV1",
+      "visibility": "PrivateV1",
+      "generic_boundary_explicit": true,
+      "parameter_types_explicit": true,
+      "result_type_explicit": false,
+      "effect_row": "! {}",
+      "unsolved_meta_count": 0,
+      "expected": {
+        "kind": "DiagnosticV1",
+        "id": "callable-interface-contract-mismatch"
+      }
+    },
+    {
+      "id": "named-def-unsolved-meta",
+      "boundary_kind": "NamedDefV1",
+      "visibility": "PublicV1",
+      "generic_boundary_explicit": true,
+      "parameter_types_explicit": true,
+      "result_type_explicit": true,
+      "effect_row": "! {}",
+      "unsolved_meta_count": 1,
+      "expected": {
+        "kind": "DiagnosticV1",
+        "id": "callable-interface-contract-mismatch"
+      }
+    }
+  ]
+}

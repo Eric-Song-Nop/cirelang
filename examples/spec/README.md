@@ -333,3 +333,65 @@ profile的静态诊断接口。
 - [Authority/status manifest](../../docs/spec-status.md)
 - [完整表面语法与 elaboration](../../docs/surface-syntax.md)
 - [Cire-TR₀ 形式化](../../docs/temporal-reactivity-formalization.typ)
+
+## Cire-v1.0 successor specification-model lane
+
+`v1/` 是与上面的 frozen Cire-TR₀ gate 分离的 successor lane。它精确解码
+closed JSON artifacts，重算 NFC + RFC 8785 JCS SHA-256 link，验证三份 repository
+authority 的 raw hash 与 36 个唯一 rule anchor，执行正控、RFC 6902 负变异、
+closed-schema pointer matrix、runtime trace replay 与九个有限协议模型的 bounded
+exploration。`v1/manifest.json` 只能由同一个 validator确定性生成。
+
+该 lane 是**规范模型一致性**证明，不是 Cire source parser、typechecker、compiler、
+backend、runtime implementation 或 LSP。`mutations/profile-mutations.json` 中的
+source cases明确标为 `metadata-only-not-parsed`；它们记录 canonical source边界，
+不声称执行了解析。
+
+从 repository root分别运行 historical 与 successor gate：
+
+```sh
+python3 examples/spec/validate-oracles.py
+python3 examples/spec/validate-v1-profile.py
+```
+
+只读查看两个确定性生成物：
+
+```sh
+python3 examples/spec/validate-v1-profile.py --print-first-party-registry
+python3 examples/spec/validate-v1-profile.py --print-manifest
+python3 examples/spec/validate-v1-profile.py --print-schema-descriptors
+```
+
+Successor inventory：
+
+- `v1/authority-rule-coverage.json`
+- `v1/diagnostics-v3.json`
+- `v1/manifest.json`
+- `v1/interfaces/call-assembly.json`
+- `v1/interfaces/callable-contract-fact.json`
+- `v1/interfaces/callable-interface.json`
+- `v1/interfaces/canonicalization-cases.json`
+- `v1/interfaces/component-interface.json`
+- `v1/interfaces/component-manifest.json`
+- `v1/interfaces/const-values.json`
+- `v1/interfaces/control-mutation.json`
+- `v1/interfaces/elaboration-origin-map.json`
+- `v1/interfaces/first-party-registry.json`
+- `v1/interfaces/function-contract-v3.json`
+- `v1/interfaces/function-contract-v3-suite.json`
+- `v1/interfaces/intrinsic-registry.json`
+- `v1/interfaces/language-interface.json`
+- `v1/interfaces/link-abi.json`
+- `v1/interfaces/local-inference.json`
+- `v1/interfaces/nominal-data.json`
+- `v1/interfaces/numeric-semantics.json`
+- `v1/interfaces/primitive-catalog.json`
+- `v1/interfaces/structural-intrinsic-registry.json`
+- `v1/interfaces/trait-impl-extension.json`
+- `v1/mutations/profile-mutations.json`
+- `v1/runtime/protocol-models.json`
+
+三份 canonical authority仍只是在 repository 中的
+`docs/spec-status.md`、`docs/surface-syntax.md` 与
+`docs/temporal-reactivity-formalization.typ`。foundation/R6 memo仅是设计证据，
+不是第四份规范，也不作为 `authority-rule-coverage.json` 的 rule owner。

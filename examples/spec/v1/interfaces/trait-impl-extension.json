@@ -1,0 +1,105 @@
+{
+  "artifact": "TraitImplExtensionOracleV1",
+  "profile": "Cire-v1.0",
+  "schema_version": 1,
+  "traits": [
+    {
+      "identity": "DisplayName",
+      "visibility": "PublicOpenV1",
+      "associated_types": [],
+      "methods": [
+        {
+          "name": "display_name",
+          "parameters": ["Self"],
+          "result": "String",
+          "effect_row": "! {}",
+          "receiver": "self : Self"
+        }
+      ]
+    },
+    {
+      "identity": "IntoIterator",
+      "visibility": "PublicOpenV1",
+      "associated_types": ["Item", "IntoIter"],
+      "methods": [
+        {
+          "name": "into_iter",
+          "parameters": ["Self"],
+          "result": "Self::IntoIter",
+          "effect_row": "! {}",
+          "receiver": "self : Self"
+        }
+      ]
+    },
+    {
+      "identity": "Iterator",
+      "visibility": "PublicOpenV1",
+      "associated_types": ["Item"],
+      "methods": [
+        {
+          "name": "next",
+          "parameters": ["Self"],
+          "result": "IterStep[Self::Item,Self]",
+          "effect_row": "! {}",
+          "receiver": "self : Self"
+        }
+      ]
+    }
+  ],
+  "impls": [
+    {
+      "identity": "impl-display-name-for-point",
+      "trait": "DisplayName",
+      "target": "Point",
+      "owner": "target-package",
+      "constraints": [],
+      "methods": [
+        { "name": "display_name", "effect_row": "! {}" }
+      ]
+    }
+  ],
+  "extensions": [
+    {
+      "identity": "joined",
+      "qualified_name": "@text::joined",
+      "receiver": "self : Array[String]",
+      "parameters": ["self : Array[String]", "separator : String"],
+      "result": "String",
+      "effect_row": "! {}",
+      "activation": "use @text::joined [as alias]"
+    }
+  ],
+  "resolution_cases": [
+    {
+      "id": "inherent-wins",
+      "candidates": ["Point::translate", "<Point as Move>::translate", "@geo::translate"],
+      "selected": "Point::translate",
+      "result": "accept"
+    },
+    {
+      "id": "trait-extension-ambiguous",
+      "candidates": ["<Words as Join>::joined", "@text::joined"],
+      "selected": null,
+      "result": "reject",
+      "diagnostic": "method-candidate-ambiguous"
+    },
+    {
+      "id": "trait-ufcs",
+      "candidates": ["<Point as DisplayName>::display_name"],
+      "selected": "<Point as DisplayName>::display_name",
+      "result": "accept"
+    },
+    {
+      "id": "explicit-extension-import",
+      "candidates": ["@text::joined"],
+      "selected": "@text::joined",
+      "result": "accept"
+    }
+  ],
+  "coherence_cases": [
+    { "id": "foreign-trait-foreign-head", "result": "reject", "diagnostic": "trait-orphan-impl" },
+    { "id": "unifiable-overlap", "result": "reject", "diagnostic": "trait-impl-overlap" },
+    { "id": "constraints-do-not-disambiguate", "result": "reject", "diagnostic": "trait-impl-overlap" },
+    { "id": "local-newtype-head", "result": "accept", "diagnostic": null }
+  ]
+}
