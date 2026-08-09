@@ -2203,6 +2203,12 @@ site/route/entry/operation/role 的 attributed demand或对应 schema version的
 `LatentSiteV1`/`LatentSiteV2`
 一一对应；`OwnerBoundV1` 必须与同一 park/Owner slot 的 `ParkContractV1`
 或 `ParkContractV2` 对应。wire不序列化 runtime prompt地址。
+Importer必须从三处重新计算同一个 canonical
+`(site_slot,route,entry,operation,role)` key：不能相信 demand、Request atom或
+primary/secondary site evidence中任一份自报的 route；所有显式 prompt route
+都在当前 declaration prompt table中关闭，path-level `OuterOfV1` 直接拒绝。
+`SuspensionV1.atoms` 先 exact-decode为 list，再由 atoms 的 grade join重算
+aggregate grade；container或 aggregate漂移只产生稳定 contract diagnostic。
 `SuffixContractV1/V2` 是 $D_k,Pi_k,chi_k,u_k$ 的确定性 wire projection：
 residual row/demand、flow/world、suspension、summary/result、phase、cleanup
 与全部 live binding缺一不可。对 V2，checker从本 suffix computation中全部

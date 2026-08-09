@@ -1462,6 +1462,91 @@ def task49_schema_scope_totality_roots() -> None:
         lambda: v.validate_function_contract(outer_route),
     )
 
+    def path_route_root(
+        component: str, route: dict[str, Any],
+    ) -> dict[str, Any]:
+        root = load("choose-once-function-contract.json")
+        path = root["computation"]["paths"][0]
+        if component == "demand":
+            target = path["attributed_demand"][0]
+        else:
+            target = next(
+                atom
+                for atom in path["suspension"]["atoms"]
+                if atom.get("kind") == "RequestV1"
+            )
+        target["route"] = copy.deepcopy(route)
+        return root
+
+    bound_path_prompt = path_route_root(
+        "demand", {"kind": "InstallationPromptV1", "prompt_slot": 999},
+    )
+    bound_path = bound_path_prompt["computation"]["paths"][0]
+    next(
+        atom
+        for atom in bound_path["suspension"]["atoms"]
+        if atom.get("kind") == "RequestV1"
+    )["route"] = {"kind": "InstallationPromptV1", "prompt_slot": 999}
+    bound_path["LatentSites"][0]["route"] = {
+        "kind": "InstallationPromptV1",
+        "prompt_slot": 999,
+    }
+    bound_path_prompt["binders"]["prompt_binders"].append(
+        {
+            "binder_site_slot": 0,
+            "prompt_slot": 999,
+            "scope": "LexicalInstallation",
+        }
+    )
+    v.validate_function_contract(bound_path_prompt)
+
+    for component in ("demand", "request"):
+        expect_diagnostic(
+            f"path {component} prompt route resolves in declaration scope",
+            "contract-projection-escapes-scope",
+            lambda component=component: v.validate_function_contract(
+                path_route_root(
+                    component,
+                    {"kind": "InstallationPromptV1", "prompt_slot": 999},
+                )
+            ),
+        )
+        expect_diagnostic(
+            f"path {component} rejects Kernel-Forward-only OuterOfV1",
+            "contract-component-kind-mismatch",
+            lambda component=component: v.validate_function_contract(
+                path_route_root(
+                    component,
+                    {"kind": "OuterOfV1", "prompt_slot": 999},
+                )
+            ),
+        )
+        expect_diagnostic(
+            f"path {component} route matches its attributed site",
+            "contract-component-kind-mismatch",
+            lambda component=component: v.validate_function_contract(
+                path_route_root(component, {"kind": "RootOfEntryV1"})
+            ),
+        )
+
+    scalar_atoms = load("choose-once-function-contract.json")
+    scalar_atoms["computation"]["paths"][0]["suspension"]["atoms"] = 0
+    expect_diagnostic(
+        "SuspensionV1 atoms exact-decodes as a list",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_function_contract(scalar_atoms),
+    )
+
+    wrong_grade = load("choose-once-function-contract.json")
+    wrong_grade["computation"]["paths"][0]["suspension"]["grade"] = (
+        "MaySuspend"
+    )
+    expect_diagnostic(
+        "SuspensionV1 grade equals the join of atom grades",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_function_contract(wrong_grade),
+    )
+
     for field in (
         "actual_arguments", "call_obligation_ids", "install_obligation_ids",
     ):
@@ -3000,4 +3085,4 @@ evaluated_clause_and_return_boundary_roots()
 handler_computation_scope_roots()
 handler_recursive_descendant_scope_roots()
 validate_inline_function_fresh_scope_root()
-print("PASS: 133 task-46 exact-schema/scope/substitution complete-root probes")
+print("PASS: 142 task-46 exact-schema/scope/substitution complete-root probes")

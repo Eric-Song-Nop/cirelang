@@ -693,7 +693,15 @@ def validate_operation_selector(
         raise Diagnostic("forward-operation-mismatch")
 
 
-def validate_route_selector(route: Any) -> None:
+AttributionKey = tuple[int, str, str, str, str]
+
+
+def validate_route_selector(
+    route: Any,
+    *,
+    declaration_scope: DeclarationScope | None = None,
+    allow_outer: bool = False,
+) -> dict[str, Any]:
     route = validate_contract_object(route)
     kind = route.get("kind")
     if kind in {"ResolveAtCallV1", "ResolveAtInstallationV1"}:
@@ -707,12 +715,72 @@ def validate_route_selector(route: Any) -> None:
     else:
         raise Diagnostic("contract-component-kind-mismatch")
 
+    reject(
+        kind == "OuterOfV1" and not allow_outer,
+        "contract-component-kind-mismatch",
+    )
+    if declaration_scope is not None and kind in {
+        "InstallationPromptV1", "OuterOfV1",
+    }:
+        reject(
+            route["prompt_slot"] not in declaration_scope.prompt_binders,
+            "contract-projection-escapes-scope",
+        )
+    return route
 
-def validate_suspension(suspension: Any) -> None:
+
+def attribution_key(
+    *,
+    site_slot: int,
+    route: dict[str, Any],
+    entry: dict[str, Any],
+    operation: dict[str, Any],
+    site_role: str | dict[str, Any],
+) -> AttributionKey:
+    """Return the canonical key shared by demand, request, and site evidence."""
+
+    return (
+        site_slot,
+        jcs(route),
+        jcs(entry),
+        jcs(operation),
+        jcs(site_role),
+    )
+
+
+def validate_attributed_request_keys(
+    demand_keys: list[AttributionKey],
+    request_keys: list[AttributionKey],
+    *,
+    site_keys: list[AttributionKey] | None = None,
+) -> None:
+    """Enforce AttributedOK without trusting any serialized aggregate."""
+
+    reject(
+        len(demand_keys) != len(set(demand_keys))
+        or len(request_keys) != len(set(request_keys))
+        or set(demand_keys) != set(request_keys),
+        "contract-component-kind-mismatch",
+    )
+    if site_keys is not None:
+        reject(
+            len(site_keys) != len(set(site_keys))
+            or not set(request_keys).issubset(site_keys),
+            "contract-component-kind-mismatch",
+        )
+
+
+def validate_suspension(
+    suspension: Any,
+    *,
+    declaration_scope: DeclarationScope | None = None,
+) -> list[AttributionKey]:
     suspension = validate_contract_object(suspension)
     exact_fields(suspension, {"atoms", "grade"}, "SuspensionV1")
     reject(suspension["grade"] not in {"NoSuspend", "MaySuspend"}, "contract-component-kind-mismatch")
-    for atom in suspension["atoms"]:
+    request_keys: list[AttributionKey] = []
+    atoms = validate_contract_list(suspension["atoms"])
+    for atom in atoms:
         atom = validate_contract_object(atom)
         kind = atom.get("kind")
         if kind == "DirectV1":
@@ -725,7 +793,9 @@ def validate_suspension(suspension: Any) -> None:
                 kind,
             )
             validate_u32(atom["site_slot"], "RequestV1 site_slot")
-            validate_route_selector(atom["route"])
+            route = validate_route_selector(
+                atom["route"], declaration_scope=declaration_scope,
+            )
             validate_effect_entry_selector(atom["entry"])
             validate_operation_selector(atom["operation"])
             reject(atom["grade"] not in {"NoSuspend", "MaySuspend"}, "contract-component-kind-mismatch")
@@ -735,6 +805,13 @@ def validate_suspension(suspension: Any) -> None:
                 exact_fields(role, {"kind", "secondary_slot"}, "Secondary")
                 reject(role["kind"] != "Secondary", "contract-component-kind-mismatch")
                 validate_u32(role["secondary_slot"], "RequestV1 secondary_slot")
+            request_keys.append(
+                attribution_key(
+                    site_slot=atom["site_slot"], route=route,
+                    entry=atom["entry"], operation=atom["operation"],
+                    site_role=role,
+                )
+            )
         elif kind == "OwnerBoundV1":
             exact_fields(atom, {"kind", "park_site_slot", "owner_slot", "grade", "origin"}, kind)
             validate_u32(atom["park_site_slot"], "OwnerBoundV1 park_site_slot")
@@ -743,8 +820,23 @@ def validate_suspension(suspension: Any) -> None:
         else:
             raise Diagnostic("contract-component-kind-mismatch")
 
+    expected_grade = (
+        "MaySuspend"
+        if any(atom["grade"] == "MaySuspend" for atom in atoms)
+        else "NoSuspend"
+    )
+    reject(
+        suspension["grade"] != expected_grade,
+        "contract-component-kind-mismatch",
+    )
+    return request_keys
 
-def validate_demand(demand: Any) -> None:
+
+def validate_demand(
+    demand: Any,
+    *,
+    declaration_scope: DeclarationScope | None = None,
+) -> AttributionKey:
     demand = validate_contract_object(demand)
     exact_fields(
         demand,
@@ -752,7 +844,9 @@ def validate_demand(demand: Any) -> None:
         "DemandV1",
     )
     validate_u32(demand["site_slot"], "DemandV1 site_slot")
-    validate_route_selector(demand["route"])
+    route = validate_route_selector(
+        demand["route"], declaration_scope=declaration_scope,
+    )
     validate_effect_entry_selector(demand["entry"])
     validate_operation_selector(demand["operation"])
     role = demand["site_role"]
@@ -761,6 +855,11 @@ def validate_demand(demand: Any) -> None:
         exact_fields(role, {"kind", "secondary_slot"}, "Secondary")
         reject(role["kind"] != "Secondary", "contract-component-kind-mismatch")
         validate_u32(role["secondary_slot"], "DemandV1 secondary_slot")
+    return attribution_key(
+        site_slot=demand["site_slot"], route=route,
+        entry=demand["entry"], operation=demand["operation"],
+        site_role=role,
+    )
 
 
 def validate_row_expr(row: Any) -> None:
@@ -3052,7 +3151,11 @@ def validate_return_binder(
         validate_usage(binder["usage"], returns, disposition_binder=disposition_binder)
 
 
-def validate_cleanup(cleanup: dict[str, Any]) -> None:
+def validate_cleanup(
+    cleanup: dict[str, Any],
+    *,
+    declaration_scope: DeclarationScope | None = None,
+) -> None:
     exact_fields(cleanup, {"residual_row", "attributed_demand", "transition", "suspension", "semantic_summary"}, "CleanupContractV1")
     reject(
         any(
@@ -3063,10 +3166,17 @@ def validate_cleanup(cleanup: dict[str, Any]) -> None:
         "unsupported-contract-schema-version",
     )
     validate_row_expr(cleanup["residual_row"])
-    for demand in validate_contract_list(cleanup["attributed_demand"]):
-        validate_demand(demand)
+    demand_keys = [
+        validate_demand(
+            demand, declaration_scope=declaration_scope,
+        )
+        for demand in validate_contract_list(cleanup["attributed_demand"])
+    ]
     validate_transition(cleanup["transition"])
-    validate_suspension(cleanup["suspension"])
+    request_keys = validate_suspension(
+        cleanup["suspension"], declaration_scope=declaration_scope,
+    )
+    validate_attributed_request_keys(demand_keys, request_keys)
     validate_summary_normal_form(cleanup["semantic_summary"])
 
 
@@ -3124,7 +3234,9 @@ def validate_suffix(
         declaration_scope=declaration_scope,
     )
     validate_type_v2(suffix["answer_type"], returns=returns, applications=applications, imports=imports, contract_binders=contract_binders, local_functions=local_functions, declaration_scope=declaration_scope)
-    validate_cleanup(suffix["cleanup"])
+    validate_cleanup(
+        suffix["cleanup"], declaration_scope=declaration_scope,
+    )
     declared_live_keys: set[tuple[str, int]] = set()
     for binding in suffix["live_bindings"]:
         exact_fields(binding, {"slot", "type", "provenance", "capture", "usage"}, "LiveAcrossSiteV2")
@@ -3409,7 +3521,7 @@ def validate_secondary_site_set(
     secondary_sites: Any,
     *,
     declaration_scope: DeclarationScope | None = None,
-) -> None:
+) -> list[AttributionKey]:
     """Exact-decode one closed SecondarySiteSetV1 in lexical scope."""
 
     secondary_sites = validate_contract_object(secondary_sites)
@@ -3420,6 +3532,7 @@ def validate_secondary_site_set(
         secondary_sites["kind"] != "Closed",
         "contract-component-kind-mismatch",
     )
+    site_keys: list[AttributionKey] = []
     for site in validate_contract_list(secondary_sites["sites"]):
         site = validate_contract_object(site)
         exact_fields(
@@ -3457,24 +3570,25 @@ def validate_secondary_site_set(
                 else None
             ),
         )
-        validate_route_selector(site["route"])
-        route_kind = site["route"].get("kind")
-        reject(
-            route_kind == "OuterOfV1",
-            "contract-component-kind-mismatch",
+        route = validate_route_selector(
+            site["route"], declaration_scope=declaration_scope,
         )
-        if (
-            declaration_scope is not None
-            and route_kind in {"InstallationPromptV1", "OuterOfV1"}
-        ):
-            reject(
-                site["route"]["prompt_slot"]
-                not in declaration_scope.prompt_binders,
-                "contract-projection-escapes-scope",
-            )
-        validate_suspension(site["suspension"])
+        validate_suspension(
+            site["suspension"], declaration_scope=declaration_scope,
+        )
         validate_summary_normal_form(site["semantic_summary"])
         validate_source_origins(site)
+        site_keys.append(
+            attribution_key(
+                site_slot=site["site_slot"], route=route,
+                entry=site["receiver"], operation=site["operation"],
+                site_role={
+                    "kind": "Secondary",
+                    "secondary_slot": site["site_slot"],
+                },
+            )
+        )
+    return site_keys
 
 
 def validate_operation_signature(
@@ -3484,7 +3598,7 @@ def validate_operation_signature(
     imports: ImportScope | None = None,
     local_functions: LocalFunctionScope | None = None,
     declaration_scope: DeclarationScope | None = None,
-) -> None:
+) -> list[AttributionKey]:
     imports = imports or ImportScope()
     local_functions = local_functions or {}
     exact_fields(signature, {"type_binders", "parameters", "result", "mode", "transition", "suspension", "result_transformer", "required_phase", "obligation_ids", "secondary_sites"}, "OperationSignatureV2")
@@ -3539,12 +3653,14 @@ def validate_operation_signature(
         "contract-component-kind-mismatch",
     )
     validate_transition(signature["transition"])
-    validate_suspension(signature["suspension"])
+    validate_suspension(
+        signature["suspension"], declaration_scope=signature_scope,
+    )
     validate_result_transformer_v1(signature["result_transformer"])
     validate_phase_requirement(signature["required_phase"])
     for local_id in validate_contract_list(signature["obligation_ids"]):
         validate_u32(local_id, "OperationSignatureV2 obligation id")
-    validate_secondary_site_set(
+    return validate_secondary_site_set(
         signature["secondary_sites"], declaration_scope=signature_scope,
     )
 
@@ -3559,7 +3675,7 @@ def validate_latent_site(
     disposition_binder: dict[str, Any] | None = None,
     row_binders: dict[int, dict[str, Any]] | None = None,
     declaration_scope: DeclarationScope | None = None,
-) -> None:
+) -> list[AttributionKey]:
     exact_fields(latent, {"site_slot", "stage", "receiver", "operation", "route", "actual_arguments", "instantiated_signature", "suffix", "secondary_sites", "call_obligation_ids", "install_obligation_ids", "origin"}, "LatentSiteV2")
     validate_u32(latent["site_slot"], "LatentSiteV2 site_slot")
     reject(
@@ -3596,25 +3712,16 @@ def validate_latent_site(
             else None
         ),
     )
-    validate_route_selector(latent["route"])
-    route_kind = latent["route"].get("kind")
+    route = validate_route_selector(
+        latent["route"], declaration_scope=declaration_scope,
+    )
+    route_kind = route.get("kind")
     reject(
         route_kind == "ResolveAtCallV1" and latent["stage"] != "Call"
         or route_kind == "ResolveAtInstallationV1"
-        and latent["stage"] != "HandlerInstall"
-        or route_kind == "OuterOfV1",
+        and latent["stage"] != "HandlerInstall",
         "contract-component-kind-mismatch",
     )
-    if (
-        declaration_scope is not None
-        and route_kind
-        in {"InstallationPromptV1", "OuterOfV1"}
-    ):
-        reject(
-            latent["route"]["prompt_slot"]
-            not in declaration_scope.prompt_binders,
-            "contract-projection-escapes-scope",
-        )
     actual_arguments = validate_contract_list(latent["actual_arguments"])
     call_obligation_ids = validate_contract_list(
         latent["call_obligation_ids"]
@@ -3629,7 +3736,7 @@ def validate_latent_site(
     validate_operation_argument_scope(
         actual_arguments, len(actual_arguments),
     )
-    validate_operation_signature(
+    signature_site_keys = validate_operation_signature(
         latent["instantiated_signature"], returns,
         imports=imports, local_functions=local_functions,
         declaration_scope=declaration_scope,
@@ -3639,7 +3746,7 @@ def validate_latent_site(
         == latent["instantiated_signature"]["parameters"],
         "LatentSiteV2 actual/signature type mismatch",
     )
-    validate_secondary_site_set(
+    secondary_site_keys = validate_secondary_site_set(
         latent["secondary_sites"], declaration_scope=declaration_scope,
     )
     validate_suffix(
@@ -3648,6 +3755,14 @@ def validate_latent_site(
         disposition_binder=disposition_binder, row_binders=row_binders,
         declaration_scope=declaration_scope,
     )
+    return [
+        attribution_key(
+            site_slot=latent["site_slot"], route=route,
+            entry=latent["receiver"], operation=latent["operation"],
+            site_role="Primary",
+        ),
+        *(secondary_site_keys or signature_site_keys),
+    ]
 
 
 def validate_forward_contract(
@@ -3760,9 +3875,15 @@ def validate_path(
 ) -> None:
     exact_fields(path, {"outcome", "residual_row", "attributed_demand", "suspension", "semantic_summary", "usage", "required_phase", "ParametricObligations", "LatentSites"}, "PathContractV2")
     validate_row_expr(path["residual_row"])
-    for demand in validate_contract_list(path["attributed_demand"]):
-        validate_demand(demand)
-    validate_suspension(path["suspension"])
+    demand_keys = [
+        validate_demand(
+            demand, declaration_scope=declaration_scope,
+        )
+        for demand in validate_contract_list(path["attributed_demand"])
+    ]
+    request_keys = validate_suspension(
+        path["suspension"], declaration_scope=declaration_scope,
+    )
     validate_summary_normal_form(path["semantic_summary"])
     validate_phase_requirement(path["required_phase"])
     usage_keys: set[tuple[str, int]] = set()
@@ -3777,17 +3898,25 @@ def validate_path(
         )
     q = [obligation_value(obligation) for obligation in path["ParametricObligations"]]
     q_keys = {(entry["stage"], entry["id"]) for entry in q}
-    for latent in path["LatentSites"]:
-        validate_latent_site(
-            latent, returns=returns, imports=imports,
-            contract_binders=contract_binders, local_functions=local_functions,
-            disposition_binder=disposition_binder, row_binders=row_binders,
-            declaration_scope=declaration_scope,
+    site_keys: list[AttributionKey] = []
+    for latent in validate_contract_list(path["LatentSites"]):
+        site_keys.extend(
+            validate_latent_site(
+                latent, returns=returns, imports=imports,
+                contract_binders=contract_binders,
+                local_functions=local_functions,
+                disposition_binder=disposition_binder,
+                row_binders=row_binders,
+                declaration_scope=declaration_scope,
+            )
         )
         for local_id in latent["call_obligation_ids"]:
             reject(("Call", local_id) not in q_keys, "projected-obligation-stage-lost")
         for local_id in latent["install_obligation_ids"]:
             reject(("HandlerInstall", local_id) not in q_keys, "projected-obligation-stage-lost")
+    validate_attributed_request_keys(
+        demand_keys, request_keys, site_keys=site_keys,
+    )
     outcome = path["outcome"]
     kind = outcome.get("kind")
     if kind == "ReturnsV2":
@@ -8455,6 +8584,16 @@ def validate_task28_path_and_qualification_regressions() -> int:
         "secondary_slot": 7,
     }
     secondary_path["attributed_demand"] = [secondary_demand]
+    secondary_request = next(
+        atom
+        for atom in secondary_path["suspension"]["atoms"]
+        if atom.get("kind") == "RequestV1"
+    )
+    secondary_request["site_slot"] = 7
+    secondary_request["site_role"] = {
+        "kind": "Secondary",
+        "secondary_slot": 7,
+    }
     validate_function_contract(secondary_source)
     secondary_hash = canonical_hash(secondary_source)
     secondary_reference = {
@@ -8481,11 +8620,11 @@ def validate_task28_path_and_qualification_regressions() -> int:
         for latent in qualified_path["LatentSites"]
         for site in latent["instantiated_signature"]["secondary_sites"]["sites"]
     )
-    secondary_references = sorted(
+    secondary_references = sorted({
         node["secondary_slot"]
         for node in walk(qualified_path)
         if isinstance(node, dict) and node.get("kind") == "Secondary"
-    )
+    })
     require(
         len(secondary_sites) == 2
         and len(set(secondary_sites)) == 2
@@ -9712,7 +9851,16 @@ def validate_task33_regressions() -> int:
         neutral = copy.deepcopy(site["suffix"]["cleanup"])
         obligation_cleanup = copy.deepcopy(neutral)
         if mode in {"mismatched-cleanup", "nonneutral-cleanup"}:
-            obligation_cleanup["suspension"]["grade"] = "MaySuspend"
+            obligation_cleanup["suspension"] = {
+                "atoms": [
+                    {
+                        "kind": "DirectV1",
+                        "grade": "MaySuspend",
+                        "origin": "task33:replayable-cleanup",
+                    }
+                ],
+                "grade": "MaySuspend",
+            }
         if mode == "nonneutral-cleanup":
             site["suffix"]["cleanup"] = copy.deepcopy(obligation_cleanup)
         source_path["ParametricObligations"][0] = {
@@ -10042,7 +10190,16 @@ def validate_task34_regressions() -> int:
         site = source_path["LatentSites"][0]
         obligation_cleanup = copy.deepcopy(site["suffix"]["cleanup"])
         if mode in {"mismatched-cleanup", "nonneutral-cleanup"}:
-            obligation_cleanup["suspension"]["grade"] = "MaySuspend"
+            obligation_cleanup["suspension"] = {
+                "atoms": [
+                    {
+                        "kind": "DirectV1",
+                        "grade": "MaySuspend",
+                        "origin": "task34:replayable-cleanup",
+                    }
+                ],
+                "grade": "MaySuspend",
+            }
         if mode == "nonneutral-cleanup":
             site["suffix"]["cleanup"] = copy.deepcopy(obligation_cleanup)
         obligation = {
@@ -10577,7 +10734,7 @@ def main() -> int:
         task46_result.returncode == 0,
         "task-46 complete-root regressions failed:\n" + task46_result.stdout,
     )
-    task46_probe_count = 133
+    task46_probe_count = 142
     validate_normative_producer_alignment()
     print(
         f"PASS: {len(interface_paths)} interface artifacts, "
