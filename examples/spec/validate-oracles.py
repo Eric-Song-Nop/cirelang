@@ -345,6 +345,7 @@ class DeclarationScope:
         handler_contract_binders: set[int],
         owner_binders: dict[int, dict[str, Any]] | None = None,
         clock_binders: dict[int, dict[str, Any]] | None = None,
+        prompt_binders: set[int] | None = None,
         parameter_binders: set[int] | None = None,
         closure_capture_binders: set[int] | None = None,
         enforce_ordinary_slots: bool = True,
@@ -356,6 +357,7 @@ class DeclarationScope:
         self.handler_contract_binders = handler_contract_binders
         self.owner_binders = owner_binders or {}
         self.clock_binders = clock_binders or {}
+        self.prompt_binders = prompt_binders or set()
         self.parameter_binders = parameter_binders or set()
         self.closure_capture_binders = closure_capture_binders or set()
         self.enforce_ordinary_slots = enforce_ordinary_slots
@@ -401,6 +403,7 @@ class DeclarationScope:
             clock_binders=(
                 self.clock_binders if clock_binders is None else clock_binders
             ),
+            prompt_binders=self.prompt_binders,
             parameter_binders=self.parameter_binders,
             closure_capture_binders=self.closure_capture_binders,
             enforce_ordinary_slots=self.enforce_ordinary_slots,
@@ -439,6 +442,9 @@ def declaration_scope_from_binders(
         },
         clock_binders={
             binder["slot"]: binder for binder in binders["clock_binders"]
+        },
+        prompt_binders={
+            binder["prompt_slot"] for binder in binders["prompt_binders"]
         },
         parameter_binders={
             binder["slot"] for binder in binders["parameter_binders"]
@@ -668,13 +674,19 @@ def validate_effect_entry_selector(
         )
 
 
-def validate_operation_selector(operation: Any) -> None:
+def validate_operation_selector(
+    operation: Any,
+    type_parameter_kinds: dict[int, str] | None = None,
+) -> None:
     operation = validate_contract_object(operation)
     kind = operation.get("kind")
     if kind == "ExactOperationV1":
         exact_fields(operation, {"kind", "family", "name"}, kind)
-        validate_effect_family_ref(operation["family"])
-        require(isinstance(operation["name"], str), "exact operation selector")
+        validate_effect_family_ref(operation["family"], type_parameter_kinds)
+        reject(
+            not isinstance(operation["name"], str) or not operation["name"],
+            "contract-component-kind-mismatch",
+        )
     elif kind == "AnyOperationOfEntry":
         exact_fields(operation, {"kind"}, kind)
     else:
@@ -944,15 +956,10 @@ def validate_lexical_slot_scope(
     tag = value.get("kind")
     if set(value) == HANDLER_CONTRACT_FIELDS:
         prompt_scope = slot_scopes.get("Prompt", set())
-        if prompt_scope:
-            reject(
-                value.get("prompt_slot") not in prompt_scope,
-                "contract-projection-escapes-scope",
-            )
-        elif not _root:
-            # A captured handler contract with no enclosing prompt table owns
-            # its installation scope; its direct decoder validates that root.
-            return
+        reject(
+            value.get("prompt_slot") not in prompt_scope,
+            "contract-projection-escapes-scope",
+        )
         for key, member in value.items():
             if key != "prompt_slot":
                 validate_lexical_slot_scope(
@@ -1397,6 +1404,7 @@ def validate_contract_kind(
 ) -> None:
     imports = imports or ImportScope()
     local_functions = local_functions or {}
+    kind = validate_contract_object(kind)
     tag = kind.get("kind")
     fields = {
         "FunctionContractKindV2": {"kind", "parameter_type", "result_type", "visible_row"},
@@ -1473,6 +1481,11 @@ def validate_contract_ref(
             )
             or not isinstance(reference["name"], str)
             or not reference["name"],
+            "contract-component-kind-mismatch",
+        )
+        reject(
+            not isinstance(reference["artifact_hash"], str)
+            or not reference["artifact_hash"],
             "contract-component-kind-mismatch",
         )
         reject(reference["artifact_hash"] not in imports, "contract-component-kind-mismatch")
@@ -2427,6 +2440,7 @@ def validate_type_v2(
                 handler_contract_binders=declaration_scope.handler_contract_binders,
                 owner_binders=declaration_scope.owner_binders,
                 clock_binders=declaration_scope.clock_binders,
+                prompt_binders=declaration_scope.prompt_binders,
                 parameter_binders=declaration_scope.parameter_binders,
                 closure_capture_binders=(
                     declaration_scope.closure_capture_binders
@@ -3427,6 +3441,7 @@ def validate_operation_signature(
             ),
             owner_binders=declaration_scope.owner_binders,
             clock_binders=declaration_scope.clock_binders,
+            prompt_binders=declaration_scope.prompt_binders,
             parameter_binders=declaration_scope.parameter_binders,
             closure_capture_binders=(
                 declaration_scope.closure_capture_binders
@@ -3488,6 +3503,43 @@ def validate_latent_site(
 ) -> None:
     exact_fields(latent, {"site_slot", "stage", "receiver", "operation", "route", "actual_arguments", "instantiated_signature", "suffix", "secondary_sites", "call_obligation_ids", "install_obligation_ids", "origin"}, "LatentSiteV2")
     validate_u32(latent["site_slot"], "LatentSiteV2 site_slot")
+    validate_effect_entry_selector(
+        latent["receiver"],
+        (
+            declaration_scope.type_parameter_kinds
+            if declaration_scope is not None
+            else None
+        ),
+        identity_binders=(
+            declaration_scope.identity_binders
+            if declaration_scope is not None
+            else None
+        ),
+        handler_contract_binders=(
+            declaration_scope.handler_contract_binders
+            if declaration_scope is not None
+            else None
+        ),
+    )
+    validate_operation_selector(
+        latent["operation"],
+        (
+            declaration_scope.type_parameter_kinds
+            if declaration_scope is not None
+            else None
+        ),
+    )
+    validate_route_selector(latent["route"])
+    if (
+        declaration_scope is not None
+        and latent["route"].get("kind")
+        in {"InstallationPromptV1", "OuterOfV1"}
+    ):
+        reject(
+            latent["route"]["prompt_slot"]
+            not in declaration_scope.prompt_binders,
+            "contract-projection-escapes-scope",
+        )
     for local_id in [*latent["call_obligation_ids"], *latent["install_obligation_ids"]]:
         validate_u32(local_id, "LatentSiteV2 obligation id")
     for summary in latent["actual_arguments"]:
@@ -5466,6 +5518,9 @@ def validate_function_contract(
         handler_contract_binders=handler_contract_binders,
         owner_binders=owner_binders,
         clock_binders=clock_binders,
+        prompt_binders={
+            binder["prompt_slot"] for binder in binders["prompt_binders"]
+        },
         parameter_binders=parameter_binders,
         closure_capture_binders=closure_capture_binders,
     )
@@ -5662,6 +5717,7 @@ def validate_handler_contract(
     handler_contract_binders: set[int] | None = None,
     owner_binders: dict[int, dict[str, Any]] | None = None,
     clock_binders: dict[int, dict[str, Any]] | None = None,
+    prompt_binders: set[int] | None = None,
     parameter_binders: set[int] | None = None,
     closure_capture_binders: set[int] | None = None,
 ) -> None:
@@ -5674,6 +5730,7 @@ def validate_handler_contract(
     contract_binders = contract_binders or {}
     identity_binders = identity_binders or {}
     handler_contract_binders = handler_contract_binders or set()
+    prompt_scope_provided = prompt_binders is not None
     ordinary_scope_provided = any(
         scope is not None
         for scope in (
@@ -5685,6 +5742,7 @@ def validate_handler_contract(
     )
     owner_binders = owner_binders or {}
     clock_binders = clock_binders or {}
+    prompt_binders = prompt_binders or set()
     parameter_binders = parameter_binders or set()
     closure_capture_binders = closure_capture_binders or set()
     declaration_scope = DeclarationScope(
@@ -5695,6 +5753,7 @@ def validate_handler_contract(
         handler_contract_binders=handler_contract_binders,
         owner_binders=owner_binders,
         clock_binders=clock_binders,
+        prompt_binders=prompt_binders,
         parameter_binders=parameter_binders,
         closure_capture_binders=closure_capture_binders,
         enforce_ordinary_slots=ordinary_scope_provided,
@@ -5708,6 +5767,16 @@ def validate_handler_contract(
         local_functions=local_functions,
     )
     validate_u32(contract["prompt_slot"], "HandlerContractV2 prompt_slot")
+    if prompt_scope_provided:
+        reject(
+            contract["prompt_slot"] not in prompt_binders,
+            "contract-projection-escapes-scope",
+        )
+    else:
+        # A standalone HandlerContractV2 decoder receives the installation
+        # prompt as its root scope.  Complete FunctionContractV2 roots still
+        # have to resolve that prompt through DeclarationBindersV2.
+        declaration_scope.prompt_binders = {contract["prompt_slot"]}
     validate_effect_entry_selector(
         contract["handled_entry"],
         type_parameter_kinds,
@@ -5734,10 +5803,13 @@ def validate_handler_contract(
             slot_scopes={
                 "Parameter": parameter_binders,
                 "ClosureCapture": closure_capture_binders,
+                "Type": set(type_parameter_kinds),
+                "Contract": set(contract_binders),
                 "Owner": set(owner_binders),
                 "Identity": set(identity_binders),
                 "Clock": set(clock_binders),
                 "Row": set(row_binders),
+                "Prompt": declaration_scope.prompt_binders,
             },
         )
     for binding in contract["handler_environment"]:
@@ -7719,6 +7791,9 @@ def validate_handler_oracle(oracle: dict[str, Any], directory: Path) -> None:
         for binder in binders["contract_binders"]
         if binder.get("kind") == "HandlerContractBinderV2"
     }
+    prompt_slots = [
+        binder["prompt_slot"] for binder in binders["prompt_binders"]
+    ]
     declaration_scope = DeclarationScope(
         type_parameter_kinds=type_parameter_kinds,
         row_binders=row_binders,
@@ -7727,10 +7802,10 @@ def validate_handler_oracle(oracle: dict[str, Any], directory: Path) -> None:
         handler_contract_binders=handler_contract_binders,
         owner_binders=owner_binders,
         clock_binders=clock_binders,
+        prompt_binders=set(prompt_slots),
         parameter_binders=parameter_binders,
         closure_capture_binders=set(),
     )
-    prompt_slots = [binder["prompt_slot"] for binder in binders["prompt_binders"]]
     require(len(prompt_slots) == len(set(prompt_slots)) and {0, 1} <= set(prompt_slots), "handler oracle prompt scope")
     imported = resolve_imports(oracle, directory)
     current_prompt = oracle["handler_contract"]["prompt_slot"]
@@ -7746,6 +7821,7 @@ def validate_handler_oracle(oracle: dict[str, Any], directory: Path) -> None:
         handler_contract_binders=handler_contract_binders,
         owner_binders=owner_binders,
         clock_binders=clock_binders,
+        prompt_binders=set(prompt_slots),
         parameter_binders=parameter_binders,
         closure_capture_binders=set(),
     )
@@ -8022,6 +8098,7 @@ def decode_named(decoder: str, target: dict[str, Any], document: dict[str, Any],
                     binder["slot"]: binder
                     for binder in binders["clock_binders"]
                 },
+                "prompt_binders": set(prompt_slots),
                 "parameter_binders": {
                     binder["slot"]
                     for binder in binders["parameter_binders"]
@@ -10415,7 +10492,7 @@ def main() -> int:
         task46_result.returncode == 0,
         "task-46 complete-root regressions failed:\n" + task46_result.stdout,
     )
-    task46_probe_count = 108
+    task46_probe_count = 120
     validate_normative_producer_alignment()
     print(
         f"PASS: {len(interface_paths)} interface artifacts, "

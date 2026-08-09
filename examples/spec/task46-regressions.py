@@ -1358,6 +1358,226 @@ def task49_schema_scope_totality_roots() -> None:
         ),
     )
 
+    empty_prompt_scope = prompt_contract(60, 60)
+    empty_prompt_scope["binders"]["prompt_binders"] = []
+    expect_diagnostic(
+        "nested HandlerContractV2 prompt rejects an empty declaration table",
+        "contract-projection-escapes-scope",
+        lambda: v.validate_function_contract(empty_prompt_scope),
+    )
+
+    latent_fields = {
+        "site_slot", "stage", "receiver", "operation", "route",
+        "actual_arguments", "instantiated_signature", "suffix",
+        "secondary_sites", "call_obligation_ids", "install_obligation_ids",
+        "origin",
+    }
+
+    def malformed_latent_root(
+        field: str, replacement: Any,
+    ) -> dict[str, Any]:
+        root = load("choose-once-function-contract.json")
+        latent = next(
+            node
+            for node in v.walk(root)
+            if isinstance(node, dict) and set(node) == latent_fields
+        )
+        latent[field] = copy.deepcopy(replacement)
+        return root
+
+    expect_diagnostic(
+        "LatentSite route prompt must resolve in the declaration table",
+        "contract-projection-escapes-scope",
+        lambda: v.validate_function_contract(
+            malformed_latent_root(
+                "route",
+                {"kind": "InstallationPromptV1", "prompt_slot": 999},
+            )
+        ),
+    )
+    for field in ("receiver", "operation", "route"):
+        expect_diagnostic(
+            f"LatentSite scalar {field} is a stable diagnostic",
+            "contract-component-kind-mismatch",
+            lambda field=field: v.validate_function_contract(
+                malformed_latent_root(field, 0)
+            ),
+        )
+    malformed_operation_name = load("choose-once-function-contract.json")
+    malformed_operation_site = next(
+        node
+        for node in v.walk(malformed_operation_name)
+        if isinstance(node, dict) and set(node) == latent_fields
+    )
+    malformed_operation_site["operation"]["name"] = 0
+    expect_diagnostic(
+        "LatentSite operation name exact-decodes as StringV1",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_function_contract(malformed_operation_name),
+    )
+
+    malformed_hash = {
+        "kind": "ImportedFunctionRefV2",
+        "module": copy.deepcopy(declaration["module"]),
+        "name": declaration["name"],
+        "artifact_hash": [],
+    }
+    expect_diagnostic(
+        "non-string imported artifact hash is diagnostic directly",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_operation_signature(
+            malformed_signature(malformed_hash), {}, imports=imports,
+        ),
+    )
+
+    handler_binders = handler["binders"]
+    handler_contract = handler["handler_contract"]
+    scoped_contracts = {
+        binder["slot"]: binder
+        for binder in handler_binders["contract_binders"]
+    }
+    scoped_identities = {
+        binder["identity_slot"]: binder
+        for binder in handler_binders["identity_binders"]
+    }
+    scoped_rows = {
+        binder["slot"]: binder for binder in handler_binders["row_binders"]
+    }
+    scoped_owners = {
+        binder["slot"]: binder for binder in handler_binders["owner_binders"]
+    }
+    scoped_clocks = {
+        binder["slot"]: binder for binder in handler_binders["clock_binders"]
+    }
+    declaration_scope = v.DeclarationScope(
+        type_parameter_kinds={
+            binder["slot"]: binder["kind"]
+            for binder in handler_binders["type_binders"]
+        },
+        row_binders=scoped_rows,
+        contract_binders=scoped_contracts,
+        identity_binders=scoped_identities,
+        handler_contract_binders={
+            binder["slot"]
+            for binder in handler_binders["contract_binders"]
+            if binder.get("kind") == "HandlerContractBinderV2"
+        },
+        owner_binders=scoped_owners,
+        clock_binders=scoped_clocks,
+        prompt_binders={
+            binder["prompt_slot"]
+            for binder in handler_binders["prompt_binders"]
+        },
+        parameter_binders={
+            binder["slot"] for binder in handler_binders["parameter_binders"]
+        },
+        closure_capture_binders=set(),
+    )
+    clause = handler_contract["clause_computations"][0]
+    clause_path = clause["computation"]["continuation"]["paths"][0]
+    latent_template = copy.deepcopy(clause_path["LatentSites"][0])
+    forward_template = copy.deepcopy(
+        clause_path["outcome"]["forward_contract"]
+    )
+    forward_evidence = copy.deepcopy(
+        clause_path["outcome"]["disposition_evidence"]
+    )
+    disposition = copy.deepcopy(clause["disposition_binder"])
+    minimal_suffix = copy.deepcopy(
+        disposition["type"]["value"]["continuation"]
+    )
+
+    malformed_hash_type = {
+        "kind": "FunctionTypeV2",
+        "parameter": copy.deepcopy(target_kind["parameter_type"]),
+        "result": copy.deepcopy(target_kind["result_type"]),
+        "contract": copy.deepcopy(malformed_hash),
+    }
+    malformed_hash_summary = {
+        "source": None,
+        "type": copy.deepcopy(malformed_hash_type),
+        "nominal_index": {
+            "kind": "LegacyNominalIndexExprV2",
+            "value": {"kind": "NoNominalIndexV1"},
+        },
+        "provenance": {
+            "kind": "LegacyProvenanceExprV2",
+            "value": {"kind": "StableV1"},
+        },
+        "capture": {
+            "kind": "LegacyCaptureExprV2",
+            "value": {"kind": "NoCaptureV1"},
+        },
+        "usage": None,
+        "origin": "task49.cire:malformed-artifact-hash",
+    }
+
+    latent_hash = copy.deepcopy(latent_template)
+    latent_hash["actual_arguments"] = [
+        copy.deepcopy(malformed_hash_summary)
+    ]
+    latent_hash["instantiated_signature"] = malformed_signature(
+        malformed_hash
+    )
+    latent_hash["call_obligation_ids"] = []
+    latent_hash["install_obligation_ids"] = []
+    latent_hash["suffix"] = minimal_suffix
+    expect_diagnostic(
+        "non-string imported artifact hash is diagnostic through LatentSite",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_latent_site(
+            latent_hash,
+            returns={},
+            imports=imports,
+            contract_binders=scoped_contracts,
+            local_functions={},
+            row_binders=scoped_rows,
+            declaration_scope=declaration_scope,
+        ),
+    )
+
+    forward_hash = copy.deepcopy(forward_template)
+    forward_hash["actual_argument_summaries"] = [
+        copy.deepcopy(malformed_hash_summary)
+    ]
+    forward_hash["instantiated_signature"] = malformed_signature(
+        malformed_hash
+    )
+    forward_hash["call_obligation_ids"] = []
+    forward_hash["install_obligation_ids"] = []
+    expect_diagnostic(
+        "non-string imported artifact hash is diagnostic through Forward",
+        "contract-component-kind-mismatch",
+        lambda: v.validate_forward_contract(
+            forward_hash,
+            copy.deepcopy(forward_evidence),
+            copy.deepcopy(disposition),
+            returns={},
+            imports=imports,
+            contract_binders=scoped_contracts,
+            local_functions={},
+            clause_operation=copy.deepcopy(clause["operation"]),
+            handled_entry=copy.deepcopy(handler_contract["handled_entry"]),
+            handler_prompt_slot=handler_contract["prompt_slot"],
+            nearest_outer_prompt_slot=forward_hash["route"]["prompt_slot"],
+            row_binders=scoped_rows,
+            declaration_scope=declaration_scope,
+        ),
+    )
+
+    for malformed_kind in (0, [], None):
+        malformed_parameter = {
+            "kind": "ContractParameterRefV2",
+            "parameter": {"slot": 0, "kind": malformed_kind},
+        }
+        expect_diagnostic(
+            f"ContractParameterRefV2 scalar kind {malformed_kind!r}",
+            "contract-component-kind-mismatch",
+            lambda reference=malformed_parameter: v.validate_operation_signature(
+                malformed_signature(reference), {}, imports=imports,
+            ),
+        )
+
 
 def row_scope_roots() -> None:
     bound = load("choose-once-function-contract.json")
@@ -2297,6 +2517,9 @@ def embedded_handler_function_root() -> tuple[
     }
 
     function = load("apply-later-function-contract.json")
+    function["binders"]["prompt_binders"] = copy.deepcopy(
+        handler_oracle["binders"]["prompt_binders"]
+    )
     add_handler_scope_identity(function, handler_family)
     function["closure_environment"].append(
         {
@@ -2361,6 +2584,9 @@ def validate_embedded_handler_function_root() -> None:
         },
         clock_binders={
             binder["slot"]: binder for binder in binders["clock_binders"]
+        },
+        prompt_binders={
+            binder["prompt_slot"] for binder in binders["prompt_binders"]
         },
         parameter_binders={
             binder["slot"] for binder in binders["parameter_binders"]
@@ -2692,4 +2918,4 @@ evaluated_clause_and_return_boundary_roots()
 handler_computation_scope_roots()
 handler_recursive_descendant_scope_roots()
 validate_inline_function_fresh_scope_root()
-print("PASS: 108 task-46 exact-schema/scope/substitution complete-root probes")
+print("PASS: 120 task-46 exact-schema/scope/substitution complete-root probes")
