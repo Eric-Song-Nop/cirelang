@@ -1,5 +1,17 @@
 #import "../shared.typ": *
 
+== Core contract elaboration <core-contract-elaboration>
+
+与 hidden $L$ 相同，surface `(A) -> B ! ε` 先 elaboration为
+$A arrow.r.long^(?C) B$，不是把未显示字段填成 `pure/same`。有 initializer
+的 declaration求解 $?C$；高阶 input binder把未由 annotation约束的字段
+泛化为 rigid contract parameter，并创建单一 `AppliedContractV2`，把调用时
+用到的 row/world/flow/result/suspension/summary/usage/phase、$Q/Lambda$ 通过
+同一 `InvokeV2`/`PathBindV2` computation投影进 enclosing function contract。
+Declaration boundary不能留下未解 metavariable，interface必须序列化 solved
+contract或其显式 quantified binder。
+
+Core lambda binder携带显式、已 elaborated 的 annotation：
 
 $
   eta_f ::= ⟨A,B,Phi_f⟩

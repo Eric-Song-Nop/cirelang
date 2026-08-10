@@ -95,6 +95,14 @@ equality。它不能被普通用户构造，也不改变四种 surface mode。
 
 == Live <rule-live>
 
+#warning([
+  本小节的 `elab_live` / T-Live 是 retained TR0 proof notation，不是
+  `Cire-v1.0` 的第 22 个 first-party binding。Successor 的 closed 21-entry registry没有
+  generic `live { ... }` checkpoint constructor；只有 registry 已声明的 sealed binding可以
+  产生或消费 `Live[rho,A]`。普通同名函数仍按 ordinary call检查，不能取得本规则的 hidden
+  Observe identity、checkpoint lease或 lowering。
+])
+
 Core typing rule让 Owner 显式出现；surface `Live[A]` 可以把当前 Owner region
 作为 inferred/captured parameter 隐藏：
 
@@ -173,7 +181,7 @@ elab_liveρ(e):
 未解开的 open tail不能被假定为空，必须先由 row constraint证明其余 entry
 不存在。
 
-最小 surface 可近似：
+Retained TR0 中的最小 surface 近似为：
 
 ```text
 live : (() -> A ! {Observe}) -> Live[A]
@@ -238,6 +246,14 @@ live {
 则 checkpoint suffix未被复制，可以接受。
 
 == Signal
+
+#warning([
+  本小节的三参数 `map_signal(frame,input,transform)` 与二参数 `Next[i,Signal[i,A]]`
+  equation是 retained TR0 unfolding sketch。`Cire-v1.0` 的 canonical source binding只有
+  `(input,transform)` 两个 slot，clock identity从 `Signal[i,A]` 解出；Kernel tail必须携带
+  @signal-ui-protocol-v1 的 hidden `SignalTailContract[i,A]`。本节示例不定义 successor overload，
+  也不能覆盖 closed registry contract。
+])
 
 概念 coinductive equation：
 

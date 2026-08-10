@@ -2,15 +2,15 @@
 // expect: accept
 // sealed prelude: FrameClock, Next, delay, advance
 
-def![F : FrameClock] next_value(
-  frame : F,
+def next_value(
+  frame : FrameClock,
   value : Int,
 ) -> Next[frame, Int] ! {} {
   delay[frame] { value + 1 }
 }
 
-def![F : FrameClock] after_tick(
-  frame : F,
+def after_tick(
+  frame : FrameClock,
   pending : Next[frame, Int],
 ) -> Int ! {frame} {
   frame.yield()

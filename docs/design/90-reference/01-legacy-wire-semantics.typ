@@ -1,5 +1,6 @@
 #import "../shared.typ": *
 
+== Legacy contract semantics <legacy-contract-semantics>
 
 `StageV1` 是 closed enum；其他 string必须产生
 `unknown-obligation-stage`。`LegacyObligationV2` 不是 opaque escape hatch：其
@@ -646,5 +647,3 @@ target同样只按自身 declaration验证，caller scope仅支配 reference、s
 continuation/clause subtree，不得泄入 handler header、return或其他 clause。V2
 serializer/importer不得把其中任何一段降级成
 `ClauseFlowSetV1`、`SuffixContractV1` 或从旧 flow字段重建。
-
-Normative V2 import is context-sensitive and exhaustive:

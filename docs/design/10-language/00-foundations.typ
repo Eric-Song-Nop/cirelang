@@ -10,8 +10,11 @@
     `Cire-v1.0`
         本文是 token、lossless CST、表面 scope、grammar 以及 Surface 到
     evidence-indexed Kernel HIR elaboration 的唯一规范来源；完整、实现无关的
-    PEG 收录在 #ref(<surface-appendix-a>)。typed Core、静态 judgment、wire 与 runtime protocol
-    从 Kernel 边界起只由形式化文档定义。
+    PEG 收录在 #ref(<surface-appendix-a>)。一般 typed Core、静态 judgment、wire 与 runtime
+    protocol 从 Kernel 边界起由形式化章节定义。唯一显式例外是
+    #ref(<surface-8-4-1>) 的 closed first-party registry：Surface 拥有 source/Kernel
+    projection 及其确定性 M3 template 实例化，Formal 仍负责验证 exact output 并定义这些
+    Kernel/Core tag 的静态与动态意义。
   ],
 )
 

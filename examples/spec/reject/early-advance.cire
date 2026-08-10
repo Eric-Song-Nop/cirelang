@@ -2,8 +2,8 @@
 // expect: reject(no-matching-clock-lock)
 // sealed prelude: FrameClock, Next, advance
 
-def![F : FrameClock] bad(
-  frame : F,
+def bad(
+  frame : FrameClock,
   pending : Next[frame, Int],
 ) -> Int ! {} {
   advance(pending)
