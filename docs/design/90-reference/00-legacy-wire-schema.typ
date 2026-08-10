@@ -1,5 +1,12 @@
 #import "../shared.typ": *
 
+== Legacy wire schema <legacy-wire-schema>
+
+跨模块 artifact 不以裸字母作为 wire format。以下 V1/V2 schema只作为显式 legacy
+exact-decode输入。`Cire-v1.0` producer/importer必须使用
+@function-contract-v3 的 `CallableInterfaceV1 -> FunctionContractV3`，并对下列 V2
+nonterminal递归应用 M3；不能把 V2 root称为 successor public contract。
+
 ```text
 FunctionContractV1 {
   artifact: "FunctionContractV1"
